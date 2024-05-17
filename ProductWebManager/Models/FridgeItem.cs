@@ -7,7 +7,7 @@
         public Product Product { get; set; }
         public int UserId { get; set; }
         public int ProductId { get; set; }
-        public double Quanity { get; set; }
+        public double? Quanity { get; set; }
         public DateTime AddetAt { get; set; } = DateTime.UtcNow;
         public DateTime? ExpirationDate {  get; set; }
     }
