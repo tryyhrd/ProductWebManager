@@ -3,4 +3,24 @@
         <RouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)" />
         <FocusOnNavigate RouteData="routeData" Selector="h1" />
     </Found>
+    <NotFound>
+        <PageTitle>Не найдено</PageTitle>
+        <LayoutView Layout="typeof(Layout.MainLayout)">
+            <div class="text-center p-5">
+                <h1 class="text-muted" style="font-size: 72px;">404</h1>
+                <p class="text-muted">Страница @GetCurrentUrl() не найдена</p>
+                <a href="/" class="btn btn-add">На главную</a>
+            </div>
+        </LayoutView>
+    </NotFound>
 </Router>
+
+@code {
+    [Inject]
+    private NavigationManager Navigation { get; set; } = default!;
+
+    private string GetCurrentUrl()
+    {
+        return Navigation?.Uri ?? "";
+    }
+}

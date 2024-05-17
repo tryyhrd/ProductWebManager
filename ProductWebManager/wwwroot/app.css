@@ -1,13 +1,11 @@
 /* ========================================
-   —¬≈“À¿ﬂ “≈Ã¿ - ProductManager
+   —¬≈“À¿ﬂ “≈Ã¿ - ≈ƒ»Õ€… —“»À‹
    ======================================== */
 
-/* »ÏÔÓÚ ËÍÓÌÓÍ Open Iconic */
 @import url('open-iconic/font/css/open-iconic-bootstrap.min.css');
 
-/* === Œ—ÕŒ¬Õ€≈ œ≈–≈Ã≈ÕÕ€≈ === */
 :root {
-    --bg-primary: #f5f5f7;
+    --bg-primary: #f0f1f5;
     --bg-secondary: #ffffff;
     --bg-card: #ffffff;
     --bg-card-hover: #f8f9fa;
@@ -15,11 +13,10 @@
     --border-color: #e8e8ec;
     --border-light: #e0e0e4;
     --text-primary: #1a1a2e;
-    --text-secondary: #666;
+    --text-secondary: #555;
     --text-muted: #999;
     --accent-primary: #6c5ce7;
     --accent-primary-hover: #5a4bd1;
-    --accent-secondary: #7b73ff;
     --accent-success: #27ae60;
     --accent-danger: #e74c3c;
     --accent-warning: #f39c12;
@@ -27,14 +24,12 @@
     --sidebar-width: 250px;
 }
 
-/* === ¡¿«Œ¬€≈ —“»À» === */
 html, body {
     font-family: 'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif;
     background-color: var(--bg-primary);
     color: var(--text-primary);
 }
 
-/* === — –ŒÀÀ¡¿–€ === */
 ::-webkit-scrollbar {
     width: 6px;
 }
@@ -52,7 +47,6 @@ html, body {
         background: #b0b0b4;
     }
 
-/* === LINKS === */
 a, .btn-link {
     color: var(--accent-primary);
     text-decoration: none;
@@ -62,7 +56,6 @@ a, .btn-link {
         color: var(--accent-primary-hover);
     }
 
-/* === BUTTONS === */
 .btn-primary {
     color: #fff;
     background-color: var(--accent-primary);
@@ -86,11 +79,12 @@ a, .btn-link {
     background: var(--bg-primary);
 }
 
+/* —¬≈“À€… SIDEBAR */
 .sidebar {
     background: #ffffff;
     width: var(--sidebar-width);
     min-width: var(--sidebar-width);
-    border-right: 1px solid var(--border-color);
+    border-right: 1px solid #e8e8ec;
     box-shadow: 2px 0 12px rgba(0,0,0,0.04);
 }
 
@@ -101,9 +95,10 @@ main {
     background: var(--bg-primary);
 }
 
+/* —¬≈“À¿ﬂ ÿ¿œ ¿ */
 .top-row {
     background: #ffffff;
-    border-bottom: 1px solid var(--border-color);
+    border-bottom: 1px solid #e8e8ec;
     height: 3.5rem;
     display: flex;
     align-items: center;
@@ -114,19 +109,19 @@ main {
 
 .content {
     flex: 1;
-    background: var(--bg-primary);
+    background: #f0f1f5;
 }
 
-/* === SIDEBAR / NAVIGATION === */
+/* === SIDEBAR / NAVIGATION (—¬≈“À¿ﬂ “≈Ã¿) === */
 .navbar-brand {
-    font-size: 1.15rem;
-    font-weight: 600;
-    color: var(--text-primary) !important;
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: #1a1a2e !important;
     letter-spacing: 0.3px;
 }
 
 .navbar-toggler {
-    border-color: var(--border-light);
+    border-color: #e0e0e4;
     background-color: transparent;
 }
 
@@ -145,7 +140,7 @@ main {
 }
 
 .nav-item {
-    font-size: 0.875rem;
+    font-size: 0.9rem;
     padding: 0 0.5rem;
 }
 
@@ -158,32 +153,32 @@ main {
     }
 
 .nav-link {
-    color: var(--text-secondary) !important;
+    color: #555 !important;
     border-radius: 10px;
-    padding: 0.6rem 0.75rem;
+    padding: 0.7rem 0.85rem;
     margin: 2px 0;
     transition: all 0.2s ease;
     display: flex;
     align-items: center;
-    gap: 0.5rem;
-    font-weight: 450;
+    gap: 0.6rem;
+    font-weight: 500;
 }
 
     .nav-link:hover {
-        color: var(--text-primary) !important;
+        color: #1a1a2e !important;
         background: #f5f3ff;
     }
 
     .nav-link.active {
-        background: var(--accent-primary);
+        background: #6c5ce7;
         color: white !important;
-        font-weight: 500;
-        box-shadow: 0 2px 8px rgba(108, 92, 231, 0.3);
+        font-weight: 600;
+        box-shadow: 0 4px 12px rgba(108, 92, 231, 0.3);
     }
 
     .nav-link .oi {
-        font-size: 1rem;
-        width: 1.25rem;
+        font-size: 1.1rem;
+        width: 1.3rem;
     }
 
 /* === CARDS === */
@@ -389,8 +384,6 @@ h1, h2, h3, h4, h5, h6 {
 .validation-message {
     color: var(--accent-danger);
 }
-
-/* === ERROR BOUNDARY === */
 .blazor-error-boundary-custom {
     background: #fff5f5;
     border: 1px solid #ffd4d4;
@@ -422,7 +415,6 @@ h1, h2, h3, h4, h5, h6 {
     font-weight: 700 !important;
 }
 
-/* === RESPONSIVE === */
 @media (max-width: 768px) {
     .sidebar {
         width: 100%;
@@ -448,3 +440,17 @@ h1, h2, h3, h4, h5, h6 {
         height: calc(100vh - 3.5rem);
     }
 }
+
+.stat-card {
+    background: var(--bg-card, white);
+    border: 1px solid var(--border-color, #e8e8ec);
+    color: var(--text-primary, #1a1a2e);
+}
+
+.btn-add {
+    background: var(--accent-primary, #6c5ce7);
+}
+
+    .btn-add:hover {
+        background: var(--accent-primary-hover, #5a4bd1);
+    }

@@ -1,6 +1,4 @@
-﻿using ProductWebManager.Models;
-
-namespace ProductManager.Models
+﻿namespace ProductWebManager.Models
 {
     public class User
     {

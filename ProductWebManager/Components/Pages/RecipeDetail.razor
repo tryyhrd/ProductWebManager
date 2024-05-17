@@ -1,0 +1,552 @@
+﻿@page "/recipe/{id:int}"
+@inject NavigationManager Navigation
+
+<PageTitle>@recipe.Name</PageTitle>
+
+<div class="container-fluid p-4">
+    <!-- Верхняя панель с возвратом -->
+    <div class="d-flex align-items-center mb-4">
+        <button class="btn-back" @onclick="GoBack">
+            ← Назад
+        </button>
+        <h2 class="fw-bold m-0 ms-3" style="color: #1a1a2e;">@recipe.Name</h2>
+        <div class="ms-auto d-flex gap-2">
+            <button class="btn btn-add" @onclick="AddToShoppingList">
+                В список покупок
+            </button>
+            <button class="btn-favorite @(recipe.IsFavorite ? "active" : "")" @onclick="ToggleFavorite">
+                @(recipe.IsFavorite ? "❤️" : "🤍") В избранное
+            </button>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Левая колонка - Изображение и основная информация -->
+        <div class="col-lg-8">
+            <!-- Изображение -->
+            <div class="recipe-hero" style="background: linear-gradient(135deg, #6c5ce7, #a29bfe);">
+                <div class="recipe-hero-content">
+                    <div class="d-flex gap-2 mb-3">
+                        <span class="recipe-badge">⏱️ @recipe.CookingTime мин</span>
+                        <span class="recipe-badge">🔥 @recipe.Calories ккал</span>
+                        <span class="recipe-badge @GetDifficultyClass(recipe.Difficulty)">📊 @GetDifficultyText(recipe.Difficulty)</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Описание -->
+            <div class="content-card mt-3">
+                <h4 class="section-title">Описание</h4>
+                <p class="recipe-description">@recipe.Description</p>
+            </div>
+
+            <!-- Ингредиенты -->
+            <div class="content-card mt-3">
+                <h4 class="section-title">🧂 Ингредиенты</h4>
+                
+                <div class="ingredients-list">
+                    @foreach (var ingredient in recipe.Ingredients)
+                    {
+                        <div class="ingredient-row @(ingredient.IsAvailable ? "available" : "missing")">
+                            <div class="d-flex align-items-center">
+                                <span class="ingredient-status">
+                                    @if (ingredient.IsAvailable)
+                                    {
+                                        <span class="text-success">✅</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-danger">❌</span>
+                                    }
+                                </span>
+                                <span class="ingredient-name">@ingredient.Name</span>
+                            </div>
+                            <div class="d-flex align-items-center gap-3">
+                                <span class="ingredient-amount">@ingredient.Quantity @ingredient.Unit</span>
+                                @if (!ingredient.IsAvailable)
+                                {
+                                    <button class="btn-add-missing" @onclick="() => AddToShoppingListIngredient(ingredient)">
+                                        🛒
+                                    </button>
+                                }
+                            </div>
+                        </div>
+                    }
+                </div>
+
+                <!-- Прогресс наличия -->
+                <div class="availability-summary mt-3">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="text-muted-custom">Доступность ингредиентов</span>
+                        <span class="fw-semibold" style="color: @GetAvailabilityColor();">
+                            @GetAvailableCount() из @recipe.Ingredients.Count
+                        </span>
+                    </div>
+                    <div class="progress-bar-bg">
+                        <div class="progress-bar-fill" style="width: @GetAvailabilityPercent()%; background: @GetAvailabilityColor();"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Пошаговая инструкция -->
+            <div class="content-card mt-3">
+                <h4 class="section-title">👨‍🍳 Приготовление</h4>
+                
+                <div class="steps-list">
+                    @for (int i = 0; i < recipe.Instructions.Count; i++)
+                    {
+                        <div class="step-row">
+                            <div class="step-number">@(i + 1)</div>
+                            <div class="step-content">
+                                <p class="step-text">@recipe.Instructions[i]</p>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <!-- Правая колонка - Дополнительная информация -->
+        <div class="col-lg-4">
+            <!-- Быстрые действия -->
+            <div class="side-card">
+                <h5 class="side-card-title">Действия</h5>
+                <div class="d-grid gap-2">
+                    <button class="btn-action-primary" @onclick="CookRecipe">
+                        Начать готовить
+                    </button>
+                </div>
+            </div>
+
+            <!-- Пищевая ценность -->
+            <div class="side-card mt-3">
+                <h5 class="side-card-title">Пищевая ценность</h5>
+                <div class="nutrition-grid">
+                    <div class="nutrition-item">
+                        <div class="nutrition-value" style="color: #6c5ce7;">@recipe.Calories</div>
+                        <div class="nutrition-label">Калории</div>
+                    </div>
+                    <div class="nutrition-item">
+                        <div class="nutrition-value" style="color: #27ae60;">@recipe.Proteins г</div>
+                        <div class="nutrition-label">Белки</div>
+                    </div>
+                    <div class="nutrition-item">
+                        <div class="nutrition-value" style="color: #f39c12;">@recipe.Fats г</div>
+                        <div class="nutrition-label">Жиры</div>
+                    </div>
+                    <div class="nutrition-item">
+                        <div class="nutrition-value" style="color: #e74c3c;">@recipe.Carbs г</div>
+                        <div class="nutrition-label">Углеводы</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Информация -->
+            <div class="side-card mt-3">
+                <h5 class="side-card-title">ℹ️ Информация</h5>
+                <div class="info-list">
+                    <div class="info-row">
+                        <span>Время приготовления</span>
+                        <span class="fw-semibold">@recipe.CookingTime мин</span>
+                    </div>
+                    <div class="info-row">
+                        <span>Сложность</span>
+                        <span class="fw-semibold">@GetDifficultyText(recipe.Difficulty)</span>
+                    </div>
+                    <div class="info-row">
+                        <span>Категория</span>
+                        <span class="fw-semibold">@GetCategoryText(recipe.Category)</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    /* Кнопка назад */
+    .btn-back {
+        background: transparent;
+        border: 1px solid #e0e0e4;
+        border-radius: 8px;
+        padding: 6px 16px;
+        color: #666;
+        font-size: 14px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    .btn-back:hover { background: #f5f3ff; border-color: #6c5ce7; color: #6c5ce7; }
+
+    /* Кнопки действий */
+    .btn-add {
+        padding: 9px 18px;
+        border: none;
+        border-radius: 10px;
+        background: #6c5ce7;
+        color: white;
+        font-weight: 500;
+        font-size: 13px;
+        cursor: pointer;
+        box-shadow: 0 2px 8px rgba(108, 92, 231, 0.3);
+        transition: all 0.2s;
+    }
+    .btn-add:hover { background: #5a4bd1; }
+
+    .btn-favorite {
+        padding: 9px 18px;
+        border: 1px solid #e0e0e4;
+        border-radius: 10px;
+        background: white;
+        color: #666;
+        font-weight: 500;
+        font-size: 13px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    .btn-favorite:hover { background: #fff5f5; border-color: #ff6b6b; }
+    .btn-favorite.active { background: #fff5f5; border-color: #e74c3c; color: #e74c3c; }
+
+    /* Hero изображение */
+    .recipe-hero {
+        border-radius: 16px;
+        padding: 40px;
+        min-height: 250px;
+        display: flex;
+        align-items: flex-end;
+        box-shadow: 0 4px 20px rgba(108, 92, 231, 0.2);
+    }
+    .recipe-badge {
+        background: rgba(255,255,255,0.2);
+        color: white;
+        padding: 6px 14px;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: 500;
+        backdrop-filter: blur(10px);
+    }
+    .recipe-badge.easy { background: rgba(39, 174, 96, 0.6); }
+    .recipe-badge.medium { background: rgba(243, 156, 18, 0.6); }
+    .recipe-badge.hard { background: rgba(231, 76, 60, 0.6); }
+
+    /* Карточки контента */
+    .content-card {
+        background: white;
+        border: 1px solid #e8e8ec;
+        border-radius: 14px;
+        padding: 24px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    }
+    .section-title {
+        color: #1a1a2e;
+        font-size: 18px;
+        font-weight: 600;
+        margin-bottom: 16px;
+    }
+    .recipe-description {
+        color: #666;
+        font-size: 15px;
+        line-height: 1.7;
+    }
+
+    /* Ингредиенты */
+    .ingredients-list {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+    .ingredient-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 12px 16px;
+        border-radius: 10px;
+        transition: all 0.2s;
+    }
+    .ingredient-row.available { background: #f8fdf8; border: 1px solid #e8f5e9; }
+    .ingredient-row.missing { background: #fdf8f8; border: 1px solid #f5e8e8; }
+    .ingredient-status { margin-right: 12px; }
+    .ingredient-name { color: #1a1a2e; font-weight: 500; font-size: 14px; }
+    .ingredient-amount { color: #6c5ce7; font-weight: 600; font-size: 14px; }
+    .btn-add-missing {
+        background: #f0edff;
+        border: 1px solid #d5ccff;
+        border-radius: 6px;
+        padding: 4px 8px;
+        cursor: pointer;
+        font-size: 14px;
+        transition: all 0.2s;
+    }
+    .btn-add-missing:hover { background: #e0d8ff; }
+
+    /* Прогресс наличия */
+    .availability-summary {
+        padding: 12px 16px;
+        background: #fafafa;
+        border-radius: 10px;
+    }
+    .progress-bar-bg {
+        height: 6px;
+        background: #e8e8e8;
+        border-radius: 6px;
+        overflow: hidden;
+    }
+    .progress-bar-fill {
+        height: 100%;
+        border-radius: 6px;
+        transition: width 0.6s ease;
+    }
+
+    /* Шаги */
+    .steps-list {
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+    }
+    .step-row {
+        display: flex;
+        gap: 16px;
+    }
+    .step-number {
+        width: 36px;
+        height: 36px;
+        min-width: 36px;
+        border: 2px solid #6c5ce7;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #6c5ce7;
+        font-weight: 700;
+        font-size: 16px;
+    }
+    .step-content {
+        flex: 1;
+        padding-top: 6px;
+    }
+    .step-text {
+        color: #555;
+        font-size: 15px;
+        line-height: 1.6;
+        margin: 0;
+    }
+
+    /* Боковая панель */
+    .side-card {
+        background: white;
+        border: 1px solid #e8e8ec;
+        border-radius: 14px;
+        padding: 20px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    }
+    .side-card-title {
+        color: #1a1a2e;
+        font-size: 16px;
+        font-weight: 600;
+        margin-bottom: 16px;
+    }
+
+    /* Кнопки действий */
+    .btn-action-primary {
+        padding: 12px;
+        border: none;
+        border-radius: 10px;
+        background: #6c5ce7;
+        color: white;
+        font-weight: 500;
+        font-size: 14px;
+        cursor: pointer;
+        box-shadow: 0 2px 8px rgba(108, 92, 231, 0.3);
+        transition: all 0.2s;
+    }
+    .btn-action-primary:hover { background: #5a4bd1; }
+    .btn-action-secondary {
+        padding: 12px;
+        border: 1px solid #e0e0e4;
+        border-radius: 10px;
+        background: white;
+        color: #555;
+        font-weight: 500;
+        font-size: 14px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    .btn-action-secondary:hover { background: #f8f8fa; border-color: #ccc; }
+
+    /* Пищевая ценность */
+    .nutrition-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+    }
+    .nutrition-item {
+        text-align: center;
+        padding: 12px 8px;
+        background: #fafafa;
+        border-radius: 10px;
+    }
+    .nutrition-value { font-size: 20px; font-weight: 700; }
+    .nutrition-label { color: #999; font-size: 11px; margin-top: 4px; }
+
+    /* Информация */
+    .info-list {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+    .info-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        color: #666;
+        font-size: 13px;
+    }
+</style>
+
+@code {
+    [Parameter]
+    public int Id { get; set; }
+
+    private Recipe recipe = new();
+
+    public class Recipe
+    {
+        public int Id { get; set; }
+        public string Name { get; set; } = "";
+        public string Description { get; set; } = "";
+        public string Category { get; set; } = "";
+        public string Difficulty { get; set; } = "easy";
+        public int CookingTime { get; set; }
+        public int Calories { get; set; }
+        public int Servings { get; set; }
+        public int Proteins { get; set; }
+        public int Fats { get; set; }
+        public int Carbs { get; set; }
+        public bool IsFavorite { get; set; }
+        public List<Ingredient> Ingredients { get; set; } = new();
+        public List<string> Instructions { get; set; } = new();
+    }
+
+    public class Ingredient
+    {
+        public string Name { get; set; } = "";
+        public double Quantity { get; set; }
+        public string Unit { get; set; } = "";
+        public bool IsAvailable { get; set; }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadRecipe();
+    }
+
+    private async Task LoadRecipe()
+    {
+        await Task.Delay(100);
+        
+        recipe = new Recipe
+        {
+            Id = Id,
+            Name = "Паста Карбонара",
+            Description = "Классическая итальянская паста с беконом, яйцами и пармезаном. Сливочный соус обволакивает каждую макаронину, создавая невероятный вкус. Это блюдо, которое покорило весь мир своей простотой и изысканностью.",
+            Category = "dinner",
+            Difficulty = "easy",
+            CookingTime = 25,
+            Calories = 450,
+            Servings = 2,
+            Proteins = 25,
+            Fats = 22,
+            Carbs = 38,
+            IsFavorite = false,
+            Ingredients = new List<Ingredient>
+            {
+                new() { Name = "Спагетти", Quantity = 200, Unit = "г", IsAvailable = true },
+                new() { Name = "Бекон", Quantity = 100, Unit = "г", IsAvailable = true },
+                new() { Name = "Яйца", Quantity = 2, Unit = "шт.", IsAvailable = true },
+                new() { Name = "Пармезан", Quantity = 50, Unit = "г", IsAvailable = false },
+                new() { Name = "Чеснок", Quantity = 2, Unit = "зуб.", IsAvailable = true },
+                new() { Name = "Сливки 20%", Quantity = 100, Unit = "мл", IsAvailable = false },
+                new() { Name = "Соль", Quantity = 1, Unit = "щеп.", IsAvailable = true },
+                new() { Name = "Чёрный перец", Quantity = 1, Unit = "щеп.", IsAvailable = true }
+            },
+            Instructions = new List<string>
+            {
+                "Доведите большую кастрюлю подсоленной воды до кипения. Отварите спагетти согласно инструкции на упаковке до состояния аль денте.",
+                "Пока паста варится, нарежьте бекон небольшими кубиками. Обжарьте на сухой сковороде до хрустящей корочки.",
+                "В отдельной миске взбейте яйца с тёртым пармезаном и сливками. Добавьте свежемолотый чёрный перец.",
+                "Чеснок мелко порубите и добавьте к бекону за минуту до готовности.",
+                "Слейте воду с пасты, сохранив примерно 100 мл воды от варки. Верните пасту в кастрюлю.",
+                "Быстро влейте яичную смесь в горячую пасту, энергично перемешивая. Добавьте немного воды от варки для кремовой консистенции.",
+                "Добавьте обжаренный бекон с чесноком, перемешайте. Подавайте немедленно, посыпав дополнительным пармезаном."
+            }
+        };
+    }
+
+    private void GoBack() => Navigation.NavigateTo("/recipes");
+    private void ToggleFavorite() => recipe.IsFavorite = !recipe.IsFavorite;
+    
+    private void AddToShoppingList()
+    {
+        // TODO: Добавить все ингредиенты в список покупок
+    }
+    
+    private void AddToShoppingListIngredient(Ingredient ingredient)
+    {
+        // TODO: Добавить конкретный ингредиент в список покупок
+    }
+    
+    private void CookRecipe()
+    {
+        // TODO: Начать процесс готовки
+    }
+    
+    private void AddToMealPlan()
+    {
+        Navigation.NavigateTo("/menu");
+    }
+    
+    private void ShareRecipe()
+    {
+        // TODO: Поделиться рецептом
+    }
+
+    private int GetAvailableCount() => recipe.Ingredients.Count(i => i.IsAvailable);
+    
+    private double GetAvailabilityPercent() => 
+        recipe.Ingredients.Count > 0 ? (double)GetAvailableCount() / recipe.Ingredients.Count * 100 : 0;
+    
+    private string GetAvailabilityColor()
+    {
+        var percent = GetAvailabilityPercent();
+        if (percent >= 80) return "#27ae60";
+        if (percent >= 50) return "#f39c12";
+        return "#e74c3c";
+    }
+
+    private string GetDifficultyText(string difficulty) => difficulty switch
+    {
+        "easy" => "Легко",
+        "medium" => "Средне",
+        "hard" => "Сложно",
+        _ => "Легко"
+    };
+
+    private string GetDifficultyClass(string difficulty) => difficulty switch
+    {
+        "easy" => "easy",
+        "medium" => "medium",
+        "hard" => "hard",
+        _ => "easy"
+    };
+
+    private string GetCategoryText(string category) => category switch
+    {
+        "breakfast" => "🌅 Завтрак",
+        "lunch" => "🌞 Обед",
+        "dinner" => "🌙 Ужин",
+        "dessert" => "🍰 Десерт",
+        "snack" => "🥨 Перекус",
+        "salad" => "🥗 Салат",
+        "soup" => "🍜 Суп",
+        _ => "📦 Другое"
+    };
+}
