@@ -1,0 +1,166 @@
+﻿@page "/menu"
+@using ProductManager.Models @* Ваш namespace с моделями *@
+@inject Data.ProductManagerContext Db
+@inject NavigationManager Nav
+
+<PageTitle>Меню</PageTitle>
+
+<div class="container-fluid p-4">
+    <!-- Верхняя панель -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="fw-bold m-0">🍽️ Меню на неделю</h2>
+            <small class="text-muted-custom">Выберите или создайте меню</small>
+        </div>
+        <button class="btn btn-wpf-primary" @onclick="OpenFavorites">⭐ Избранное</button>
+    </div>
+
+    <div class="row">
+        <!-- Левая колонка: Списки меню и Холодильник -->
+        <div class="col-md-3">
+            <!-- Доступные меню -->
+            <div class="wpf-card">
+                <h5 class="fw-semibold text-white mb-3">📋 Меню</h5>
+                
+                <div style="max-height: 150px; overflow-y: auto;">
+                    @foreach (var menu in AvailableMenus)
+                    {
+                        <div class="d-flex justify-content-between align-items-start mb-2 border-bottom border-secondary pb-1">
+                            <div>
+                                <div class="fw-semibold small text-white">@menu.Name</div>
+                                <div class="text-muted-custom" style="font-size: 10px;">@menu.Description</div>
+                            </div>
+                            <button class="btn btn-wpf-icon" @onclick="(() => DeleteMenu(menu.Id))">🗑️</button>
+                        </div>
+                    }
+                </div>
+                
+                <button class="btn btn-wpf-primary w-100 mt-2" @onclick="LoadMenus">🔄 Обновить</button>
+            </div>
+
+            <!-- Холодильник -->
+            <div class="wpf-card mt-3">
+                <h5 class="fw-semibold text-white mb-3">📦 Холодильник</h5>
+                
+                <div class="input-group mb-3">
+                    <input type="text" class="form-control form-control-dark" @bind="NewProductName" placeholder="Продукт..." />
+                    <button class="btn btn-wpf-primary" @onclick="AddProduct">+</button>
+                </div>
+
+                <div style="max-height: 120px; overflow-y: auto;">
+                    @foreach (var item in FridgeItems)
+                    {
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <span class="small text-white">@item.Product.Name</span>
+                            <button class="btn btn-wpf-icon" style="font-size: 16px;" @onclick="(() => RemoveProduct(item.Id))">×</button>
+                        </div>
+                    }
+                </div>
+
+                <button class="btn btn-wpf-primary w-100 mt-2" @onclick="GenerateMenu">Сгенерировать меню</button>
+            </div>
+        </div>
+
+        <!-- Центральная колонка: Просмотр меню -->
+        <div class="col-md-6">
+            <div class="wpf-card">
+                <h4 class="fw-bold text-white">@SelectedMenuName</h4>
+                <p class="text-muted-custom small">@SelectedMenuDesc</p>
+                <button class="btn btn-wpf-secondary" @onclick="GenerateShoppingList">🛒 Список покупок</button>
+            </div>
+
+            <div style="max-height: 500px; overflow-y: auto;">
+                @if (WeeklyPlan.Any())
+                {
+                    @foreach (var dayPlan in WeeklyPlan)
+                    {
+                        <div class="wpf-card">
+                            <div class="text-accent fw-bold">@dayPlan.DayName</div>
+                            <div class="text-white fw-semibold small mt-1">@dayPlan.MealType</div>
+                            <p class="text-muted-custom small mt-2 mb-3">@dayPlan.RecipeTitle</p>
+                            @* <button class="btn btn-warning btn-sm text-white" style="font-size: 11px;" 
+                                    @onclick="(() => Nav.NavigateTo($"/recipe/{dayPlan.RecipeId}"))">
+                                📝 Рецепт
+                            </button> *@
+                        </div>
+                    }
+                }
+                else
+                {
+                    <div class="text-center text-muted-custom mt-5">Меню пусто. Сгенерируйте его слева.</div>
+                }
+            </div>
+        </div>
+
+        <!-- Правая колонка: Покупки и Профиль -->
+        <div class="col-md-3">
+            <!-- Список покупок -->
+            <div class="wpf-card">
+                <h5 class="fw-semibold text-white mb-3">🛒 Покупки</h5>
+                <p class="text-muted-custom small mb-3">@ShoppingInfoText</p>
+
+                <div style="max-height: 150px; overflow-y: auto;">
+                    @foreach (var item in ShoppingList)
+                    {
+                        <div class="d-flex align-items-center mb-2">
+                            <input type="checkbox" class="form-check-input me-2" @bind="item.IsPurchased" />
+                            <span class="small text-white flex-grow-1">@item.ProductName</span>
+                            <span class="small text-muted-custom">@item.Quantity @item.Unit</span>
+                        </div>
+                    }
+                </div>
+
+                <div class="d-flex justify-content-center mt-3 gap-2">
+                    <button class="btn btn-wpf-primary" @onclick="ExportList">📄 Экспорт</button>
+                    <button class="btn btn-danger btn-sm" style="font-size: 11px;" @onclick="ClearList">🗑️ Очистить</button>
+                </div>
+            </div>
+
+            <!-- Профиль -->
+            <div class="wpf-card mt-3">
+                <h5 class="fw-semibold text-white mb-2">👤 Профиль</h5>
+                <div class="text-muted-custom small">User: Admin</div>
+                @if (IsAdmin)
+                {
+                     <button class="btn btn-wpf-primary w-100 mt-2">Управление</button>
+                }
+            </div>
+        </div>
+    </div>
+    
+    <!-- Кнопка выхода внизу -->
+    <div class="d-flex justify-content-end mt-4">
+         <button class="btn btn-secondary" style="background: #666; color: white;" @* @onclick="(() => Nav.NavigateTo("/"))" *@>🔙 Выйти</button>
+    </div>
+</div>
+
+@code {
+    // --- MOCK DATA & LOGIC (Замените на вызовы сервисов) ---
+    private string NewProductName = "";
+    private string SelectedMenuName = "Меню не выбрано";
+    private string SelectedMenuDesc = "Выберите меню из списка";
+    private string ShoppingInfoText = "Выберите меню для генерации";
+    private bool IsAdmin = true;
+
+    private List<MenuModel> AvailableMenus = new() { new MenuModel { Id=1, Name="Недельное", Description="Базовое" } };
+    private List<FridgeItemModel> FridgeItems = new() { new FridgeItemModel { Id=1, Product=new ProductModel{Name="Молоко"} } };
+    private List<DayPlanModel> WeeklyPlan = new();
+    private List<ShoppingItemModel> ShoppingList = new();
+
+    // Модели для отображения (упрощенные)
+    public class MenuModel { public int Id { get; set; } public string Name { get; set; } public string Description { get; set; } }
+    public class FridgeItemModel { public int Id { get; set; } public ProductModel Product { get; set; } }
+    public class ProductModel { public string Name { get; set; } }
+    public class DayPlanModel { public string DayName { get; set; } public string MealType { get; set; } public string RecipeTitle { get; set; } public int RecipeId { get; set; } }
+    public class ShoppingItemModel { public string ProductName { get; set; } public double Quantity { get; set; } public string Unit { get; set; } public bool IsPurchased { get; set; } }
+
+    private void LoadMenus() { /* Load from DB */ }
+    private void DeleteMenu(int id) { /* Delete from DB */ }
+    private void AddProduct() { /* Add to DB */ }
+    private void RemoveProduct(int id) { /* Remove from DB */ }
+    private void GenerateMenu() { /* Logic */ }
+    private void GenerateShoppingList() { /* Logic */ }
+    private void ExportList() { /* Logic */ }
+    private void ClearList() { ShoppingList.Clear(); }
+    private void OpenFavorites() { }
+}

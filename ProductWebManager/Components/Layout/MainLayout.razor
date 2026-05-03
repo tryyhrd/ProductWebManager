@@ -1,0 +1,35 @@
+﻿@inherits LayoutComponentBase
+
+<div class="page">
+    <div class="sidebar">
+        <NavMenu />
+    </div>
+
+    <main>
+        <div class="top-row px-4">
+            <div class="d-flex align-items-center h-100">
+                <span class="me-3 text-light">👤 Admin</span>
+                <button class="btn btn-outline-light btn-sm" @onclick="Logout">
+                    🚪 Выйти
+                </button>
+            </div>
+        </div>
+
+        <article class="content px-4">
+            @Body
+        </article>
+    </main>
+</div>
+
+<div id="blazor-error-ui" class="blazor-error-boundary-custom">
+    Произошла ошибка.
+    <a href="" class="reload">Перезагрузить</a>
+    <a class="dismiss">🗙</a>
+</div>
+
+@code {
+    private void Logout()
+    {
+        // TODO: Реализовать выход
+    }
+}

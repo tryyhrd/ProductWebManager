@@ -1,0 +1,591 @@
+﻿@page "/"
+@inject NavigationManager Navigation
+
+<PageTitle>Холодильник</PageTitle>
+
+<div class="container-fluid p-4">
+    <!-- Верхняя панель -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="fw-bold m-0">📦 Холодильник</h2>
+            <small class="text-muted-custom">Управление продуктами</small>
+        </div>
+        <div class="d-flex gap-2">
+            <button class="btn btn-wpf-primary" @onclick="OpenAddModal">
+                ➕ Добавить продукт
+            </button>
+            <button class="btn btn-wpf-secondary" @onclick="GoToMenu">
+                🍽️ Меню
+            </button>
+        </div>
+    </div>
+
+    <!-- Статистика -->
+    <div class="row mb-4">
+        <div class="col-md-4 mb-3">
+            <div class="wpf-card-stat text-center">
+                <div class="text-muted-custom small mb-1">ВСЕГО ПРОДУКТОВ</div>
+                <div class="fw-bold text-white" style="font-size: 32px;">@products.Count</div>
+            </div>
+        </div>
+        <div class="col-md-4 mb-3">
+            <div class="wpf-card-stat text-center" style="border: 1px solid #ff4757;">
+                <div class="text-muted-custom small mb-1">ИСТЕКАЮТ СЕГОДНЯ</div>
+                <div class="fw-bold" style="font-size: 32px; color: #ff4757;">@expiringToday</div>
+            </div>
+        </div>
+        <div class="col-md-4 mb-3">
+            <div class="wpf-card-stat text-center" style="border: 1px solid #ffa502;">
+                <div class="text-muted-custom small mb-1">ИСТЕКАЮТ ЗА НЕДЕЛЮ</div>
+                <div class="fw-bold" style="font-size: 32px; color: #ffa502;">@expiringThisWeek</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Поиск и фильтры -->
+    <div class="wpf-card mb-4">
+        <div class="row g-3">
+            <div class="col-md-6">
+                <input type="text" 
+                       class="form-control form-control-dark" 
+                       placeholder="🔍 Поиск продуктов..." 
+                       @bind="searchQuery"
+                       @bind:event="oninput"
+                       @onkeyup="FilterProducts" />
+            </div>
+            <div class="col-md-3">
+                <select class="form-control form-control-dark" @bind="sortBy" @bind:event="onchange"@*  @onchange="SortProducts" *@>
+                    <option value="name">По названию</option>
+                    <option value="date">По дате добавления</option>
+                    <option value="expiry">По сроку годности</option>
+                    <option value="quantity">По количеству</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <select class="form-control form-control-dark" @bind="filterCategory" @bind:event="onchange" @* @onchange="FilterProducts" *@>
+                    <option value="">Все категории</option>
+                    <option value="dairy">Молочные</option>
+                    <option value="meat">Мясо</option>
+                    <option value="vegetables">Овощи</option>
+                    <option value="fruits">Фрукты</option>
+                    <option value="other">Другое</option>
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <!-- Список продуктов -->
+    <div class="row">
+        @if (filteredProducts.Any())
+        {
+            @foreach (var product in filteredProducts)
+            {
+                <div class="col-md-6 col-lg-4 mb-3">
+                    <div class="wpf-card @GetExpiryCardClass(product.ExpiryDate)">
+                        <!-- Заголовок карточки -->
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <div>
+                                <h5 class="fw-semibold text-white mb-1">@product.Name</h5>
+                                <span class="badge bg-secondary">@GetCategoryDisplay(product.Category)</span>
+                            </div>
+                            <div class="d-flex gap-1">
+                                <button class="btn btn-wpf-icon" @onclick="() => OpenEditModal(product)" title="Редактировать">
+                                    ✏️
+                                </button>
+                                <button class="btn btn-wpf-icon" @onclick="() => ConfirmDeleteProduct(product)" title="Удалить">
+                                    🗑️
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Информация о продукте -->
+                        <div class="row mb-2">
+                            <div class="col-6">
+                                <div class="text-muted-custom small">Количество</div>
+                                <div class="text-white fw-semibold">
+                                    @product.Quantity @product.Unit
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="text-muted-custom small">Добавлен</div>
+                                <div class="text-white fw-semibold">
+                                    @product.AddedDate.ToString("dd.MM.yyyy")
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Срок годности с прогресс-баром -->
+                        <div class="mt-3">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <span class="text-muted-custom small">Срок годности</span>
+                                <span class="small @GetExpiryTextColor(product.ExpiryDate)">
+                                    @GetExpiryStatus(product.ExpiryDate)
+                                </span>
+                            </div>
+                            
+                            <div class="progress" style="height: 8px; background: #1a1a2e;">
+                                <div class="progress-bar @GetProgressBarClass(product.ExpiryDate)" 
+                                     role="progressbar" 
+                                     style="width: @GetExpiryProgress(product.ExpiryDate)%"
+                                     aria-valuenow="@GetExpiryProgress(product.ExpiryDate)" 
+                                     aria-valuemin="0" 
+                                     aria-valuemax="100">
+                                </div>
+                            </div>
+                            
+                            <div class="d-flex justify-content-between mt-1">
+                                <small class="text-muted-custom">@product.ExpiryDate.ToString("dd.MM.yyyy")</small>
+                                <small class="text-muted-custom">@GetDaysUntilExpiry(product.ExpiryDate)</small>
+                            </div>
+                        </div>
+
+                        <!-- Кнопки управления -->
+                        <div class="d-flex gap-2 mt-3">
+                            <button class="btn btn-wpf-secondary btn-sm flex-grow-1" 
+                                    @onclick="() => UpdateQuantity(product, -1)"
+                                    disabled="@(product.Quantity <= 1)">
+                                ➖
+                            </button>
+                            <button class="btn btn-wpf-secondary btn-sm flex-grow-1" 
+                                    @onclick="() => UpdateQuantity(product, 1)">
+                                ➕
+                            </button>
+                            <button class="btn btn-warning btn-sm text-white" 
+                                    @onclick="() => QuickAddRecipe(product)">
+                                🍳
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            }
+        }
+        else
+        {
+            <div class="col-12">
+                <div class="wpf-card text-center py-5">
+                    <div style="font-size: 64px; opacity: 0.3;">🛒</div>
+                    <h4 class="text-muted-custom">Холодильник пуст</h4>
+                    <p class="text-muted-custom mb-3">Добавьте продукты, чтобы начать</p>
+                    <button class="btn btn-wpf-primary" @onclick="OpenAddModal">
+                        ➕ Добавить первый продукт
+                    </button>
+                </div>
+            </div>
+        }
+    </div>
+</div>
+
+<!-- Модальное окно добавления/редактирования -->
+@if (showModal)
+{
+    <div class="modal-backdrop" @onclick="CloseModal">
+        <div class="modal-content wpf-card" @onclick:stopPropagation="true">
+            <h4 class="text-white mb-3">@(isEditing ? "✏️ Редактировать" : "➕ Добавить") продукт</h4>
+            
+            <div class="form-group mb-3">
+                <label class="text-muted-custom small mb-1">Название</label>
+                <input type="text" class="form-control form-control-dark" @bind="currentProduct.Name" />
+            </div>
+            
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <label class="text-muted-custom small mb-1">Количество</label>
+                    <input type="number" class="form-control form-control-dark" @bind="currentProduct.Quantity" min="1" />
+                </div>
+                <div class="col-md-6">
+                    <label class="text-muted-custom small mb-1">Единица измерения</label>
+                    <select class="form-control form-control-dark" @bind="currentProduct.Unit">
+                        <option value="шт.">шт.</option>
+                        <option value="кг">кг</option>
+                        <option value="г">г</option>
+                        <option value="л">л</option>
+                        <option value="мл">мл</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="form-group mb-3">
+                <label class="text-muted-custom small mb-1">Категория</label>
+                <select class="form-control form-control-dark" @bind="currentProduct.Category">
+                    <option value="dairy">Молочные</option>
+                    <option value="meat">Мясо</option>
+                    <option value="vegetables">Овощи</option>
+                    <option value="fruits">Фрукты</option>
+                    <option value="other">Другое</option>
+                </select>
+            </div>
+            
+            <div class="form-group mb-4">
+                <label class="text-muted-custom small mb-1">Срок годности</label>
+                <input type="date" class="form-control form-control-dark" @* @bind="currentProduct.ExpiryDateString" *@ />
+            </div>
+            
+            <div class="d-flex gap-2">
+                <button class="btn btn-wpf-primary flex-grow-1" @onclick="SaveProduct">
+                    💾 Сохранить
+                </button>
+                <button class="btn btn-wpf-secondary flex-grow-1" @onclick="CloseModal">
+                    ❌ Отмена
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Модальное окно подтверждения удаления -->
+@if (showDeleteConfirm)
+{
+    <div class="modal-backdrop" @onclick="CancelDelete">
+        <div class="modal-content wpf-card" @onclick:stopPropagation="true" style="max-width: 400px;">
+            <h4 class="text-white mb-3">🗑️ Подтверждение</h4>
+            <p class="text-muted-custom mb-4">
+                Вы действительно хотите удалить продукт <strong class="text-white">@productToDelete?.Name</strong>?
+            </p>
+            <div class="d-flex gap-2">
+                <button class="btn btn-danger flex-grow-1" @onclick="DeleteProduct">
+                    🗑️ Удалить
+                </button>
+                <button class="btn btn-wpf-secondary flex-grow-1" @onclick="CancelDelete">
+                    ❌ Отмена
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    .modal-backdrop {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.7);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+    }
+    
+    .modal-content {
+        max-width: 500px;
+        width: 90%;
+    }
+    
+    .progress-bar-danger {
+        background: linear-gradient(90deg, #ff4757, #ff6b81);
+    }
+    
+    .progress-bar-warning {
+        background: linear-gradient(90deg, #ffa502, #ffbe76);
+    }
+    
+    .progress-bar-safe {
+        background: linear-gradient(90deg, #6c63ff, #8b83ff);
+    }
+    
+    .card-expired {
+        border: 2px solid #ff4757 !important;
+    }
+    
+    .card-expiring-soon {
+        border: 2px solid #ffa502 !important;
+    }
+</style>
+
+@code {
+    private List<Product> products = new();
+    private List<Product> filteredProducts = new();
+    private string searchQuery = "";
+    private string sortBy = "name";
+    private string filterCategory = "";
+    
+    private bool showModal = false;
+    private bool isEditing = false;
+    private bool showDeleteConfirm = false;
+    private Product currentProduct = new();
+    private Product? productToDelete;
+    
+    private int expiringToday = 0;
+    private int expiringThisWeek = 0;
+
+    public class Product
+    {
+        public int Id { get; set; }
+        public string Name { get; set; } = "";
+        public double Quantity { get; set; } = 1;
+        public string Unit { get; set; } = "шт.";
+        public DateTime AddedDate { get; set; } = DateTime.Now;
+        public DateTime ExpiryDate { get; set; } = DateTime.Now.AddDays(7);
+        public string Category { get; set; } = "other";
+        
+        public string ExpiryDateString
+        {
+            get => ExpiryDate.ToString("yyyy-MM-dd");
+            set => ExpiryDate = DateTime.Parse(value);
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadProducts();
+    }
+
+    private async Task LoadProducts()
+    {
+        // TODO: Загрузить из сервиса
+        await Task.Delay(100);
+        
+        products = new List<Product>
+        {
+            new() { 
+                Id = 1, Name = "Молоко", Quantity = 1, Unit = "л", 
+                Category = "dairy", ExpiryDate = DateTime.Now.AddDays(2), AddedDate = DateTime.Now.AddDays(-5) 
+            },
+            new() { 
+                Id = 2, Name = "Яйца", Quantity = 10, Unit = "шт.", 
+                Category = "other", ExpiryDate = DateTime.Now.AddDays(14), AddedDate = DateTime.Now.AddDays(-3) 
+            },
+            new() { 
+                Id = 3, Name = "Курица", Quantity = 500, Unit = "г", 
+                Category = "meat", ExpiryDate = DateTime.Now, AddedDate = DateTime.Now.AddDays(-2) 
+            },
+            new() { 
+                Id = 4, Name = "Помидоры", Quantity = 3, Unit = "шт.", 
+                Category = "vegetables", ExpiryDate = DateTime.Now.AddDays(5), AddedDate = DateTime.Now.AddDays(-1) 
+            },
+            new() { 
+                Id = 5, Name = "Яблоки", Quantity = 5, Unit = "шт.", 
+                Category = "fruits", ExpiryDate = DateTime.Now.AddDays(10), AddedDate = DateTime.Now.AddDays(-4) 
+            },
+            new() { 
+                Id = 6, Name = "Сыр", Quantity = 200, Unit = "г", 
+                Category = "dairy", ExpiryDate = DateTime.Now.AddDays(-1), AddedDate = DateTime.Now.AddDays(-10) 
+            }
+        };
+        
+        UpdateStats();
+        FilterProducts();
+    }
+
+    private void UpdateStats()
+    {
+        expiringToday = products.Count(p => p.ExpiryDate.Date == DateTime.Now.Date);
+        expiringThisWeek = products.Count(p => 
+            p.ExpiryDate.Date > DateTime.Now.Date && p.ExpiryDate.Date <= DateTime.Now.AddDays(7).Date);
+    }
+
+    private void FilterProducts()
+    {
+        var query = products.AsEnumerable();
+        
+        if (!string.IsNullOrWhiteSpace(searchQuery))
+        {
+            query = query.Where(p => p.Name.Contains(searchQuery, StringComparison.OrdinalIgnoreCase));
+        }
+        
+        if (!string.IsNullOrEmpty(filterCategory))
+        {
+            query = query.Where(p => p.Category == filterCategory);
+        }
+        
+        filteredProducts = SortProductsInternal(query.ToList());
+    }
+
+    private void SortProducts(ChangeEventArgs e)
+    {
+        sortBy = e.Value?.ToString() ?? "name";
+        FilterProducts();
+    }
+
+    private List<Product> SortProductsInternal(List<Product> list)
+    {
+        return sortBy switch
+        {
+            "date" => list.OrderByDescending(p => p.AddedDate).ToList(),
+            "expiry" => list.OrderBy(p => p.ExpiryDate).ToList(),
+            "quantity" => list.OrderByDescending(p => p.Quantity).ToList(),
+            _ => list.OrderBy(p => p.Name).ToList()
+        };
+    }
+
+    private void OpenAddModal()
+    {
+        currentProduct = new Product();
+        isEditing = false;
+        showModal = true;
+    }
+
+    private void OpenEditModal(Product product)
+    {
+        currentProduct = new Product
+        {
+            Id = product.Id,
+            Name = product.Name,
+            Quantity = product.Quantity,
+            Unit = product.Unit,
+            Category = product.Category,
+            ExpiryDate = product.ExpiryDate,
+            AddedDate = product.AddedDate
+        };
+        isEditing = true;
+        showModal = true;
+    }
+
+    private void CloseModal()
+    {
+        showModal = false;
+        currentProduct = new Product();
+    }
+
+    private async Task SaveProduct()
+    {
+        if (string.IsNullOrWhiteSpace(currentProduct.Name))
+            return;
+
+        if (isEditing)
+        {
+            var existing = products.FirstOrDefault(p => p.Id == currentProduct.Id);
+            if (existing != null)
+            {
+                existing.Name = currentProduct.Name;
+                existing.Quantity = currentProduct.Quantity;
+                existing.Unit = currentProduct.Unit;
+                existing.Category = currentProduct.Category;
+                existing.ExpiryDate = currentProduct.ExpiryDate;
+            }
+        }
+        else
+        {
+            currentProduct.Id = products.Any() ? products.Max(p => p.Id) + 1 : 1;
+            currentProduct.AddedDate = DateTime.Now;
+            products.Add(currentProduct);
+        }
+        
+        // TODO: Сохранить в БД
+        UpdateStats();
+        FilterProducts();
+        CloseModal();
+        
+        await Task.CompletedTask;
+    }
+
+    private void ConfirmDeleteProduct(Product product)
+    {
+        productToDelete = product;
+        showDeleteConfirm = true;
+    }
+
+    private void CancelDelete()
+    {
+        showDeleteConfirm = false;
+        productToDelete = null;
+    }
+
+    private async Task DeleteProduct()
+    {
+        if (productToDelete != null)
+        {
+            products.Remove(productToDelete);
+            // TODO: Удалить из БД
+            UpdateStats();
+            FilterProducts();
+        }
+        CancelDelete();
+        await Task.CompletedTask;
+    }
+
+    private async Task UpdateQuantity(Product product, int delta)
+    {
+        var newQuantity = product.Quantity + delta;
+        if (newQuantity < 0) newQuantity = 0;
+        
+        if (newQuantity == 0)
+        {
+            ConfirmDeleteProduct(product);
+        }
+        else
+        {
+            product.Quantity = newQuantity;
+        }
+        
+        // TODO: Обновить в БД
+        FilterProducts();
+        await Task.CompletedTask;
+    }
+
+    private void QuickAddRecipe(Product product)
+    {
+        Navigation.NavigateTo($"/menu?product={product.Id}");
+    }
+
+    private void GoToMenu()
+    {
+        Navigation.NavigateTo("/menu");
+    }
+
+    // Методы для отображения
+    private double GetExpiryProgress(DateTime expiryDate)
+    {
+        var totalDays = 14; // Предполагаем, что продукты хранятся в среднем 14 дней
+        var daysLeft = (expiryDate - DateTime.Now).TotalDays;
+        var progress = (daysLeft / totalDays) * 100;
+        return Math.Max(0, Math.Min(100, progress));
+    }
+
+    private string GetProgressBarClass(DateTime expiryDate)
+    {
+        var daysLeft = (expiryDate - DateTime.Now).TotalDays;
+        if (daysLeft <= 0) return "progress-bar-danger";
+        if (daysLeft <= 3) return "progress-bar-warning";
+        return "progress-bar-safe";
+    }
+
+    private string GetExpiryCardClass(DateTime expiryDate)
+    {
+        var daysLeft = (expiryDate - DateTime.Now).TotalDays;
+        if (daysLeft <= 0) return "card-expired";
+        if (daysLeft <= 2) return "card-expiring-soon";
+        return "";
+    }
+
+    private string GetExpiryStatus(DateTime expiryDate)
+    {
+        var daysLeft = (expiryDate - DateTime.Now).TotalDays;
+        if (daysLeft <= 0) return "❌ Просрочен";
+        if (daysLeft <= 1) return "⚠️ Истекает сегодня";
+        if (daysLeft <= 3) return $"⚡ {Math.Ceiling(daysLeft)} дня";
+        return $"✅ {Math.Ceiling(daysLeft)} дней";
+    }
+
+    private string GetExpiryTextColor(DateTime expiryDate)
+    {
+        var daysLeft = (expiryDate - DateTime.Now).TotalDays;
+        if (daysLeft <= 0) return "text-danger";
+        if (daysLeft <= 3) return "text-warning";
+        return "text-success";
+    }
+
+    private string GetDaysUntilExpiry(DateTime expiryDate)
+    {
+        var daysLeft = Math.Ceiling((expiryDate - DateTime.Now).TotalDays);
+        return daysLeft switch
+        {
+            <= 0 => "Просрочен",
+            1 => "1 день",
+            _ => $"{daysLeft} дней"
+        };
+    }
+
+    private string GetCategoryDisplay(string category)
+    {
+        return category switch
+        {
+            "dairy" => "🥛 Молочные",
+            "meat" => "🥩 Мясо",
+            "vegetables" => "🥬 Овощи",
+            "fruits" => "🍎 Фрукты",
+            _ => "📦 Другое"
+        };
+    }
+}
