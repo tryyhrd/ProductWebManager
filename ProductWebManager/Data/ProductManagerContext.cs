@@ -1,5 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
-using ProductManager.Models;
+using ProductWebManager.Models;
 
 namespace ProductWebManager.Data
 {
@@ -14,7 +14,12 @@ namespace ProductWebManager.Data
         public DbSet<Recipe> Recipes { get; set; }
         public ProductManagerContext(DbContextOptions<ProductManagerContext> options)
             :base(options)
-        { 
+        {
+            
+        }
+        public ProductManagerContext()
+        {
+            Database.EnsureCreated();
         }
     }
 }

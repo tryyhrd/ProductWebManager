@@ -1,0 +1,644 @@
+﻿@page "/favorites"
+@inject NavigationManager Navigation
+
+<PageTitle>Избранное</PageTitle>
+
+<div class="container-fluid p-4">
+    <!-- Верхняя панель -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="fw-bold m-0" style="color: #1a1a2e;">⭐ Избранные рецепты</h2>
+            <small style="color: #888;">@favoriteRecipes.Count @GetRecipeWord(favoriteRecipes.Count) в избранном</small>
+        </div>
+    </div>
+
+    <!-- Список избранного -->
+    @if (favoriteRecipes.Any())
+    {
+        <div class="row">
+            @foreach (var recipe in favoriteRecipes)
+            {
+                <div class="col-md-6 col-lg-4 mb-3">
+                    <div class="favorite-card">
+                        <!-- Изображение -->
+                        <div class="favorite-image" style="background: @GetRecipeGradient(recipe.Category);">
+                            <button class="btn-remove-favorite" @onclick="() => RemoveFromFavorites(recipe)" title="Удалить из избранного">
+                                ✕
+                            </button>
+                            <div class="favorite-badge">❤️</div>
+                        </div>
+
+                        <!-- Информация -->
+                        <div class="favorite-info">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <div>
+                                    <h6 class="recipe-name">@recipe.Name</h6>
+                                    <span class="recipe-category">@GetCategoryDisplay(recipe.Category)</span>
+                                </div>
+                            </div>
+
+                            <p class="recipe-desc">@recipe.Description</p>
+
+                            <div class="recipe-stats">
+                                <span class="stat-item">⏱️ @recipe.CookingTime мин</span>
+                                <span class="stat-item">🔥 @recipe.Calories ккал</span>
+                            </div>
+
+                            <!-- Ингредиенты -->
+                            <div class="ingredients-preview mt-2">
+                                <div class="d-flex align-items-center gap-2">
+                                    <div class="availability-bar">
+                                        <div class="availability-fill"
+                                             style="width: @GetAvailabilityPercent(recipe)%; background: @GetAvailabilityColor(recipe);">
+                                        </div>
+                                    </div>
+                                    <span class="availability-text" style="color: @GetAvailabilityColor(recipe);">
+                                        @GetAvailableCount(recipe)/@recipe.Ingredients.Count инг.
+                                    </span>
+                                </div>
+                            </div>
+
+                            <!-- Дата добавления -->
+                            <div class="added-date mt-2">
+                                Добавлен @recipe.AddedToFavorites.ToString("dd.MM.yyyy")
+                            </div>
+
+                            <!-- Кнопки -->
+                            <div class="d-flex gap-2 mt-3">
+                                <a href="@($"/recipe/{recipe.Id}")"
+                                   class="btn-recipe-view flex-grow-1 text-center text-decoration-none">
+                                    Открыть
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+
+        <!-- Действия -->
+        <div class="d-flex gap-2 justify-content-center mt-4">
+            <button class="btn btn-menu" @onclick="ExportFavorites">
+                Экспорт списка
+            </button>
+            <button class="btn btn-menu" @onclick="ClearAllFavorites">
+                Очистить всё
+            </button>
+        </div>
+    }
+    else
+    {
+        <!-- Пустое состояние -->
+        <div class="empty-state">
+            <div class="empty-icon">⭐</div>
+            <h4 style="color: #555; margin-top: 16px;">Нет избранных рецептов</h4>
+            <p style="color: #999; margin-bottom: 16px;">
+                Добавляйте рецепты в избранное, нажимая на ❤️
+            </p>
+            <div class="d-flex gap-2 justify-content-center">
+                <button class="btn btn-add" @* @onclick="() => Navigation.NavigateTo('/recipes')" *@>
+                    📖 Найти рецепты
+                </button>
+                <button class="btn btn-menu" @onclick="RefreshFavorites">
+                    🔄 Обновить
+                </button>
+            </div>
+        </div>
+    }
+
+    @if (showDeleteConfirm)
+    {
+        <div class="modal-overlay" @onclick="CancelDelete">
+            <div class="modal-dialog" @onclick:stopPropagation="true" style="max-width: 380px;">
+                <h4 style="color: #1a1a2e; margin-bottom: 16px; font-weight: 600;">🗑️ Подтверждение</h4>
+                <p style="color: #666; margin-bottom: 20px;">
+                    Удалить <strong style="color: #e74c3c;">@recipeToDelete?.Name</strong> из избранного?
+                </p>
+                <div class="d-flex gap-2">
+                    <button class="btn-modal-delete" @onclick="ConfirmDelete">Удалить</button>
+                    <button class="btn-modal-cancel" @onclick="CancelDelete">Отмена</button>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+<style>
+    /* Кнопки */
+    .btn-add {
+        padding: 8px 18px;
+        border: none;
+        border-radius: 8px;
+        background: #6c5ce7;
+        color: white;
+        font-weight: 500;
+        font-size: 13px;
+        cursor: pointer;
+        box-shadow: 0 2px 6px rgba(108, 92, 231, 0.3);
+        transition: all 0.2s;
+    }
+
+        .btn-add:hover {
+            background: #5a4bd1;
+        }
+
+    .btn-menu {
+        padding: 8px 18px;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        background: white;
+        color: #555;
+        font-weight: 500;
+        font-size: 13px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+        .btn-menu:hover {
+            background: #f8f8fa;
+            border-color: #ccc;
+        }
+
+    /* Карточка избранного */
+    .favorite-card {
+        background: white;
+        border: 1px solid #eee;
+        border-radius: 16px;
+        overflow: hidden;
+        transition: all 0.3s;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+        height: 100%;
+    }
+
+        .favorite-card:hover {
+            box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+            transform: translateY(-4px);
+        }
+
+    .favorite-image {
+        height: 140px;
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .btn-remove-favorite {
+        position: absolute;
+        top: 12px;
+        right: 12px;
+        background: rgba(0,0,0,0.5);
+        border: none;
+        border-radius: 50%;
+        width: 28px;
+        height: 28px;
+        color: white;
+        font-size: 14px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s;
+        backdrop-filter: blur(4px);
+    }
+
+        .btn-remove-favorite:hover {
+            background: rgba(231, 76, 60, 0.8);
+        }
+
+    .favorite-badge {
+        font-size: 48px;
+        filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
+    }
+
+    .favorite-info {
+        padding: 16px;
+    }
+
+    .recipe-name {
+        color: #1a1a2e;
+        font-size: 15px;
+        font-weight: 600;
+        margin-bottom: 2px;
+    }
+
+    .recipe-category {
+        color: #888;
+        font-size: 11px;
+    }
+
+    .recipe-desc {
+        color: #999;
+        font-size: 12px;
+        margin: 8px 0;
+        line-height: 1.4;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+
+    .difficulty-badge {
+        padding: 2px 8px;
+        border-radius: 10px;
+        font-size: 10px;
+        font-weight: 500;
+    }
+
+        .difficulty-badge.easy {
+            background: #e8f5e9;
+            color: #27ae60;
+        }
+
+        .difficulty-badge.medium {
+            background: #fff8e1;
+            color: #f39c12;
+        }
+
+        .difficulty-badge.hard {
+            background: #ffebee;
+            color: #e74c3c;
+        }
+
+    .recipe-stats {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+        margin-top: 8px;
+    }
+
+    .stat-item {
+        color: #999;
+        font-size: 11px;
+    }
+
+    .ingredients-preview {
+        padding: 8px 10px;
+        background: #fafafa;
+        border-radius: 8px;
+    }
+
+    .availability-bar {
+        flex: 1;
+        height: 4px;
+        background: #e8e8e8;
+        border-radius: 4px;
+        overflow: hidden;
+    }
+
+    .availability-fill {
+        height: 100%;
+        border-radius: 4px;
+        transition: width 0.3s;
+    }
+
+    .availability-text {
+        font-size: 11px;
+        font-weight: 500;
+        white-space: nowrap;
+    }
+
+    .added-date {
+        color: #bbb;
+        font-size: 10px;
+    }
+
+    .btn-recipe-view {
+        padding: 8px;
+        border: 1px solid #e0e0e4;
+        border-radius: 8px;
+        background: white;
+        color: #555;
+        font-size: 12px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+        .btn-recipe-view:hover {
+            background: #f5f3ff;
+            border-color: #6c5ce7;
+            color: #6c5ce7;
+        }
+
+    .btn-recipe-cook {
+        padding: 8px 12px;
+        border: 1px solid #d4ffd4;
+        border-radius: 8px;
+        background: #f0fff4;
+        color: #27ae60;
+        font-size: 14px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+        .btn-recipe-cook:hover {
+            background: #e0ffe0;
+            border-color: #27ae60;
+        }
+
+    .btn-recipe-delete {
+        padding: 8px 10px;
+        border: 1px solid #ffd4d4;
+        border-radius: 8px;
+        background: #fff5f5;
+        color: #e74c3c;
+        font-size: 13px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+        .btn-recipe-delete:hover {
+            background: #ffe0e0;
+            border-color: #e74c3c;
+        }
+
+    /* Пустое состояние */
+    .empty-state {
+        text-align: center;
+        padding: 80px 20px;
+        background: white;
+        border: 2px dashed #e0e0e4;
+        border-radius: 16px;
+    }
+
+    .empty-icon {
+        font-size: 72px;
+        opacity: 0.25;
+    }
+
+    /* Модальные окна */
+    .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+        backdrop-filter: blur(4px);
+    }
+
+    .modal-dialog {
+        background: white;
+        border-radius: 20px;
+        padding: 28px;
+        max-width: 380px;
+        width: 90%;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+    }
+
+    .btn-modal-delete {
+        flex: 1;
+        padding: 11px;
+        border: none;
+        border-radius: 10px;
+        background: #e74c3c;
+        color: white;
+        font-weight: 500;
+        cursor: pointer;
+        font-size: 14px;
+    }
+
+        .btn-modal-delete:hover {
+            background: #c0392b;
+        }
+
+    .btn-modal-cancel {
+        flex: 1;
+        padding: 11px;
+        border: 1px solid #e0e0e4;
+        border-radius: 10px;
+        background: white;
+        color: #666;
+        font-weight: 500;
+        cursor: pointer;
+        font-size: 14px;
+    }
+
+        .btn-modal-cancel:hover {
+            background: #f8f8fa;
+        }
+</style>
+
+@code {
+    private List<FavoriteRecipe> favoriteRecipes = new();
+    private bool showDeleteConfirm = false;
+    private FavoriteRecipe? recipeToDelete;
+
+    public class FavoriteRecipe
+    {
+        public int Id { get; set; }
+        public string Name { get; set; } = "";
+        public string Description { get; set; } = "";
+        public string Category { get; set; } = "";
+        public string Difficulty { get; set; } = "easy";
+        public int CookingTime { get; set; }
+        public int Calories { get; set; }
+        public int Servings { get; set; }
+        public DateTime AddedToFavorites { get; set; }
+        public List<Ingredient> Ingredients { get; set; } = new();
+    }
+
+    public class Ingredient
+    {
+        public string Name { get; set; } = "";
+        public bool IsAvailable { get; set; }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadFavorites();
+    }
+
+    private async Task LoadFavorites()
+    {
+        await Task.Delay(100);
+
+        favoriteRecipes = new List<FavoriteRecipe>
+        {
+            new()
+            {
+                Id = 1,
+                Name = "Паста Карбонара",
+                Description = "Классическая итальянская паста с беконом и сливочным соусом",
+                Category = "dinner",
+                Difficulty = "easy",
+                CookingTime = 25,
+                Calories = 450,
+                Servings = 2,
+                AddedToFavorites = DateTime.Now.AddDays(-5),
+                Ingredients = new List<Ingredient>
+                {
+                    new() { Name = "Спагетти", IsAvailable = true },
+                    new() { Name = "Бекон", IsAvailable = true },
+                    new() { Name = "Яйца", IsAvailable = true },
+                    new() { Name = "Пармезан", IsAvailable = false },
+                    new() { Name = "Чеснок", IsAvailable = true }
+                }
+            },
+            new()
+            {
+                Id = 2,
+                Name = "Овсяная каша с ягодами",
+                Description = "Полезный завтрак с ягодами и мёдом",
+                Category = "breakfast",
+                Difficulty = "easy",
+                CookingTime = 15,
+                Calories = 250,
+                Servings = 1,
+                AddedToFavorites = DateTime.Now.AddDays(-2),
+                Ingredients = new List<Ingredient>
+                {
+                    new() { Name = "Овсянка", IsAvailable = true },
+                    new() { Name = "Мёд", IsAvailable = true },
+                    new() { Name = "Ягоды", IsAvailable = true },
+                    new() { Name = "Молоко", IsAvailable = true }
+                }
+            },
+            new()
+            {
+                Id = 3,
+                Name = "Греческий салат",
+                Description = "Свежий салат с помидорами, огурцами и фетой",
+                Category = "salad",
+                Difficulty = "easy",
+                CookingTime = 15,
+                Calories = 180,
+                Servings = 2,
+                AddedToFavorites = DateTime.Now.AddDays(-10),
+                Ingredients = new List<Ingredient>
+                {
+                    new() { Name = "Помидоры", IsAvailable = true },
+                    new() { Name = "Огурцы", IsAvailable = true },
+                    new() { Name = "Фета", IsAvailable = false },
+                    new() { Name = "Оливки", IsAvailable = true },
+                    new() { Name = "Оливковое масло", IsAvailable = true }
+                }
+            },
+            new()
+            {
+                Id = 4,
+                Name = "Куриный суп",
+                Description = "Наваристый суп с курицей, лапшой и овощами",
+                Category = "soup",
+                Difficulty = "medium",
+                CookingTime = 45,
+                Calories = 320,
+                Servings = 4,
+                AddedToFavorites = DateTime.Now.AddDays(-1),
+                Ingredients = new List<Ingredient>
+                {
+                    new() { Name = "Курица", IsAvailable = true },
+                    new() { Name = "Лапша", IsAvailable = true },
+                    new() { Name = "Морковь", IsAvailable = false },
+                    new() { Name = "Лук", IsAvailable = true },
+                    new() { Name = "Картофель", IsAvailable = true },
+                    new() { Name = "Зелень", IsAvailable = false }
+                }
+            }
+        };
+    }
+
+    private void RefreshFavorites()
+    {
+        // TODO: Обновить из БД
+    }
+
+    private void OpenRecipe(FavoriteRecipe recipe)
+    {
+        Navigation.NavigateTo($"/recipe/{1}");
+        StateHasChanged();
+    }
+
+    private void CookRecipe(FavoriteRecipe recipe)
+    {
+        Navigation.NavigateTo($"/recipe/{recipe.Id}");
+    }
+
+    private void RemoveFromFavorites(FavoriteRecipe recipe)
+    {
+        recipeToDelete = recipe;
+        showDeleteConfirm = true;
+    }
+
+    private void CancelDelete()
+    {
+        showDeleteConfirm = false;
+        recipeToDelete = null;
+    }
+
+    private void ConfirmDelete()
+    {
+        if (recipeToDelete != null)
+        {
+            favoriteRecipes.Remove(recipeToDelete);
+        }
+        CancelDelete();
+    }
+
+    private void ClearAllFavorites()
+    {
+        favoriteRecipes.Clear();
+        // TODO: Очистить в БД
+    }
+
+    private void ExportFavorites()
+    {
+        // TODO: Экспорт в PDF/текст
+    }
+
+    private string GetRecipeWord(int count)
+    {
+        if (count % 10 == 1 && count % 100 != 11) return "рецепт";
+        if (count % 10 >= 2 && count % 10 <= 4 && (count % 100 < 10 || count % 100 >= 20)) return "рецепта";
+        return "рецептов";
+    }
+
+    private string GetRecipeGradient(string category) => category switch
+    {
+        "breakfast" => "linear-gradient(135deg, #fdcb6e, #ffeaa7)",
+        "lunch" => "linear-gradient(135deg, #74b9ff, #0984e3)",
+        "dinner" => "linear-gradient(135deg, #ff6b6b, #ff8e8e)",
+        "dessert" => "linear-gradient(135deg, #fd79a8, #e84393)",
+        "snack" => "linear-gradient(135deg, #a29bfe, #6c5ce7)",
+        "salad" => "linear-gradient(135deg, #00b894, #55efc4)",
+        "soup" => "linear-gradient(135deg, #e17055, #d63031)",
+        _ => "linear-gradient(135deg, #636e72, #b2bec3)"
+    };
+
+    private string GetCategoryDisplay(string category) => category switch
+    {
+        "breakfast" => "🌅 Завтрак",
+        "lunch" => "🌞 Обед",
+        "dinner" => "🌙 Ужин",
+        "dessert" => "🍰 Десерт",
+        "snack" => "🥨 Перекус",
+        "salad" => "🥗 Салат",
+        "soup" => "🍜 Суп",
+        _ => "📦 Другое"
+    };
+
+    private string GetDifficultyText(string difficulty) => difficulty switch
+    {
+        "easy" => "Легко",
+        "medium" => "Средне",
+        "hard" => "Сложно",
+        _ => "Легко"
+    };
+
+    private int GetAvailableCount(FavoriteRecipe recipe) => recipe.Ingredients.Count(i => i.IsAvailable);
+
+    private double GetAvailabilityPercent(FavoriteRecipe recipe) =>
+        recipe.Ingredients.Count > 0 ? (double)GetAvailableCount(recipe) / recipe.Ingredients.Count * 100 : 0;
+
+    private string GetAvailabilityColor(FavoriteRecipe recipe)
+    {
+        var percent = GetAvailabilityPercent(recipe);
+        if (percent >= 80) return "#27ae60";
+        if (percent >= 50) return "#f39c12";
+        return "#e74c3c";
+    }
+}

@@ -1,166 +1,538 @@
 ﻿@page "/menu"
-@using ProductManager.Models @* Ваш namespace с моделями *@
-@inject Data.ProductManagerContext Db
-@inject NavigationManager Nav
+@inject NavigationManager Navigation
 
-<PageTitle>Меню</PageTitle>
+<PageTitle>Меню на неделю</PageTitle>
 
 <div class="container-fluid p-4">
     <!-- Верхняя панель -->
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
-            <h2 class="fw-bold m-0">🍽️ Меню на неделю</h2>
-            <small class="text-muted-custom">Выберите или создайте меню</small>
+            <h2 class="fw-bold m-0" style="color: #1a1a2e;">План питания</h2>
+            <small style="color: #888;">@GetWeekRange()</small>
         </div>
-        <button class="btn btn-wpf-primary" @onclick="OpenFavorites">⭐ Избранное</button>
+        <div class="d-flex gap-2">
+            <button class="btn btn-menu" @onclick="ClearWeek">
+                Очистить
+            </button>
+        </div>
     </div>
 
     <div class="row">
-        <!-- Левая колонка: Списки меню и Холодильник -->
-        <div class="col-md-3">
-            <!-- Доступные меню -->
-            <div class="wpf-card">
-                <h5 class="fw-semibold text-white mb-3">📋 Меню</h5>
-                
-                <div style="max-height: 150px; overflow-y: auto;">
-                    @foreach (var menu in AvailableMenus)
-                    {
-                        <div class="d-flex justify-content-between align-items-start mb-2 border-bottom border-secondary pb-1">
-                            <div>
-                                <div class="fw-semibold small text-white">@menu.Name</div>
-                                <div class="text-muted-custom" style="font-size: 10px;">@menu.Description</div>
-                            </div>
-                            <button class="btn btn-wpf-icon" @onclick="(() => DeleteMenu(menu.Id))">🗑️</button>
-                        </div>
-                    }
+        <!-- Левая панель - настройки генерации -->
+        <div class="col-lg-3 mb-4">
+            <div class="side-card">
+                <h5 class="side-card-title">Генерация меню</h5>
+
+                <div class="mb-3">
+                    <label class="form-label">На сколько дней</label>
+                    <select class="form-control filter-input" @bind="daysToGenerate">
+                        <option value="1">1 день</option>
+                        <option value="3">3 дня</option>
+                        <option value="7">7 дней</option>
+                        <option value="14">14 дней</option>
+                    </select>
                 </div>
-                
-                <button class="btn btn-wpf-primary w-100 mt-2" @onclick="LoadMenus">🔄 Обновить</button>
+
+                <div class="mb-3">
+                    <label class="form-label">Калорийность в день</label>
+                    <select class="form-control filter-input" @bind="targetCalories">
+                        <option value="1500">1500 ккал (похудение)</option>
+                        <option value="2000">2000 ккал (норма)</option>
+                        <option value="2500">2500 ккал (набор)</option>
+                    </select>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Учитывать аллергены</label>
+                    <div class="form-check">
+                        <input type="checkbox" class="form-check-input" @bind="avoidLactose" />
+                        <label class="form-check-label" style="color: #666; font-size: 13px;">Без лактозы</label>
+                    </div>
+                    <div class="form-check">
+                        <input type="checkbox" class="form-check-input" @bind="avoidGluten" />
+                        <label class="form-check-label" style="color: #666; font-size: 13px;">Без глютена</label>
+                    </div>
+                    <div class="form-check">
+                        <input type="checkbox" class="form-check-input" @bind="avoidNuts" />
+                        <label class="form-check-label" style="color: #666; font-size: 13px;">Без орехов</label>
+                    </div>
+                </div>
+
+                <div class="mb-4">
+                    <label class="form-label">Предпочтения</label>
+                    <div class="form-check">
+                        <input type="checkbox" class="form-check-input" @bind="preferVegetarian" />
+                        <label class="form-check-label" style="color: #666; font-size: 13px;">Вегетарианское</label>
+                    </div>
+                    <div class="form-check">
+                        <input type="checkbox" class="form-check-input" @bind="preferQuick" />
+                        <label class="form-check-label" style="color: #666; font-size: 13px;">Быстрые рецепты</label>
+                    </div>
+                </div>
+
+                <button class="btn btn-add w-100" @onclick="GenerateMenu">
+                    Сгенерировать
+                </button>
             </div>
 
-            <!-- Холодильник -->
-            <div class="wpf-card mt-3">
-                <h5 class="fw-semibold text-white mb-3">📦 Холодильник</h5>
-                
-                <div class="input-group mb-3">
-                    <input type="text" class="form-control form-control-dark" @bind="NewProductName" placeholder="Продукт..." />
-                    <button class="btn btn-wpf-primary" @onclick="AddProduct">+</button>
-                </div>
-
-                <div style="max-height: 120px; overflow-y: auto;">
-                    @foreach (var item in FridgeItems)
+            <!-- Доступные продукты -->
+            <div class="side-card mt-3">
+                <h5 class="side-card-title">Продукты в холодильнике</h5>
+                <div class="fridge-products-list">
+                    @foreach (var product in availableProducts)
                     {
-                        <div class="d-flex justify-content-between align-items-center mb-1">
-                            <span class="small text-white">@item.Product.Name</span>
-                            <button class="btn btn-wpf-icon" style="font-size: 16px;" @onclick="(() => RemoveProduct(item.Id))">×</button>
+                        <div class="fridge-product-item @(product.Selected ? "selected" : "")"
+                             @onclick="() => ToggleProduct(product)">
+                            <span>@(product.Selected ? "✅" : "⬜")</span>
+                            <span>@product.Name</span>
+                            <span class="text-muted-custom">@product.Quantity @product.Unit</span>
                         </div>
                     }
                 </div>
-
-                <button class="btn btn-wpf-primary w-100 mt-2" @onclick="GenerateMenu">Сгенерировать меню</button>
+                <button class="btn btn-menu w-100 mt-2" @onclick="SelectAllProducts">
+                    @(allSelected ? "⬜ Снять всё" : "✅ Выбрать всё")
+                </button>
             </div>
         </div>
 
-        <!-- Центральная колонка: Просмотр меню -->
-        <div class="col-md-6">
-            <div class="wpf-card">
-                <h4 class="fw-bold text-white">@SelectedMenuName</h4>
-                <p class="text-muted-custom small">@SelectedMenuDesc</p>
-                <button class="btn btn-wpf-secondary" @onclick="GenerateShoppingList">🛒 Список покупок</button>
-            </div>
-
-            <div style="max-height: 500px; overflow-y: auto;">
-                @if (WeeklyPlan.Any())
+        <!-- Центральная панель - меню по дням -->
+        <div class="col-lg-9">
+            @if (weeklyPlan.Any())
+            {
+                @foreach (var day in weeklyPlan)
                 {
-                    @foreach (var dayPlan in WeeklyPlan)
-                    {
-                        <div class="wpf-card">
-                            <div class="text-accent fw-bold">@dayPlan.DayName</div>
-                            <div class="text-white fw-semibold small mt-1">@dayPlan.MealType</div>
-                            <p class="text-muted-custom small mt-2 mb-3">@dayPlan.RecipeTitle</p>
-                            @* <button class="btn btn-warning btn-sm text-white" style="font-size: 11px;" 
-                                    @onclick="(() => Nav.NavigateTo($"/recipe/{dayPlan.RecipeId}"))">
-                                📝 Рецепт
-                            </button> *@
+                    <div class="day-card mb-3">
+                        <div class="day-header">
+                            <h5 class="day-title">@day.DayName</h5>
+                            <span class="day-date">@day.Date.ToString("dd MMMM")</span>
                         </div>
-                    }
-                }
-                else
-                {
-                    <div class="text-center text-muted-custom mt-5">Меню пусто. Сгенерируйте его слева.</div>
-                }
-            </div>
-        </div>
 
-        <!-- Правая колонка: Покупки и Профиль -->
-        <div class="col-md-3">
-            <!-- Список покупок -->
-            <div class="wpf-card">
-                <h5 class="fw-semibold text-white mb-3">🛒 Покупки</h5>
-                <p class="text-muted-custom small mb-3">@ShoppingInfoText</p>
+                        <div class="meals-grid">
+                            @foreach (var meal in day.Meals)
+                            {
+                                <div class="meal-slot @(meal.Recipe != null ? "filled" : "")">
+                                    @* <div class="meal-type">@GetMealTypeIcon(meal.Type) @GetMealTypeName(meal.Type)</div> *@
 
-                <div style="max-height: 150px; overflow-y: auto;">
-                    @foreach (var item in ShoppingList)
-                    {
-                        <div class="d-flex align-items-center mb-2">
-                            <input type="checkbox" class="form-check-input me-2" @bind="item.IsPurchased" />
-                            <span class="small text-white flex-grow-1">@item.ProductName</span>
-                            <span class="small text-muted-custom">@item.Quantity @item.Unit</span>
+                                    @if (meal.Recipe != null)
+                                    {
+                                        <div class="meal-recipe">
+                                            <div class="recipe-name-small">@meal.Recipe.Name</div>
+                                            <div class="recipe-stats-small">
+                                                ⏱️ @meal.Recipe.CookingTime мин • 🔥 @meal.Recipe.Calories ккал
+                                            </div>
+                                            <div class="d-flex gap-2 mt-2">
+                                                <button class="btn-recipe-view btn-sm" @onclick="() => ViewRecipe(meal.Recipe)">
+                                                    Посмотреть
+                                                </button>
+                                                <button class="btn-recipe-delete btn-sm" @onclick="() => RemoveMeal(day, meal)">
+                                                    ✕
+                                                </button>
+                                            </div>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <div class="meal-empty">
+                                            <span style="font-size: 24px; opacity: 0.3;">🍽️</span>
+                                            <p style="color: #bbb; font-size: 11px;">Пусто</p>
+                                        </div>
+                                    }
+                                </div>
+                            }
                         </div>
-                    }
-                </div>
-
-                <div class="d-flex justify-content-center mt-3 gap-2">
-                    <button class="btn btn-wpf-primary" @onclick="ExportList">📄 Экспорт</button>
-                    <button class="btn btn-danger btn-sm" style="font-size: 11px;" @onclick="ClearList">🗑️ Очистить</button>
-                </div>
-            </div>
-
-            <!-- Профиль -->
-            <div class="wpf-card mt-3">
-                <h5 class="fw-semibold text-white mb-2">👤 Профиль</h5>
-                <div class="text-muted-custom small">User: Admin</div>
-                @if (IsAdmin)
-                {
-                     <button class="btn btn-wpf-primary w-100 mt-2">Управление</button>
+                    </div>
                 }
-            </div>
+            }
+            else
+            {
+                <div class="empty-state">
+                    @* <div class="empty-icon">📅</div> *@
+                    <h4 style="color: #555; margin-top: 16px;">Меню не составлено</h4>
+                    <p style="color: #999; margin-bottom: 16px;">
+                        Сгенерируйте меню на основе продуктов из холодильника
+                    </p>
+                    <button class="btn btn-add" @onclick="GenerateMenu">
+                        Сгенерировать меню
+                    </button>
+                </div>
+            }
         </div>
-    </div>
-    
-    <!-- Кнопка выхода внизу -->
-    <div class="d-flex justify-content-end mt-4">
-         <button class="btn btn-secondary" style="background: #666; color: white;" @* @onclick="(() => Nav.NavigateTo("/"))" *@>🔙 Выйти</button>
     </div>
 </div>
 
+<style>
+    .btn-add {
+        padding: 8px 18px;
+        border: none;
+        border-radius: 8px;
+        background: #6c5ce7;
+        color: white;
+        font-weight: 500;
+        font-size: 13px;
+        cursor: pointer;
+        box-shadow: 0 2px 6px rgba(108, 92, 231, 0.3);
+        transition: all 0.2s;
+    }
+
+        .btn-add:hover {
+            background: #5a4bd1;
+        }
+
+    .btn-menu {
+        padding: 8px 18px;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        background: white;
+        color: #555;
+        font-weight: 500;
+        font-size: 13px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+        .btn-menu:hover {
+            background: #f8f8fa;
+        }
+
+    .side-card {
+        background: white;
+        border: 1px solid #e8e8ec;
+        border-radius: 14px;
+        padding: 20px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    }
+
+    .side-card-title {
+        color: #1a1a2e;
+        font-size: 16px;
+        font-weight: 600;
+        margin-bottom: 16px;
+    }
+
+    .form-label {
+        display: block;
+        color: #666;
+        font-size: 12px;
+        margin-bottom: 6px;
+        font-weight: 500;
+    }
+
+    .filter-input {
+        background: #f8f8fa;
+        border: 1px solid #e0e0e4;
+        border-radius: 8px;
+        padding: 8px 12px;
+        color: #333;
+        font-size: 13px;
+        width: 100%;
+    }
+
+    .form-check {
+        margin-bottom: 6px;
+    }
+
+    .form-check-label {
+        color: #666;
+        font-size: 13px;
+    }
+
+    .fridge-products-list {
+        max-height: 200px;
+        overflow-y: auto;
+    }
+
+    .fridge-product-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+        font-size: 13px;
+    }
+
+        .fridge-product-item:hover {
+            background: #f5f3ff;
+        }
+
+        .fridge-product-item.selected {
+            background: #f0edff;
+        }
+
+    .day-card {
+        background: white;
+        border: 1px solid #e8e8ec;
+        border-radius: 14px;
+        overflow: hidden;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    }
+
+    .day-header {
+        padding: 14px 20px;
+        background: #fafafa;
+        border-bottom: 1px solid #e8e8ec;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .day-title {
+        color: #1a1a2e;
+        font-weight: 600;
+        font-size: 16px;
+        margin: 0;
+    }
+
+    .day-date {
+        color: #888;
+        font-size: 13px;
+    }
+
+    .meals-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 12px;
+        padding: 16px;
+    }
+
+    .meal-slot {
+        padding: 16px;
+        border: 2px dashed #e8e8ec;
+        border-radius: 12px;
+        min-height: 140px;
+        transition: all 0.2s;
+    }
+
+        .meal-slot.filled {
+            border: 2px solid #d5ccff;
+            background: #fafaff;
+        }
+
+    .meal-type {
+        font-size: 13px;
+        font-weight: 600;
+        color: #1a1a2e;
+        margin-bottom: 10px;
+    }
+
+    .recipe-name-small {
+        color: #1a1a2e;
+        font-weight: 600;
+        font-size: 14px;
+        margin-bottom: 4px;
+    }
+
+    .recipe-stats-small {
+        color: #999;
+        font-size: 11px;
+        margin-bottom: 8px;
+    }
+
+    .meal-empty {
+        text-align: center;
+        padding: 20px 0;
+    }
+
+    .btn-recipe-view {
+        padding: 6px 10px;
+        border: 1px solid #e0e0e4;
+        border-radius: 6px;
+        background: white;
+        color: #555;
+        font-size: 12px;
+        cursor: pointer;
+    }
+
+    .btn-recipe-cook {
+        padding: 6px 10px;
+        border: 1px solid #d4ffd4;
+        border-radius: 6px;
+        background: #f0fff4;
+        color: #27ae60;
+        font-size: 12px;
+        cursor: pointer;
+    }
+
+    .btn-recipe-delete {
+        padding: 6px 8px;
+        border: 1px solid #ffd4d4;
+        border-radius: 6px;
+        background: #fff5f5;
+        color: #e74c3c;
+        font-size: 12px;
+        cursor: pointer;
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 80px 20px;
+        background: white;
+        border: 2px dashed #e0e0e4;
+        border-radius: 16px;
+    }
+
+    .empty-icon {
+        font-size: 72px;
+        opacity: 0.25;
+    }
+</style>
+
 @code {
-    // --- MOCK DATA & LOGIC (Замените на вызовы сервисов) ---
-    private string NewProductName = "";
-    private string SelectedMenuName = "Меню не выбрано";
-    private string SelectedMenuDesc = "Выберите меню из списка";
-    private string ShoppingInfoText = "Выберите меню для генерации";
-    private bool IsAdmin = true;
+    private int daysToGenerate = 7;
+    private int targetCalories = 2000;
+    private bool avoidLactose = false;
+    private bool avoidGluten = false;
+    private bool avoidNuts = false;
+    private bool preferVegetarian = false;
+    private bool preferQuick = false;
+    private bool allSelected = true;
 
-    private List<MenuModel> AvailableMenus = new() { new MenuModel { Id=1, Name="Недельное", Description="Базовое" } };
-    private List<FridgeItemModel> FridgeItems = new() { new FridgeItemModel { Id=1, Product=new ProductModel{Name="Молоко"} } };
-    private List<DayPlanModel> WeeklyPlan = new();
-    private List<ShoppingItemModel> ShoppingList = new();
+    private List<FridgeProduct> availableProducts = new();
+    private List<DayPlan> weeklyPlan = new();
 
-    // Модели для отображения (упрощенные)
-    public class MenuModel { public int Id { get; set; } public string Name { get; set; } public string Description { get; set; } }
-    public class FridgeItemModel { public int Id { get; set; } public ProductModel Product { get; set; } }
-    public class ProductModel { public string Name { get; set; } }
-    public class DayPlanModel { public string DayName { get; set; } public string MealType { get; set; } public string RecipeTitle { get; set; } public int RecipeId { get; set; } }
-    public class ShoppingItemModel { public string ProductName { get; set; } public double Quantity { get; set; } public string Unit { get; set; } public bool IsPurchased { get; set; } }
+    public class FridgeProduct
+    {
+        public string Name { get; set; } = "";
+        public double Quantity { get; set; }
+        public string Unit { get; set; } = "";
+        public bool Selected { get; set; } = true;
+    }
 
-    private void LoadMenus() { /* Load from DB */ }
-    private void DeleteMenu(int id) { /* Delete from DB */ }
-    private void AddProduct() { /* Add to DB */ }
-    private void RemoveProduct(int id) { /* Remove from DB */ }
-    private void GenerateMenu() { /* Logic */ }
-    private void GenerateShoppingList() { /* Logic */ }
-    private void ExportList() { /* Logic */ }
-    private void ClearList() { ShoppingList.Clear(); }
-    private void OpenFavorites() { }
+    public class DayPlan
+    {
+        public string DayName { get; set; } = "";
+        public DateTime Date { get; set; }
+        public List<MealSlot> Meals { get; set; } = new();
+    }
+
+    public class MealSlot
+    {
+        public string Type { get; set; } = "";
+        public Recipe? Recipe { get; set; }
+    }
+
+    public class Recipe
+    {
+        public int Id { get; set; }
+        public string Name { get; set; } = "";
+        public int CookingTime { get; set; }
+        public int Calories { get; set; }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        LoadAvailableProducts();
+        GenerateWeekPlan();
+    }
+
+    private void LoadAvailableProducts()
+    {
+        availableProducts = new List<FridgeProduct>
+        {
+            new() { Name = "Курица", Quantity = 500, Unit = "г" },
+            new() { Name = "Рис", Quantity = 1, Unit = "кг" },
+            new() { Name = "Яйца", Quantity = 10, Unit = "шт." },
+            new() { Name = "Молоко", Quantity = 1, Unit = "л" },
+            new() { Name = "Помидоры", Quantity = 3, Unit = "шт." },
+            new() { Name = "Сыр", Quantity = 200, Unit = "г" },
+            new() { Name = "Макароны", Quantity = 500, Unit = "г" },
+            new() { Name = "Лук", Quantity = 5, Unit = "шт." }
+        };
+    }
+
+    private void ToggleProduct(FridgeProduct product)
+    {
+        product.Selected = !product.Selected;
+        allSelected = availableProducts.All(p => p.Selected);
+    }
+
+    private void SelectAllProducts()
+    {
+        allSelected = !allSelected;
+        foreach (var product in availableProducts)
+            product.Selected = allSelected;
+    }
+
+    private void GenerateWeekPlan()
+    {
+        weeklyPlan = new List<DayPlan>();
+        var today = DateTime.Now;
+        var dayNames = new[] { "Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота", "Воскресенье" };
+        var mealTypes = new[] { "breakfast", "lunch", "dinner", "snack" };
+
+        for (int i = 0; i < daysToGenerate; i++)
+        {
+            var date = today.AddDays(i);
+            var day = new DayPlan
+                {
+                    DayName = dayNames[(int)date.DayOfWeek == 0 ? 6 : (int)date.DayOfWeek - 1],
+                    Date = date,
+                    Meals = new List<MealSlot>()
+                };
+
+            foreach (var type in mealTypes)
+            {
+                day.Meals.Add(new MealSlot
+                    {
+                        Type = type,
+                        Recipe = i % 2 == 0 ? new Recipe
+                        {
+                            Id = 1,
+                            Name = type switch
+                            {
+                                "breakfast" => "Овсяная каша",
+                                "lunch" => "Куриный суп",
+                                "dinner" => "Паста Карбонара",
+                                _ => "Фруктовый салат"
+                            },
+                            CookingTime = type == "breakfast" ? 15 : type == "lunch" ? 40 : 25,
+                            Calories = type == "breakfast" ? 250 : type == "lunch" ? 350 : 450
+                        } : null
+                    });
+            }
+
+            weeklyPlan.Add(day);
+        }
+    }
+
+    private void GenerateMenu()
+    {
+        GenerateWeekPlan();
+    }
+
+    private void ClearWeek()
+    {
+        foreach (var day in weeklyPlan)
+            foreach (var meal in day.Meals)
+                meal.Recipe = null;
+    }
+
+    private void ViewRecipe(Recipe recipe) => Navigation.NavigateTo($"/recipe/{recipe.Id}");
+    private void CookRecipe(Recipe recipe) => Navigation.NavigateTo($"/recipe/{recipe.Id}");
+    private void RemoveMeal(DayPlan day, MealSlot meal) => meal.Recipe = null;
+
+    private string GetWeekRange()
+    {
+        var today = DateTime.Now;
+        return $"{today:dd.MM} - {today.AddDays(daysToGenerate - 1):dd.MM.yyyy}";
+    }
+
+    private string GetMealTypeIcon(string type) => type switch
+    {
+        "breakfast" => "🌅",
+        "lunch" => "🌞",
+        "dinner" => "🌙",
+        "snack" => "🥨",
+        _ => "🍽️"
+    };
+
+    private string GetMealTypeName(string type) => type switch
+    {
+        "breakfast" => "Завтрак",
+        "lunch" => "Обед",
+        "dinner" => "Ужин",
+        "snack" => "Перекус",
+        _ => "Приём пищи"
+    };
 }

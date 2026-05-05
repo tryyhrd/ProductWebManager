@@ -1,13 +1,11 @@
 /* ========================================
-   —¬≈“À¿ﬂ “≈Ã¿ - ProductManager
+   —¬≈“À¿ﬂ “≈Ã¿ — “®ÃÕŒ… Õ¿¬»√¿÷»≈…
    ======================================== */
 
-/* »ÏÔÓÚ ËÍÓÌÓÍ Open Iconic */
 @import url('open-iconic/font/css/open-iconic-bootstrap.min.css');
 
-/* === Œ—ÕŒ¬Õ€≈ œ≈–≈Ã≈ÕÕ€≈ === */
 :root {
-    --bg-primary: #f5f5f7;
+    --bg-primary: #f0f1f5;
     --bg-secondary: #ffffff;
     --bg-card: #ffffff;
     --bg-card-hover: #f8f9fa;
@@ -19,7 +17,6 @@
     --text-muted: #999;
     --accent-primary: #6c5ce7;
     --accent-primary-hover: #5a4bd1;
-    --accent-secondary: #7b73ff;
     --accent-success: #27ae60;
     --accent-danger: #e74c3c;
     --accent-warning: #f39c12;
@@ -27,14 +24,12 @@
     --sidebar-width: 250px;
 }
 
-/* === ¡¿«Œ¬€≈ —“»À» === */
 html, body {
     font-family: 'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif;
     background-color: var(--bg-primary);
     color: var(--text-primary);
 }
 
-/* === — –ŒÀÀ¡¿–€ === */
 ::-webkit-scrollbar {
     width: 6px;
 }
@@ -52,7 +47,6 @@ html, body {
         background: #b0b0b4;
     }
 
-/* === LINKS === */
 a, .btn-link {
     color: var(--accent-primary);
     text-decoration: none;
@@ -62,7 +56,6 @@ a, .btn-link {
         color: var(--accent-primary-hover);
     }
 
-/* === BUTTONS === */
 .btn-primary {
     color: #fff;
     background-color: var(--accent-primary);
@@ -86,12 +79,13 @@ a, .btn-link {
     background: var(--bg-primary);
 }
 
+/* “®ÃÕ€… SIDEBAR */
 .sidebar {
-    background: #ffffff;
+    background: #1a1a2e;
     width: var(--sidebar-width);
     min-width: var(--sidebar-width);
-    border-right: 1px solid var(--border-color);
-    box-shadow: 2px 0 12px rgba(0,0,0,0.04);
+    border-right: 1px solid #2a2a40;
+    box-shadow: 2px 0 20px rgba(0,0,0,0.2);
 }
 
 main {
@@ -101,37 +95,38 @@ main {
     background: var(--bg-primary);
 }
 
+/* “®ÃÕ¿ﬂ ÿ¿œ ¿ */
 .top-row {
-    background: #ffffff;
-    border-bottom: 1px solid var(--border-color);
+    background: #1a1a2e;
+    border-bottom: 1px solid #2a2a40;
     height: 3.5rem;
     display: flex;
     align-items: center;
     justify-content: flex-end;
     padding: 0 1.5rem;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
 }
 
 .content {
     flex: 1;
-    background: var(--bg-primary);
+    background: #f0f1f5;
 }
 
-/* === SIDEBAR / NAVIGATION === */
+/* === SIDEBAR / NAVIGATION (“®ÃÕ¿ﬂ “≈Ã¿) === */
 .navbar-brand {
-    font-size: 1.15rem;
-    font-weight: 600;
-    color: var(--text-primary) !important;
-    letter-spacing: 0.3px;
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: #ffffff !important;
+    letter-spacing: 0.5px;
 }
 
 .navbar-toggler {
-    border-color: var(--border-light);
+    border-color: rgba(255,255,255,0.2);
     background-color: transparent;
 }
 
 .navbar-toggler-icon {
-    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='rgba(0, 0, 0, 0.5)' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e");
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='rgba(255, 255, 255, 0.7)' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e");
 }
 
 .navbar-dark {
@@ -145,7 +140,7 @@ main {
 }
 
 .nav-item {
-    font-size: 0.875rem;
+    font-size: 0.9rem;
     padding: 0 0.5rem;
 }
 
@@ -158,32 +153,32 @@ main {
     }
 
 .nav-link {
-    color: var(--text-secondary) !important;
+    color: rgba(255,255,255,0.65) !important;
     border-radius: 10px;
-    padding: 0.6rem 0.75rem;
+    padding: 0.7rem 0.85rem;
     margin: 2px 0;
     transition: all 0.2s ease;
     display: flex;
     align-items: center;
-    gap: 0.5rem;
+    gap: 0.6rem;
     font-weight: 450;
 }
 
     .nav-link:hover {
-        color: var(--text-primary) !important;
-        background: #f5f3ff;
+        color: #ffffff !important;
+        background: rgba(108, 92, 231, 0.2);
     }
 
     .nav-link.active {
-        background: var(--accent-primary);
+        background: #6c5ce7;
         color: white !important;
-        font-weight: 500;
-        box-shadow: 0 2px 8px rgba(108, 92, 231, 0.3);
+        font-weight: 600;
+        box-shadow: 0 4px 12px rgba(108, 92, 231, 0.4);
     }
 
     .nav-link .oi {
-        font-size: 1rem;
-        width: 1.25rem;
+        font-size: 1.1rem;
+        width: 1.3rem;
     }
 
 /* === CARDS === */

@@ -1,7 +1,6 @@
 using Microsoft.EntityFrameworkCore;
-using ProductWebManager;
-using ProductWebManager.Data;
 using ProductWebManager.Components;
+using ProductWebManager.Data;
 
 
 var builder = WebApplication.CreateBuilder(args);

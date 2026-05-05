@@ -1,0 +1,447 @@
+﻿@page "/shopping-list"
+@inject NavigationManager Navigation
+
+<PageTitle>Список покупок</PageTitle>
+
+<div class="container-fluid p-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="fw-bold m-0" style="color: #1a1a2e;">Список покупок</h2>
+            <small style="color: #888;">
+                Осталось купить: @shoppingItems.Count(x => !x.IsPurchased) из @shoppingItems.Count
+            </small>
+        </div>
+        <div class="d-flex gap-2">
+            <button class="btn btn-menu" @onclick="ClearPurchased">
+                Очистить купленные
+            </button>
+            <button class="btn btn-add" @onclick="OpenAddModal">
+                Добавить
+            </button>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-md-3 mb-3">
+            <div class="stat-card">
+                <div class="stat-label">ВСЕГО</div>
+                <div class="stat-value" style="color: #6c5ce7;">@shoppingItems.Count</div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="stat-card stat-card-success">
+                <div class="stat-label">КУПЛЕНО</div>
+                <div class="stat-value" style="color: #27ae60;">@shoppingItems.Count(x => x.IsPurchased)</div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="stat-card stat-card-warning">
+                <div class="stat-label">ОСТАЛОСЬ</div>
+                <div class="stat-value" style="color: #f39c12;">@shoppingItems.Count(x => !x.IsPurchased)</div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="stat-card">
+                <div class="stat-label">ПРИМЕРНАЯ СУММА</div>
+                <div class="stat-value" style="color: #6c5ce7;">@shoppingItems.Sum(x => x.EstimatedPrice) ₽</div>
+            </div>
+        </div>
+    </div>
+
+    @if (shoppingItems.Any())
+    {
+        @foreach (var group in shoppingItems.GroupBy(x => x.Category))
+        {
+            <div class="category-section mb-3">
+                <h5 class="category-title">
+                    @* @GetCategoryIcon(group.Key) @group.Key *@
+                    <span class="category-count">@group.Count(x => !x.IsPurchased) ост.</span>
+                </h5>
+
+                @foreach (var item in group)
+                {
+                    <div class="shopping-item @(item.IsPurchased ? "purchased" : "")">
+                        <div class="d-flex align-items-center gap-3">
+                            <input type="checkbox"
+                                   class="form-check-input shopping-checkbox"
+                                   checked="@item.IsPurchased"
+                                   @onchange="() => TogglePurchased(item)" />
+
+                            <div class="flex-grow-1">
+                                <div class="item-name @(item.IsPurchased ? "text-decoration-line-through" : "")">
+                                    @item.Name
+                                </div>
+                                <div class="item-details">
+                                    @item.Quantity @item.Unit
+                                    @if (item.EstimatedPrice > 0)
+                                    {
+                                        <span>• ~@item.EstimatedPrice ₽</span>
+                                    }
+                                    @if (item.IsOnSale)
+                                    {
+                                        <span class="sale-badge">АКЦИЯ</span>
+                                    }
+                                </div>
+                            </div>
+
+                            <div class="d-flex gap-1">
+                                <button class="btn-icon" @onclick="() => EditItem(item)">Редактировать</button>
+                                <button class="btn-icon" @onclick="() => RemoveItem(item)">Удалить</button>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+
+        <div class="d-flex gap-2 justify-content-end mt-4">
+            <button class="btn btn-menu" @onclick="ExportList">Экспорт</button>
+            <button class="btn btn-menu" @onclick="ClearAll">Очистить всё</button>
+        </div>
+    }
+    else
+    {
+        <div class="empty-state">
+            @* <div class="empty-icon">🛒</div> *@
+            <h4 style="color: #555;">Список пуст</h4>
+            <p style="color: #999;">Добавьте продукты для покупки</p>
+            <button class="btn btn-add" @onclick="OpenAddModal">Добавить</button>
+        </div>
+    }
+</div>
+
+@if (showModal)
+{
+    <div class="modal-overlay" @onclick="CloseModal">
+        <div class="modal-dialog" @onclick:stopPropagation="true">
+            <h4 style="color: #1a1a2e; margin-bottom: 20px; font-weight: 600;">
+                @(isEditing ? "✏️ Редактировать" : "➕ Добавить") покупку
+            </h4>
+
+            <div class="mb-3">
+                <label class="form-label">Название</label>
+                <input type="text" class="form-control modal-input" @bind="currentItem.Name" placeholder="Например: Хлеб" />
+            </div>
+
+            <div class="row mb-3">
+                <div class="col-md-4">
+                    <label class="form-label">Количество</label>
+                    <input type="number" class="form-control modal-input" @bind="currentItem.Quantity" min="1" />
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Единица</label>
+                    <select class="form-control modal-input" @bind="currentItem.Unit">
+                        <option value="шт.">шт.</option>
+                        <option value="кг">кг</option>
+                        <option value="г">г</option>
+                        <option value="л">л</option>
+                        <option value="упак.">упак.</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Цена (~)</label>
+                    <input type="number" class="form-control modal-input" @bind="currentItem.EstimatedPrice" min="0" />
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Категория</label>
+                <select class="form-control modal-input" @bind="currentItem.Category">
+                    <option value="Бакалея">🌾 Бакалея</option>
+                    <option value="Молочные">🥛 Молочные</option>
+                    <option value="Мясо и рыба">🥩 Мясо и рыба</option>
+                    <option value="Овощи и фрукты">🥬 Овощи и фрукты</option>
+                    <option value="Напитки">🥤 Напитки</option>
+                    <option value="Заморозка">❄️ Заморозка</option>
+                    <option value="Другое">📦 Другое</option>
+                </select>
+            </div>
+
+            <div class="form-check mb-4">
+                <input type="checkbox" class="form-check-input" @bind="currentItem.IsOnSale" />
+                <label class="form-check-label" style="color: #666; font-size: 13px;">Товар по акции</label>
+            </div>
+
+            <div class="d-flex gap-2">
+                <button class="btn-modal-save" @onclick="SaveItem">Сохранить</button>
+                <button class="btn-modal-cancel" @onclick="CloseModal">Отмена</button>
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    .btn-add {
+        padding: 8px 18px;
+        border: none;
+        border-radius: 8px;
+        background: #6c5ce7;
+        color: white;
+        font-weight: 500;
+        font-size: 13px;
+        cursor: pointer;
+        box-shadow: 0 2px 6px rgba(108, 92, 231, 0.3);
+    }
+
+    .btn-menu {
+        padding: 8px 18px;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        background: white;
+        color: #555;
+        font-weight: 500;
+        font-size: 13px;
+        cursor: pointer;
+    }
+
+    .stat-card {
+        background: white;
+        border: 1px solid #e8e8ec;
+        border-radius: 12px;
+        padding: 14px 18px;
+        text-align: center;
+    }
+
+    .stat-card-success {
+        background: #f5fff5;
+        border-color: #d4ffd4;
+    }
+
+    .stat-card-warning {
+        background: #fffcf0;
+        border-color: #ffe8a0;
+    }
+
+    .stat-label {
+        color: #999;
+        font-size: 10px;
+        font-weight: 600;
+    }
+
+    .stat-value {
+        font-size: 26px;
+        font-weight: 700;
+    }
+
+    .category-section {
+        background: white;
+        border: 1px solid #e8e8ec;
+        border-radius: 14px;
+        padding: 20px;
+    }
+
+    .category-title {
+        color: #1a1a2e;
+        font-size: 16px;
+        font-weight: 600;
+        margin-bottom: 12px;
+    }
+
+    .category-count {
+        font-size: 12px;
+        color: #999;
+        font-weight: 400;
+    }
+
+    .shopping-item {
+        padding: 12px 0;
+        border-bottom: 1px solid #f0f0f0;
+    }
+
+        .shopping-item:last-child {
+            border-bottom: none;
+        }
+
+        .shopping-item.purchased {
+            opacity: 0.5;
+        }
+
+    .shopping-checkbox {
+        width: 20px;
+        height: 20px;
+        cursor: pointer;
+    }
+
+    .item-name {
+        color: #1a1a2e;
+        font-weight: 500;
+        font-size: 14px;
+    }
+
+    .item-details {
+        color: #999;
+        font-size: 12px;
+    }
+
+    .sale-badge {
+        background: #ffe8e8;
+        color: #e74c3c;
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 10px;
+        font-weight: 600;
+    }
+
+    .btn-icon {
+        background: #f8f8fa;
+        border: 1px solid #eee;
+        color: #999;
+        font-size: 12px;
+        padding: 4px 6px;
+        cursor: pointer;
+        border-radius: 6px;
+    }
+
+        .btn-icon:hover {
+            background: #f0edff;
+            border-color: #d5ccff;
+            color: #6c5ce7;
+        }
+
+    .empty-state {
+        text-align: center;
+        padding: 80px 20px;
+        background: white;
+        border: 2px dashed #e0e0e4;
+        border-radius: 16px;
+    }
+
+    .empty-icon {
+        font-size: 72px;
+        opacity: 0.25;
+    }
+
+    .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+        backdrop-filter: blur(4px);
+    }
+
+    .modal-dialog {
+        background: white;
+        border-radius: 20px;
+        padding: 28px;
+        max-width: 480px;
+        width: 90%;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+    }
+
+    .form-label {
+        display: block;
+        color: #666;
+        font-size: 12px;
+        margin-bottom: 4px;
+        font-weight: 500;
+    }
+
+    .modal-input {
+        background: #f8f8fa;
+        border: 1px solid #e0e0e4;
+        border-radius: 10px;
+        padding: 10px 14px;
+        color: #333;
+        font-size: 14px;
+        width: 100%;
+    }
+
+    .btn-modal-save {
+        flex: 1;
+        padding: 11px;
+        border: none;
+        border-radius: 10px;
+        background: #6c5ce7;
+        color: white;
+        font-weight: 500;
+        cursor: pointer;
+    }
+
+    .btn-modal-cancel {
+        flex: 1;
+        padding: 11px;
+        border: 1px solid #e0e0e4;
+        border-radius: 10px;
+        background: white;
+        color: #666;
+        font-weight: 500;
+        cursor: pointer;
+    }
+</style>
+
+@code {
+    private List<ShoppingItem> shoppingItems = new();
+    private bool showModal = false;
+    private bool isEditing = false;
+    private ShoppingItem currentItem = new();
+
+    public class ShoppingItem
+    {
+        public int Id { get; set; }
+        public string Name { get; set; } = "";
+        public double Quantity { get; set; } = 1;
+        public string Unit { get; set; } = "шт.";
+        public string Category { get; set; } = "Другое";
+        public bool IsPurchased { get; set; }
+        public bool IsOnSale { get; set; }
+        public double EstimatedPrice { get; set; }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadItems();
+    }
+
+    private async Task LoadItems()
+    {
+        await Task.Delay(100);
+        shoppingItems = new List<ShoppingItem>
+        {
+            new() { Id = 1, Name = "Хлеб", Quantity = 1, Unit = "шт.", Category = "Бакалея", EstimatedPrice = 50 },
+            new() { Id = 2, Name = "Молоко", Quantity = 1, Unit = "л", Category = "Молочные", EstimatedPrice = 80, IsOnSale = true },
+            new() { Id = 3, Name = "Курица", Quantity = 500, Unit = "г", Category = "Мясо и рыба", EstimatedPrice = 200 },
+            new() { Id = 4, Name = "Помидоры", Quantity = 3, Unit = "шт.", Category = "Овощи и фрукты", EstimatedPrice = 120 },
+            new() { Id = 5, Name = "Яблоки", Quantity = 5, Unit = "шт.", Category = "Овощи и фрукты", EstimatedPrice = 150 }
+        };
+    }
+
+    private void TogglePurchased(ShoppingItem item) => item.IsPurchased = !item.IsPurchased;
+
+    private void OpenAddModal() { currentItem = new ShoppingItem(); isEditing = false; showModal = true; }
+    private void EditItem(ShoppingItem item) { currentItem = new ShoppingItem { Id = item.Id, Name = item.Name, Quantity = item.Quantity, Unit = item.Unit, Category = item.Category, IsOnSale = item.IsOnSale, EstimatedPrice = item.EstimatedPrice }; isEditing = true; showModal = true; }
+    private void CloseModal() { showModal = false; }
+
+    private void SaveItem()
+    {
+        if (string.IsNullOrWhiteSpace(currentItem.Name)) return;
+        if (isEditing)
+        {
+            var existing = shoppingItems.FirstOrDefault(x => x.Id == currentItem.Id);
+            if (existing != null) { existing.Name = currentItem.Name; existing.Quantity = currentItem.Quantity; existing.Unit = currentItem.Unit; existing.Category = currentItem.Category; existing.IsOnSale = currentItem.IsOnSale; existing.EstimatedPrice = currentItem.EstimatedPrice; }
+        }
+        else { currentItem.Id = shoppingItems.Any() ? shoppingItems.Max(x => x.Id) + 1 : 1; shoppingItems.Add(currentItem); }
+        CloseModal();
+    }
+
+    private void RemoveItem(ShoppingItem item) => shoppingItems.Remove(item);
+    private void ClearPurchased() => shoppingItems.RemoveAll(x => x.IsPurchased);
+    private void ClearAll() => shoppingItems.Clear();
+    private void ExportList() { /* TODO */ }
+
+    private string GetCategoryIcon(string category) => category switch
+    {
+        "Бакалея" => "🌾",
+        "Молочные" => "🥛",
+        "Мясо и рыба" => "🥩",
+        "Овощи и фрукты" => "🥬",
+        "Напитки" => "🥤",
+        "Заморозка" => "❄️",
+        _ => "📦"
+    };
+}
