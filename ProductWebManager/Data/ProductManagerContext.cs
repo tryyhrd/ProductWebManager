@@ -17,9 +17,5 @@ namespace ProductWebManager.Data
         {
             
         }
-        public ProductManagerContext()
-        {
-            Database.EnsureCreated();
-        }
     }
 }
