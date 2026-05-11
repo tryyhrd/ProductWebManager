@@ -1,4 +1,4 @@
-﻿using ProductManager.Models;
+﻿using ProductWebManager.Models;
 
 namespace ProductWebManager.Models
 {

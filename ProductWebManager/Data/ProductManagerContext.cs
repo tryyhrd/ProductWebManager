@@ -12,6 +12,10 @@ namespace ProductWebManager.Data
         public DbSet<Unit> Units { get; set; }
         public DbSet<RecipeIngredient> RecipeIngredients { get; set; }
         public DbSet<Recipe> Recipes { get; set; }
+        public DbSet<Menu> Menus { get; set; }
+        public DbSet<MenuItem> MenuItems { get; set; }
+        public DbSet<ShoppingList> ShoppingList { get; set; }
+        public DbSet<ShoppingListItem> ShoppingListItems { get; set; }
         public ProductManagerContext(DbContextOptions<ProductManagerContext> options)
             :base(options)
         {
