@@ -1,6 +1,9 @@
 ﻿@page "/recipes"
 @rendermode InteractiveServer
 @inject NavigationManager Navigation
+@inject ProductWebManager.Data.ProductManagerContext DbContext
+@using Microsoft.EntityFrameworkCore
+@using ProductWebManager.Models
 
 <PageTitle>Рецепты</PageTitle>
 
@@ -10,23 +13,19 @@
             <h2 class="fw-bold m-0" style="color: #1a1a2e;">Рецепты</h2>
             <small style="color: #888;">Найдите идеальное блюдо</small>
         </div>
-        <div class="d-flex gap-2">
-            <button class="btn btn-add" @* @onclick="() => Navigation.NavigateTo('/menu')" *@>
-                В меню
-            </button>
-        </div>
     </div>
 
     <div class="filter-bar">
         <div class="row g-3">
             <div class="col-md-5">
-                <div class="input-group">
-                    @* <span class="input-group-text filter-icon">🔍</span> *@
-                    <input type="text" class="form-control filter-input" placeholder="Поиск рецептов..." />
-                </div>
+                <input type="text" class="form-control filter-input"
+                       placeholder="🔍 Поиск рецептов..."
+                       @bind="searchQuery"
+                       @bind:event="oninput"
+                       @bind:after="RefreshFilters" />
             </div>
-            <div class="col-md-3">
-                <select class="form-control filter-input">
+            @* <div class="col-md-3">
+                <select class="form-control filter-input" @bind="filterCategory" @bind:after="RefreshFilters">
                     <option value="">🗂️ Все категории</option>
                     <option value="breakfast">🌅 Завтрак</option>
                     <option value="lunch">🌞 Обед</option>
@@ -36,10 +35,10 @@
                     <option value="salad">🥗 Салат</option>
                     <option value="soup">🍜 Суп</option>
                 </select>
-            </div>
+            </div> *@
             <div class="col-md-2">
-                <select class="form-control filter-input">
-                    <option value="">⏱️ Время</option>
+                <select class="form-control filter-input" @bind="filterTime" @bind:after="RefreshFilters">
+                    <option value="0">⏱️ Время</option>
                     <option value="15">До 15 мин</option>
                     <option value="30">До 30 мин</option>
                     <option value="60">До 1 часа</option>
@@ -47,7 +46,7 @@
                 </select>
             </div>
             <div class="col-md-2">
-                <select class="form-control filter-input">
+                <select class="form-control filter-input" @bind="filterDifficulty" @bind:after="RefreshFilters">
                     <option value="">📊 Сложность</option>
                     <option value="easy">Легко</option>
                     <option value="medium">Средне</option>
@@ -57,401 +56,96 @@
         </div>
 
         <div class="d-flex gap-2 mt-3 flex-wrap">
-            <button class="btn-filter active">Все</button>
-            <button class="btn-filter">Можно приготовить</button>
-            <button class="btn-filter">Избранное</button>
-            <button class="btn-filter">Популярное</button>
-            <button class="btn-filter">Новое</button>
+            <button class="btn-filter @(activeFilter == "all" ? "active" : "")" @onclick="ShowAll">Все</button>
+            <button class="btn-filter @(activeFilter == "available" ? "active" : "")" @onclick="ShowAvailable">Можно приготовить</button>
+            <button class="btn-filter @(activeFilter == "favorites" ? "active" : "")" @onclick="ShowFavorites">Избранное</button>
         </div>
     </div>
 
-    <!-- Сетка рецептов -->
-    <div class="row">
-        <!-- Карточка рецепта 1 -->
-        <div class="col-md-6 col-lg-4 col-xl-3 mb-3">
-            <div class="recipe-card">
-                <!-- Изображение -->
-                <div class="recipe-image" style="background: linear-gradient(135deg, #ff6b6b, #ff8e8e);">
-                    <div class="recipe-image-overlay">
-                        <button class="btn-favorite">
-                            <span class="heart-icon">🤍</span>
-                        </button>
-                        <span class="recipe-time-badge">⏱️ 25 мин</span>
-                    </div>
-                </div>
+    @if (filteredRecipes.Any())
+    {
+        <div class="row">
+            @foreach (var recipe in filteredRecipes)
+            {
+                var availableCount = recipe.RecipeIngredients?.Count(ri => fridgeProductIds.Contains(ri.ProductId)) ?? 0;
+                var totalCount = recipe.RecipeIngredients?.Count ?? 0;
+                var availabilityPercent = totalCount > 0 ? (double)availableCount / totalCount * 100 : 0;
+                var availabilityColor = availabilityPercent >= 80 ? "#27ae60" : availabilityPercent >= 50 ? "#f39c12" : "#e74c3c";
+                var prepTime = (recipe.PrepTime ?? 0) + (recipe.CookTime ?? 0);
+                var isFav = favoriteIds.Contains(recipe.Id);
 
-                <!-- Информация -->
-                <div class="recipe-info">
-                    <div class="d-flex justify-content-between align-items-start mb-2">
-                        <div>
-                            <h6 class="recipe-name">Паста Карбонара</h6>
-                            <span class="recipe-category">🍝 Ужин</span>
-                        </div>
-                        <span class="difficulty-badge easy">Легко</span>
-                    </div>
-
-                    <p class="recipe-desc">Классическая итальянская паста с беконом и сливочным соусом</p>
-
-                    <!-- Ингредиенты -->
-                    <div class="ingredients-availability mb-2">
-                        <div class="d-flex align-items-center gap-2">
-                            <div class="availability-bar">
-                                <div class="availability-fill" style="width: 80%; background: #27ae60;"></div>
+                <div class="col-md-6 col-lg-4 col-xl-3 mb-3">
+                    <div class="recipe-card">
+                        <div class="recipe-image" style="background: @GetRecipeGradient(recipe.Id);">
+                            <div class="recipe-image-overlay">
+                                <button class="btn-favorite @(isFav ? "active" : "")"
+                                        @onclick="() => ToggleFavorite(recipe.Id)">
+                                    <span class="heart-icon">@(isFav ? "❤️" : "🤍")</span>
+                                </button>
+                                @if (prepTime > 0)
+                                {
+                                    <span class="recipe-time-badge">⏱️ @prepTime мин</span>
+                                }
                             </div>
-                            <span class="availability-text" style="color: #27ae60;">4/5 есть</span>
                         </div>
-                    </div>
 
-                    <!-- Характеристики -->
-                    <div class="recipe-stats">
-                        <div class="stat-item">
-                            <span>🔥</span> 450 ккал
-                        </div>
-                    </div>
-
-                    <!-- Кнопки -->
-                    <div class="d-flex gap-2 mt-3">
-                        <button class="btn-recipe-view flex-grow-1">
-                            Смотреть
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Карточка рецепта 2 -->
-        <div class="col-md-6 col-lg-4 col-xl-3 mb-3">
-            <div class="recipe-card">
-                <div class="recipe-image" style="background: linear-gradient(135deg, #ffa502, #ffbe76);">
-                    <div class="recipe-image-overlay">
-                        <button class="btn-favorite">
-                            <span class="heart-icon active">❤️</span>
-                        </button>
-                        <span class="recipe-time-badge">⏱️ 40 мин</span>
-                    </div>
-                </div>
-
-                <div class="recipe-info">
-                    <div class="d-flex justify-content-between align-items-start mb-2">
-                        <div>
-                            <h6 class="recipe-name">Куриный суп</h6>
-                            <span class="recipe-category">🍜 Суп</span>
-                        </div>
-                        <span class="difficulty-badge medium">Средне</span>
-                    </div>
-
-                    <p class="recipe-desc">Наваристый суп с курицей, лапшой и овощами</p>
-
-                    <div class="ingredients-availability mb-2">
-                        <div class="d-flex align-items-center gap-2">
-                            <div class="availability-bar">
-                                <div class="availability-fill" style="width: 50%; background: #f39c12;"></div>
+                        <div class="recipe-info">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <div>
+                                    <h6 class="recipe-name">@(recipe.Title ?? "Без названия")</h6>
+                                </div>
+                                @if (prepTime <= 30 && prepTime > 0)
+                                {
+                                    <span class="difficulty-badge easy">Легко</span>
+                                }
+                                else if (prepTime <= 60)
+                                {
+                                    <span class="difficulty-badge medium">Средне</span>
+                                }
+                                else if (prepTime > 0)
+                                {
+                                    <span class="difficulty-badge hard">Сложно</span>
+                                }
                             </div>
-                            <span class="availability-text" style="color: #f39c12;">3/6 есть</span>
-                        </div>
-                    </div>
-
-                    <div class="recipe-stats">
-                        <div class="stat-item">
-                            <span>🔥</span> 320 ккал
-                        </div>
-                    </div>
-
-                    <div class="d-flex gap-2 mt-3">
-                        <button class="btn-recipe-view flex-grow-1">
-                            Смотреть
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Карточка рецепта 3 -->
-        <div class="col-md-6 col-lg-4 col-xl-3 mb-3">
-            <div class="recipe-card">
-                <div class="recipe-image" style="background: linear-gradient(135deg, #a29bfe, #6c5ce7);">
-                    <div class="recipe-image-overlay">
-                        <button class="btn-favorite">
-                            <span class="heart-icon">🤍</span>
-                        </button>
-                        <span class="recipe-time-badge">⏱️ 15 мин</span>
-                    </div>
-                </div>
-
-                <div class="recipe-info">
-                    <div class="d-flex justify-content-between align-items-start mb-2">
-                        <div>
-                            <h6 class="recipe-name">Греческий салат</h6>
-                            <span class="recipe-category">🥗 Салат</span>
-                        </div>
-                        <span class="difficulty-badge easy">Легко</span>
-                    </div>
-
-                    <p class="recipe-desc">Свежий салат с помидорами, огурцами и фетой</p>
-
-                    <div class="ingredients-availability mb-2">
-                        <div class="d-flex align-items-center gap-2">
-                            <div class="availability-bar">
-                                <div class="availability-fill" style="width: 100%; background: #27ae60;"></div>
+                            <p class="recipe-desc">@(recipe.Description ?? "Описание отсутствует")</p>
+                            @if (totalCount > 0)
+                            {
+                                <div class="ingredients-availability mb-2">
+                                    <div class="d-flex align-items-center gap-2">
+                                        <div class="availability-bar">
+                                            <div class="availability-fill" style="width: @availabilityPercent%; background: @availabilityColor;"></div>
+                                        </div>
+                                        <span class="availability-text" style="color: @availabilityColor;">@availableCount/@totalCount есть</span>
+                                    </div>
+                                </div>
+                            }
+                            @* <div class="recipe-stats">
+                                @if (recipe.Calories.HasValue)
+                                {
+                                    <div class="stat-item">🔥 @recipe.Calories ккал</div>
+                                }
+                            </div> *@
+                            <div class="d-flex gap-2 mt-3">
+                                <button class="btn-recipe-view flex-grow-1" @onclick="() => ViewRecipe(recipe.Id)">Смотреть</button>
                             </div>
-                            <span class="availability-text" style="color: #27ae60;">5/5 есть</span>
                         </div>
-                    </div>
-
-                    <div class="recipe-stats">
-                        <div class="stat-item">
-                            <span>🔥</span> 180 ккал
-                        </div>
-                    </div>
-
-                    <div class="d-flex gap-2 mt-3">
-                        <button class="btn-recipe-view flex-grow-1">
-                            Смотреть
-                        </button>
                     </div>
                 </div>
-            </div>
+            }
         </div>
-
-        <!-- Карточка рецепта 4 -->
-        <div class="col-md-6 col-lg-4 col-xl-3 mb-3">
-            <div class="recipe-card">
-                <div class="recipe-image" style="background: linear-gradient(135deg, #fd79a8, #e84393);">
-                    <div class="recipe-image-overlay">
-                        <button class="btn-favorite">
-                            <span class="heart-icon">🤍</span>
-                        </button>
-                        <span class="recipe-time-badge">⏱️ 50 мин</span>
-                    </div>
-                </div>
-
-                <div class="recipe-info">
-                    <div class="d-flex justify-content-between align-items-start mb-2">
-                        <div>
-                            <h6 class="recipe-name">Тирамису</h6>
-                            <span class="recipe-category">🍰 Десерт</span>
-                        </div>
-                        <span class="difficulty-badge hard">Сложно</span>
-                    </div>
-
-                    <p class="recipe-desc">Итальянский десерт с маскарпоне и кофе</p>
-
-                    <div class="ingredients-availability mb-2">
-                        <div class="d-flex align-items-center gap-2">
-                            <div class="availability-bar">
-                                <div class="availability-fill" style="width: 30%; background: #e74c3c;"></div>
-                            </div>
-                            <span class="availability-text" style="color: #e74c3c;">2/7 есть</span>
-                        </div>
-                    </div>
-
-                    <div class="recipe-stats">
-                        <div class="stat-item">
-                            <span>🔥</span> 380 ккал
-                        </div>
-                    </div>
-
-                    <div class="d-flex gap-2 mt-3">
-                        <button class="btn-recipe-view flex-grow-1">
-                            Смотреть
-                        </button>
-                    </div>
-                </div>
-            </div>
+    }
+    else
+    {
+        <div class="empty-state">
+            <div class="empty-icon">📖</div>
+            <h4 style="color: #555; margin-top: 16px;">Рецепты не найдены</h4>
+            <p style="color: #999; margin-bottom: 16px;">Попробуйте изменить фильтры</p>
+            <button class="btn btn-add" @onclick="ForceReload">Обновить</button>
         </div>
-
-        <!-- Карточка рецепта 5 -->
-        <div class="col-md-6 col-lg-4 col-xl-3 mb-3">
-            <div class="recipe-card">
-                <div class="recipe-image" style="background: linear-gradient(135deg, #00b894, #55efc4);">
-                    <div class="recipe-image-overlay">
-                        <button class="btn-favorite">
-                            <span class="heart-icon active">❤️</span>
-                        </button>
-                        <span class="recipe-time-badge">⏱️ 20 мин</span>
-                    </div>
-                </div>
-
-                <div class="recipe-info">
-                    <div class="d-flex justify-content-between align-items-start mb-2">
-                        <div>
-                            <h6 class="recipe-name">Овсяная каша</h6>
-                            <span class="recipe-category">🌅 Завтрак</span>
-                        </div>
-                        <span class="difficulty-badge easy">Легко</span>
-                    </div>
-
-                    <p class="recipe-desc">Полезная каша с ягодами и мёдом</p>
-
-                    <div class="ingredients-availability mb-2">
-                        <div class="d-flex align-items-center gap-2">
-                            <div class="availability-bar">
-                                <div class="availability-fill" style="width: 100%; background: #27ae60;"></div>
-                            </div>
-                            <span class="availability-text" style="color: #27ae60;">4/4 есть</span>
-                        </div>
-                    </div>
-
-                    <div class="recipe-stats">
-                        <div class="stat-item">
-                            <span>🔥</span> 250 ккал
-                        </div>
-                    </div>
-
-                    <div class="d-flex gap-2 mt-3">
-                        <button class="btn-recipe-view flex-grow-1">
-                            Смотреть
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Карточка рецепта 6 -->
-        <div class="col-md-6 col-lg-4 col-xl-3 mb-3">
-            <div class="recipe-card">
-                <div class="recipe-image" style="background: linear-gradient(135deg, #fdcb6e, #ffeaa7);">
-                    <div class="recipe-image-overlay">
-                        <button class="btn-favorite">
-                            <span class="heart-icon">🤍</span>
-                        </button>
-                        <span class="recipe-time-badge">⏱️ 35 мин</span>
-                    </div>
-                </div>
-
-                <div class="recipe-info">
-                    <div class="d-flex justify-content-between align-items-start mb-2">
-                        <div>
-                            <h6 class="recipe-name">Омлет с овощами</h6>
-                            <span class="recipe-category">🌅 Завтрак</span>
-                        </div>
-                        <span class="difficulty-badge easy">Легко</span>
-                    </div>
-
-                    <p class="recipe-desc">Пышный омлет с помидорами, перцем и зеленью</p>
-
-                    <div class="ingredients-availability mb-2">
-                        <div class="d-flex align-items-center gap-2">
-                            <div class="availability-bar">
-                                <div class="availability-fill" style="width: 75%; background: #27ae60;"></div>
-                            </div>
-                            <span class="availability-text" style="color: #27ae60;">3/4 есть</span>
-                        </div>
-                    </div>
-
-                    <div class="recipe-stats">
-                        <div class="stat-item">
-                            <span>🔥</span> 220 ккал
-                        </div>
-                    </div>
-
-                    <div class="d-flex gap-2 mt-3">
-                        <button class="btn-recipe-view flex-grow-1">
-                            Смотреть
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Карточка рецепта 7 -->
-        <div class="col-md-6 col-lg-4 col-xl-3 mb-3">
-            <div class="recipe-card">
-                <div class="recipe-image" style="background: linear-gradient(135deg, #74b9ff, #0984e3);">
-                    <div class="recipe-image-overlay">
-                        <button class="btn-favorite">
-                            <span class="heart-icon active">❤️</span>
-                        </button>
-                        <span class="recipe-time-badge">⏱️ 60 мин</span>
-                    </div>
-                </div>
-
-                <div class="recipe-info">
-                    <div class="d-flex justify-content-between align-items-start mb-2">
-                        <div>
-                            <h6 class="recipe-name">Лосось на гриле</h6>
-                            <span class="recipe-category">🌙 Ужин</span>
-                        </div>
-                        <span class="difficulty-badge medium">Средне</span>
-                    </div>
-
-                    <p class="recipe-desc">Сочный лосось с лимоном и спаржей</p>
-
-                    <div class="ingredients-availability mb-2">
-                        <div class="d-flex align-items-center gap-2">
-                            <div class="availability-bar">
-                                <div class="availability-fill" style="width: 40%; background: #e74c3c;"></div>
-                            </div>
-                            <span class="availability-text" style="color: #e74c3c;">2/5 есть</span>
-                        </div>
-                    </div>
-
-                    <div class="recipe-stats">
-                        <div class="stat-item">
-                            <span>🔥</span> 420 ккал
-                        </div>
-                    </div>
-
-                    <div class="d-flex gap-2 mt-3">
-                        <button class="btn-recipe-view flex-grow-1">
-                            Смотреть
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Карточка рецепта 8 -->
-        <div class="col-md-6 col-lg-4 col-xl-3 mb-3">
-            <div class="recipe-card">
-                <div class="recipe-image" style="background: linear-gradient(135deg, #e17055, #d63031);">
-                    <div class="recipe-image-overlay">
-                        <button class="btn-favorite">
-                            <span class="heart-icon">🤍</span>
-                        </button>
-                        <span class="recipe-time-badge">⏱️ 45 мин</span>
-                    </div>
-                </div>
-
-                <div class="recipe-info">
-                    <div class="d-flex justify-content-between align-items-start mb-2">
-                        <div>
-                            <h6 class="recipe-name">Борщ</h6>
-                            <span class="recipe-category">🍜 Суп</span>
-                        </div>
-                        <span class="difficulty-badge medium">Средне</span>
-                    </div>
-
-                    <p class="recipe-desc">Традиционный борщ со сметаной и зеленью</p>
-
-                    <div class="ingredients-availability mb-2">
-                        <div class="d-flex align-items-center gap-2">
-                            <div class="availability-bar">
-                                <div class="availability-fill" style="width: 60%; background: #f39c12;"></div>
-                            </div>
-                            <span class="availability-text" style="color: #f39c12;">5/8 есть</span>
-                        </div>
-                    </div>
-
-                    <div class="recipe-stats">
-                        <div class="stat-item">
-                            <span>🔥</span> 350 ккал
-                        </div>
-                    </div>
-
-                    <div class="d-flex gap-2 mt-3">
-                        <button class="btn-recipe-view flex-grow-1">
-                            Смотреть
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+    }
 </div>
 
 <style>
-    /* Кнопки */
     .btn-add {
         padding: 8px 18px;
         border: none;
@@ -469,7 +163,23 @@
             background: #5a4bd1;
         }
 
-    /* Фильтры */
+    .btn-menu {
+        padding: 8px 18px;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        background: white;
+        color: #555;
+        font-weight: 500;
+        font-size: 13px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+        .btn-menu:hover {
+            background: #f8f8fa;
+            border-color: #ccc;
+        }
+
     .filter-bar {
         background: white;
         border: 1px solid #e8e8ec;
@@ -479,20 +189,14 @@
         box-shadow: 0 1px 3px rgba(0,0,0,0.04);
     }
 
-    .filter-icon {
-        background: #f8f8fa;
-        border: 1px solid #e0e0e4;
-        border-right: none;
-        color: #999;
-        font-size: 14px;
-    }
-
     .filter-input {
         background: #f8f8fa;
         border: 1px solid #e0e0e4;
         padding: 8px 12px;
         color: #333;
         font-size: 13px;
+        width: 100%;
+        border-radius: 8px;
     }
 
         .filter-input:focus {
@@ -500,14 +204,6 @@
             box-shadow: 0 0 0 3px rgba(108, 92, 231, 0.1);
             outline: none;
         }
-
-    .input-group-text {
-        border-radius: 8px 0 0 8px;
-    }
-
-    .input-group .form-control {
-        border-radius: 0 8px 8px 0;
-    }
 
     .btn-filter {
         padding: 6px 16px;
@@ -532,7 +228,6 @@
             border-color: #6c5ce7;
         }
 
-    /* Карточка рецепта */
     .recipe-card {
         background: white;
         border: 1px solid #eee;
@@ -574,15 +269,20 @@
         align-items: center;
         justify-content: center;
         cursor: pointer;
+        transition: all 0.2s;
     }
+
+        .btn-favorite:hover {
+            transform: scale(1.1);
+        }
+
+        .btn-favorite.active {
+            background: rgba(255, 100, 100, 0.9);
+        }
 
     .heart-icon {
         font-size: 16px;
     }
-
-        .heart-icon.active {
-            color: #e74c3c;
-        }
 
     .recipe-time-badge {
         background: rgba(0,0,0,0.6);
@@ -602,11 +302,6 @@
         font-size: 15px;
         font-weight: 600;
         margin-bottom: 2px;
-    }
-
-    .recipe-category {
-        color: #888;
-        font-size: 11px;
     }
 
     .recipe-desc {
@@ -699,19 +394,167 @@
             color: #6c5ce7;
         }
 
-    .btn-recipe-cook {
-        padding: 8px 12px;
-        border: 1px solid #d4ffd4;
-        border-radius: 8px;
-        background: #f0fff4;
-        color: #27ae60;
-        font-size: 14px;
-        cursor: pointer;
-        transition: all 0.2s;
+    .empty-state {
+        text-align: center;
+        padding: 80px 20px;
+        background: white;
+        border: 2px dashed #e0e0e4;
+        border-radius: 16px;
     }
 
-        .btn-recipe-cook:hover {
-            background: #e0ffe0;
-            border-color: #27ae60;
-        }
+    .empty-icon {
+        font-size: 72px;
+        opacity: 0.25;
+    }
 </style>
+
+@code {
+    private List<Recipe> recipes = new();
+    private List<Recipe> filteredRecipes = new();
+    private HashSet<int> fridgeProductIds = new();
+    private HashSet<int> favoriteIds = new();
+    private string searchQuery = "";
+    private string filterCategory = "";
+    private string filterTime = "0";
+    private string filterDifficulty = "";
+    private string activeFilter = "all";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        // Загружаем рецепты
+        recipes = await DbContext.Recipes
+            .Include(r => r.RecipeIngredients)
+            .ToListAsync();
+
+        // Загружаем ID продуктов из холодильника
+        fridgeProductIds = (await DbContext.FridgeItems
+            .Where(f => f.UserId == 1)
+            .Select(f => f.ProductId)
+            .ToListAsync())
+            .Where(id => id > 0)
+            .ToHashSet();
+
+        // Загружаем избранные рецепты пользователя
+        favoriteIds = (await DbContext.FavoriteRecipes
+            .Where(f => f.UserId == 1)
+            .Select(f => f.RecipeId)
+            .ToListAsync())
+            .ToHashSet();
+
+        RefreshFilters();
+    }
+
+    private async Task ForceReload() => await LoadData();
+
+    private void RefreshFilters()
+    {
+        var query = recipes.AsEnumerable();
+
+        if (!string.IsNullOrWhiteSpace(searchQuery))
+            query = query.Where(r => r.Title?.Contains(searchQuery, StringComparison.OrdinalIgnoreCase) == true);
+
+        if (activeFilter == "available")
+            query = query.Where(r => r.RecipeIngredients != null &&
+                                     r.RecipeIngredients.Any() &&
+                                     r.RecipeIngredients.All(ri => fridgeProductIds.Contains(ri.ProductId)));
+
+        if (activeFilter == "favorites")
+            query = query.Where(r => favoriteIds.Contains(r.Id));
+
+        if (int.TryParse(filterTime, out int maxTime) && maxTime > 0)
+            query = query.Where(r => (r.PrepTime ?? 0) + (r.CookTime ?? 0) <= maxTime);
+
+        if (!string.IsNullOrEmpty(filterDifficulty))
+        {
+            query = filterDifficulty switch
+            {
+                "easy" => query.Where(r => (r.PrepTime ?? 0) + (r.CookTime ?? 0) <= 30),
+                "medium" => query.Where(r => (r.PrepTime ?? 0) + (r.CookTime ?? 0) > 30 && (r.PrepTime ?? 0) + (r.CookTime ?? 0) <= 60),
+                "hard" => query.Where(r => (r.PrepTime ?? 0) + (r.CookTime ?? 0) > 60),
+                _ => query
+            };
+        }
+
+        filteredRecipes = query.ToList();
+        StateHasChanged();
+    }
+
+    private void ShowAll()
+    {
+        activeFilter = "all";
+        RefreshFilters();
+    }
+
+    private void ShowAvailable()
+    {
+        activeFilter = "available";
+        RefreshFilters();
+    }
+
+    private void ShowFavorites()
+    {
+        activeFilter = "favorites";
+        RefreshFilters();
+    }
+
+    private async Task ToggleFavorite(int recipeId)
+    {
+        try
+        {
+            var existing = await DbContext.FavoriteRecipes
+                .FirstOrDefaultAsync(f => f.RecipeId == recipeId && f.UserId == 1);
+
+            if (existing != null)
+            {
+                // Удаляем из избранного
+                DbContext.FavoriteRecipes.Remove(existing);
+                favoriteIds.Remove(recipeId);
+            }
+            else
+            {
+                // Добавляем в избранное
+                var favorite = new FavoriteRecipe
+                    {
+                        RecipeId = recipeId,
+                        UserId = 1
+                    };
+                DbContext.FavoriteRecipes.Add(favorite);
+                favoriteIds.Add(recipeId);
+            }
+
+            await DbContext.SaveChangesAsync();
+
+            // Если активен фильтр "Избранное" — обновляем список
+            if (activeFilter == "favorites")
+                RefreshFilters();
+            else
+                StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Ошибка избранного: {ex.Message}");
+        }
+    }
+
+    private bool IsFavorite(int recipeId) => favoriteIds.Contains(recipeId);
+
+    private void ViewRecipe(int recipeId) => Navigation.NavigateTo($"/recipe/{recipeId}");
+    private void GoToMenu() => Navigation.NavigateTo("/menu");
+
+    private string GetRecipeGradient(int id) => (id % 8) switch
+    {
+        0 => "linear-gradient(135deg, #ff6b6b, #ff8e8e)",
+        1 => "linear-gradient(135deg, #ffa502, #ffbe76)",
+        2 => "linear-gradient(135deg, #a29bfe, #6c5ce7)",
+        3 => "linear-gradient(135deg, #fd79a8, #e84393)",
+        4 => "linear-gradient(135deg, #00b894, #55efc4)",
+        5 => "linear-gradient(135deg, #fdcb6e, #ffeaa7)",
+        6 => "linear-gradient(135deg, #74b9ff, #0984e3)",
+        _ => "linear-gradient(135deg, #e17055, #d63031)"
+    };
+}

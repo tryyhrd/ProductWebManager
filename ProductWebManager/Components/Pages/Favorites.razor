@@ -1,75 +1,90 @@
 ﻿@page "/favorites"
 @rendermode InteractiveServer
 @inject NavigationManager Navigation
+@inject ProductWebManager.Data.ProductManagerContext DbContext
+@using Microsoft.EntityFrameworkCore
+@using ProductWebManager.Models
 
 <PageTitle>Избранное</PageTitle>
 
 <div class="container-fluid p-4">
-    <!-- Верхняя панель -->
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
             <h2 class="fw-bold m-0" style="color: #1a1a2e;">⭐ Избранные рецепты</h2>
             <small style="color: #888;">@favoriteRecipes.Count @GetRecipeWord(favoriteRecipes.Count) в избранном</small>
         </div>
+        <div class="d-flex gap-2">
+            <button class="btn btn-add" @onclick="GoToRecipes">
+                📖 Все рецепты
+            </button>
+            <button class="btn btn-menu" @onclick="LoadFavorites">
+                🔄 Обновить
+            </button>
+        </div>
     </div>
 
-    <!-- Список избранного -->
     @if (favoriteRecipes.Any())
     {
         <div class="row">
-            @foreach (var recipe in favoriteRecipes)
+            @foreach (var item in favoriteRecipes)
             {
+                var recipe = item.Recipe;
+                if (recipe == null) continue;
+
+                var availableCount = recipe.RecipeIngredients?.Count(ri => fridgeProductIds.Contains(ri.ProductId)) ?? 0;
+                var totalCount = recipe.RecipeIngredients?.Count ?? 0;
+                var availabilityPercent = totalCount > 0 ? (double)availableCount / totalCount * 100 : 0;
+                var availabilityColor = availabilityPercent >= 80 ? "#27ae60" : availabilityPercent >= 50 ? "#f39c12" : "#e74c3c";
+                var prepTime = (recipe.PrepTime ?? 0) + (recipe.CookTime ?? 0);
+
                 <div class="col-md-6 col-lg-4 mb-3">
                     <div class="favorite-card">
-                        <!-- Изображение -->
-                        <div class="favorite-image" style="background: @GetRecipeGradient(recipe.Category);">
-                            <button class="btn-remove-favorite" @onclick="() => RemoveFromFavorites(recipe)" title="Удалить из избранного">
+                        <div class="favorite-image" style="background: @GetRecipeGradient(item.Id);">
+                            <button class="btn-remove-favorite" @onclick="() => RemoveFromFavorites(item)" title="Удалить из избранного">
                                 ✕
                             </button>
                             <div class="favorite-badge">❤️</div>
                         </div>
 
-                        <!-- Информация -->
                         <div class="favorite-info">
                             <div class="d-flex justify-content-between align-items-start mb-2">
                                 <div>
-                                    <h6 class="recipe-name">@recipe.Name</h6>
-                                    <span class="recipe-category">@GetCategoryDisplay(recipe.Category)</span>
+                                    <h6 class="recipe-name">@(recipe.Title ?? "Без названия")</h6>
                                 </div>
+                                <span class="difficulty-badge @GetDifficultyClass(prepTime)">
+                                    @GetDifficultyText(prepTime)
+                                </span>
                             </div>
 
-                            <p class="recipe-desc">@recipe.Description</p>
+                            <p class="recipe-desc">@(recipe.Description ?? "Описание отсутствует")</p>
 
                             <div class="recipe-stats">
-                                <span class="stat-item">⏱️ @recipe.CookingTime мин</span>
-                                <span class="stat-item">🔥 @recipe.Calories ккал</span>
+                                <span class="stat-item">⏱️ @prepTime мин</span>
+                                <span class="stat-item">🔥 @(recipe.Calories ?? 0) ккал</span>
                             </div>
 
-                            <!-- Ингредиенты -->
-                            <div class="ingredients-preview mt-2">
-                                <div class="d-flex align-items-center gap-2">
-                                    <div class="availability-bar">
-                                        <div class="availability-fill"
-                                             style="width: @GetAvailabilityPercent(recipe)%; background: @GetAvailabilityColor(recipe);">
+                            @if (totalCount > 0)
+                            {
+                                <div class="ingredients-preview mt-2">
+                                    <div class="d-flex align-items-center gap-2">
+                                        <div class="availability-bar">
+                                            <div class="availability-fill" style="width: @availabilityPercent%; background: @availabilityColor;"></div>
                                         </div>
+                                        <span class="availability-text" style="color: @availabilityColor;">
+                                            @availableCount/@totalCount инг.
+                                        </span>
                                     </div>
-                                    <span class="availability-text" style="color: @GetAvailabilityColor(recipe);">
-                                        @GetAvailableCount(recipe)/@recipe.Ingredients.Count инг.
-                                    </span>
                                 </div>
-                            </div>
+                            }
 
-                            <!-- Дата добавления -->
-                            <div class="added-date mt-2">
-                                Добавлен @recipe.AddedToFavorites.ToString("dd.MM.yyyy")
-                            </div>
-
-                            <!-- Кнопки -->
                             <div class="d-flex gap-2 mt-3">
                                 <a href="@($"/recipe/{recipe.Id}")"
                                    class="btn-recipe-view flex-grow-1 text-center text-decoration-none">
-                                    Открыть
+                                    👁️ Открыть
                                 </a>
+                                <button class="btn-recipe-cook" @onclick="() => RemoveFromFavorites(item)" title="Удалить из избранного">
+                                    💔
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -77,55 +92,28 @@
             }
         </div>
 
-        <!-- Действия -->
         <div class="d-flex gap-2 justify-content-center mt-4">
-            <button class="btn btn-menu" @onclick="ExportFavorites">
-                Экспорт списка
-            </button>
             <button class="btn btn-menu" @onclick="ClearAllFavorites">
-                Очистить всё
+                🗑️ Очистить всё
             </button>
         </div>
     }
     else
     {
-        <!-- Пустое состояние -->
         <div class="empty-state">
             <div class="empty-icon">⭐</div>
             <h4 style="color: #555; margin-top: 16px;">Нет избранных рецептов</h4>
             <p style="color: #999; margin-bottom: 16px;">
                 Добавляйте рецепты в избранное, нажимая на ❤️
             </p>
-            <div class="d-flex gap-2 justify-content-center">
-                <button class="btn btn-add" @* @onclick="() => Navigation.NavigateTo('/recipes')" *@>
-                    📖 Найти рецепты
-                </button>
-                <button class="btn btn-menu" @onclick="RefreshFavorites">
-                    🔄 Обновить
-                </button>
-            </div>
-        </div>
-    }
-
-    @if (showDeleteConfirm)
-    {
-        <div class="modal-overlay" @onclick="CancelDelete">
-            <div class="modal-dialog" @onclick:stopPropagation="true" style="max-width: 380px;">
-                <h4 style="color: #1a1a2e; margin-bottom: 16px; font-weight: 600;">🗑️ Подтверждение</h4>
-                <p style="color: #666; margin-bottom: 20px;">
-                    Удалить <strong style="color: #e74c3c;">@recipeToDelete?.Name</strong> из избранного?
-                </p>
-                <div class="d-flex gap-2">
-                    <button class="btn-modal-delete" @onclick="ConfirmDelete">Удалить</button>
-                    <button class="btn-modal-cancel" @onclick="CancelDelete">Отмена</button>
-                </div>
-            </div>
+            <button class="btn btn-add" @onclick="GoToRecipes">
+                📖 Найти рецепты
+            </button>
         </div>
     }
 </div>
 
 <style>
-    /* Кнопки */
     .btn-add {
         padding: 8px 18px;
         border: none;
@@ -160,7 +148,6 @@
             border-color: #ccc;
         }
 
-    /* Карточка избранного */
     .favorite-card {
         background: white;
         border: 1px solid #eee;
@@ -221,11 +208,6 @@
         font-size: 15px;
         font-weight: 600;
         margin-bottom: 2px;
-    }
-
-    .recipe-category {
-        color: #888;
-        font-size: 11px;
     }
 
     .recipe-desc {
@@ -299,11 +281,6 @@
         white-space: nowrap;
     }
 
-    .added-date {
-        color: #bbb;
-        font-size: 10px;
-    }
-
     .btn-recipe-view {
         padding: 8px;
         border: 1px solid #e0e0e4;
@@ -323,37 +300,20 @@
 
     .btn-recipe-cook {
         padding: 8px 12px;
-        border: 1px solid #d4ffd4;
+        border: 1px solid #ffd4d4;
         border-radius: 8px;
-        background: #f0fff4;
-        color: #27ae60;
+        background: #fff5f5;
+        color: #e74c3c;
         font-size: 14px;
         cursor: pointer;
         transition: all 0.2s;
     }
 
         .btn-recipe-cook:hover {
-            background: #e0ffe0;
-            border-color: #27ae60;
-        }
-
-    .btn-recipe-delete {
-        padding: 8px 10px;
-        border: 1px solid #ffd4d4;
-        border-radius: 8px;
-        background: #fff5f5;
-        color: #e74c3c;
-        font-size: 13px;
-        cursor: pointer;
-        transition: all 0.2s;
-    }
-
-        .btn-recipe-delete:hover {
             background: #ffe0e0;
             border-color: #e74c3c;
         }
 
-    /* Пустое состояние */
     .empty-state {
         text-align: center;
         padding: 80px 20px;
@@ -366,88 +326,11 @@
         font-size: 72px;
         opacity: 0.25;
     }
-
-    /* Модальные окна */
-    .modal-overlay {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: rgba(0,0,0,0.5);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        z-index: 1000;
-        backdrop-filter: blur(4px);
-    }
-
-    .modal-dialog {
-        background: white;
-        border-radius: 20px;
-        padding: 28px;
-        max-width: 380px;
-        width: 90%;
-        box-shadow: 0 20px 60px rgba(0,0,0,0.2);
-    }
-
-    .btn-modal-delete {
-        flex: 1;
-        padding: 11px;
-        border: none;
-        border-radius: 10px;
-        background: #e74c3c;
-        color: white;
-        font-weight: 500;
-        cursor: pointer;
-        font-size: 14px;
-    }
-
-        .btn-modal-delete:hover {
-            background: #c0392b;
-        }
-
-    .btn-modal-cancel {
-        flex: 1;
-        padding: 11px;
-        border: 1px solid #e0e0e4;
-        border-radius: 10px;
-        background: white;
-        color: #666;
-        font-weight: 500;
-        cursor: pointer;
-        font-size: 14px;
-    }
-
-        .btn-modal-cancel:hover {
-            background: #f8f8fa;
-        }
 </style>
 
 @code {
     private List<FavoriteRecipe> favoriteRecipes = new();
-    private bool showDeleteConfirm = false;
-    private FavoriteRecipe? recipeToDelete;
-
-    public class FavoriteRecipe
-    {
-        public int Id { get; set; }
-        public string Name { get; set; } = "";
-        public string Description { get; set; } = "";
-        public string Category { get; set; } = "";
-        public string Difficulty { get; set; } = "easy";
-        public int CookingTime { get; set; }
-        public int Calories { get; set; }
-        public int Servings { get; set; }
-        public DateTime AddedToFavorites { get; set; }
-        public List<Ingredient> Ingredients { get; set; } = new();
-    }
-
-    public class Ingredient
-    {
-        public string Name { get; set; } = "";
-        public bool IsAvailable { get; set; }
-    }
+    private HashSet<int> fridgeProductIds = new();
 
     protected override async Task OnInitializedAsync()
     {
@@ -456,140 +339,64 @@
 
     private async Task LoadFavorites()
     {
-        await Task.Delay(100);
-
-        favoriteRecipes = new List<FavoriteRecipe>
+        try
         {
-            new()
-            {
-                Id = 1,
-                Name = "Паста Карбонара",
-                Description = "Классическая итальянская паста с беконом и сливочным соусом",
-                Category = "dinner",
-                Difficulty = "easy",
-                CookingTime = 25,
-                Calories = 450,
-                Servings = 2,
-                AddedToFavorites = DateTime.Now.AddDays(-5),
-                Ingredients = new List<Ingredient>
-                {
-                    new() { Name = "Спагетти", IsAvailable = true },
-                    new() { Name = "Бекон", IsAvailable = true },
-                    new() { Name = "Яйца", IsAvailable = true },
-                    new() { Name = "Пармезан", IsAvailable = false },
-                    new() { Name = "Чеснок", IsAvailable = true }
-                }
-            },
-            new()
-            {
-                Id = 2,
-                Name = "Овсяная каша с ягодами",
-                Description = "Полезный завтрак с ягодами и мёдом",
-                Category = "breakfast",
-                Difficulty = "easy",
-                CookingTime = 15,
-                Calories = 250,
-                Servings = 1,
-                AddedToFavorites = DateTime.Now.AddDays(-2),
-                Ingredients = new List<Ingredient>
-                {
-                    new() { Name = "Овсянка", IsAvailable = true },
-                    new() { Name = "Мёд", IsAvailable = true },
-                    new() { Name = "Ягоды", IsAvailable = true },
-                    new() { Name = "Молоко", IsAvailable = true }
-                }
-            },
-            new()
-            {
-                Id = 3,
-                Name = "Греческий салат",
-                Description = "Свежий салат с помидорами, огурцами и фетой",
-                Category = "salad",
-                Difficulty = "easy",
-                CookingTime = 15,
-                Calories = 180,
-                Servings = 2,
-                AddedToFavorites = DateTime.Now.AddDays(-10),
-                Ingredients = new List<Ingredient>
-                {
-                    new() { Name = "Помидоры", IsAvailable = true },
-                    new() { Name = "Огурцы", IsAvailable = true },
-                    new() { Name = "Фета", IsAvailable = false },
-                    new() { Name = "Оливки", IsAvailable = true },
-                    new() { Name = "Оливковое масло", IsAvailable = true }
-                }
-            },
-            new()
-            {
-                Id = 4,
-                Name = "Куриный суп",
-                Description = "Наваристый суп с курицей, лапшой и овощами",
-                Category = "soup",
-                Difficulty = "medium",
-                CookingTime = 45,
-                Calories = 320,
-                Servings = 4,
-                AddedToFavorites = DateTime.Now.AddDays(-1),
-                Ingredients = new List<Ingredient>
-                {
-                    new() { Name = "Курица", IsAvailable = true },
-                    new() { Name = "Лапша", IsAvailable = true },
-                    new() { Name = "Морковь", IsAvailable = false },
-                    new() { Name = "Лук", IsAvailable = true },
-                    new() { Name = "Картофель", IsAvailable = true },
-                    new() { Name = "Зелень", IsAvailable = false }
-                }
-            }
-        };
-    }
+            // Загружаем избранные рецепты со всеми связями
+            favoriteRecipes = await DbContext.FavoriteRecipes
+                .Include(f => f.Recipe)
+                    .ThenInclude(r => r.RecipeIngredients)
+                        .ThenInclude(ri => ri.Product)
+                .Where(f => f.UserId == 1)
+                .ToListAsync();
 
-    private void RefreshFavorites()
-    {
-        // TODO: Обновить из БД
-    }
+            // Загружаем продукты из холодильника для проверки доступности
+            fridgeProductIds = (await DbContext.FridgeItems
+                .Where(f => f.UserId == 1 && f.Quanity > 0)
+                .Select(f => f.ProductId)
+                .ToListAsync())
+                .ToHashSet();
 
-    private void OpenRecipe(FavoriteRecipe recipe)
-    {
-        Navigation.NavigateTo($"/recipe/{1}");
-        StateHasChanged();
-    }
-
-    private void CookRecipe(FavoriteRecipe recipe)
-    {
-        Navigation.NavigateTo($"/recipe/{recipe.Id}");
-    }
-
-    private void RemoveFromFavorites(FavoriteRecipe recipe)
-    {
-        recipeToDelete = recipe;
-        showDeleteConfirm = true;
-    }
-
-    private void CancelDelete()
-    {
-        showDeleteConfirm = false;
-        recipeToDelete = null;
-    }
-
-    private void ConfirmDelete()
-    {
-        if (recipeToDelete != null)
-        {
-            favoriteRecipes.Remove(recipeToDelete);
+            StateHasChanged();
         }
-        CancelDelete();
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Ошибка загрузки избранного: {ex.Message}");
+        }
     }
 
-    private void ClearAllFavorites()
+    private async Task RemoveFromFavorites(FavoriteRecipe item)
     {
-        favoriteRecipes.Clear();
-        // TODO: Очистить в БД
+        try
+        {
+            DbContext.FavoriteRecipes.Remove(item);
+            await DbContext.SaveChangesAsync();
+            await LoadFavorites();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Ошибка удаления из избранного: {ex.Message}");
+        }
     }
 
-    private void ExportFavorites()
+    private async Task ClearAllFavorites()
     {
-        // TODO: Экспорт в PDF/текст
+        try
+        {
+            var all = await DbContext.FavoriteRecipes
+                .Where(f => f.UserId == 1)
+                .ToListAsync();
+
+            DbContext.FavoriteRecipes.RemoveRange(all);
+            await DbContext.SaveChangesAsync();
+            await LoadFavorites();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Ошибка очистки избранного: {ex.Message}");
+        }
     }
+
+    private void GoToRecipes() => Navigation.NavigateTo("/recipes");
 
     private string GetRecipeWord(int count)
     {
@@ -598,48 +405,29 @@
         return "рецептов";
     }
 
-    private string GetRecipeGradient(string category) => category switch
+    private string GetRecipeGradient(int id) => (id % 8) switch
     {
-        "breakfast" => "linear-gradient(135deg, #fdcb6e, #ffeaa7)",
-        "lunch" => "linear-gradient(135deg, #74b9ff, #0984e3)",
-        "dinner" => "linear-gradient(135deg, #ff6b6b, #ff8e8e)",
-        "dessert" => "linear-gradient(135deg, #fd79a8, #e84393)",
-        "snack" => "linear-gradient(135deg, #a29bfe, #6c5ce7)",
-        "salad" => "linear-gradient(135deg, #00b894, #55efc4)",
-        "soup" => "linear-gradient(135deg, #e17055, #d63031)",
-        _ => "linear-gradient(135deg, #636e72, #b2bec3)"
+        0 => "linear-gradient(135deg, #ff6b6b, #ff8e8e)",
+        1 => "linear-gradient(135deg, #ffa502, #ffbe76)",
+        2 => "linear-gradient(135deg, #a29bfe, #6c5ce7)",
+        3 => "linear-gradient(135deg, #fd79a8, #e84393)",
+        4 => "linear-gradient(135deg, #00b894, #55efc4)",
+        5 => "linear-gradient(135deg, #fdcb6e, #ffeaa7)",
+        6 => "linear-gradient(135deg, #74b9ff, #0984e3)",
+        _ => "linear-gradient(135deg, #e17055, #d63031)"
     };
 
-    private string GetCategoryDisplay(string category) => category switch
+    private string GetDifficultyClass(int time) => time switch
     {
-        "breakfast" => "🌅 Завтрак",
-        "lunch" => "🌞 Обед",
-        "dinner" => "🌙 Ужин",
-        "dessert" => "🍰 Десерт",
-        "snack" => "🥨 Перекус",
-        "salad" => "🥗 Салат",
-        "soup" => "🍜 Суп",
-        _ => "📦 Другое"
+        <= 30 => "easy",
+        <= 60 => "medium",
+        _ => "hard"
     };
 
-    private string GetDifficultyText(string difficulty) => difficulty switch
+    private string GetDifficultyText(int time) => time switch
     {
-        "easy" => "Легко",
-        "medium" => "Средне",
-        "hard" => "Сложно",
-        _ => "Легко"
+        <= 30 => "Легко",
+        <= 60 => "Средне",
+        _ => "Сложно"
     };
-
-    private int GetAvailableCount(FavoriteRecipe recipe) => recipe.Ingredients.Count(i => i.IsAvailable);
-
-    private double GetAvailabilityPercent(FavoriteRecipe recipe) =>
-        recipe.Ingredients.Count > 0 ? (double)GetAvailableCount(recipe) / recipe.Ingredients.Count * 100 : 0;
-
-    private string GetAvailabilityColor(FavoriteRecipe recipe)
-    {
-        var percent = GetAvailabilityPercent(recipe);
-        if (percent >= 80) return "#27ae60";
-        if (percent >= 50) return "#f39c12";
-        return "#e74c3c";
-    }
 }

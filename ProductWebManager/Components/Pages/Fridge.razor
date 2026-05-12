@@ -1,4 +1,5 @@
-﻿@page "/fridge"
+﻿@page "/"
+@page "/fridge"
 @rendermode InteractiveServer
 @inject NavigationManager Navigation
 @inject ProductWebManager.Data.ProductManagerContext DbContext
@@ -6,18 +7,6 @@
 @using ProductWebManager.Models
 
 <PageTitle>Холодильник</PageTitle>
-
-<!-- Отладочная панель -->
-<div class="container-fluid px-4 pt-2">
-    <div class="alert alert-info d-flex justify-content-between align-items-center" style="padding: 8px 16px; font-size: 13px;">
-        <span>
-            <strong>Отладка:</strong> 
-            Продуктов: @products.Count | 
-            @(string.IsNullOrEmpty(errorMsg) ? "✅ OK" : "❌ " + errorMsg)
-        </span>
-        <button class="btn btn-sm btn-warning" @onclick="ForceReload">🔄 Перезагрузить</button>
-    </div>
-</div>
 
 <div class="page-bg">
     <div class="container-fluid p-4">
@@ -57,20 +46,21 @@
         <div class="filter-bar">
             <div class="row g-3">
                 <div class="col-md-5">
-                    <input type="text" class="form-control filter-input" 
+                    <input type="text" class="form-control filter-input"
                            placeholder="🔍 Поиск продуктов..."
                            @bind="searchQuery"
-                           @bind:event="oninput" />
+                           @bind:event="oninput"
+                           @bind:after="ApplyFilters" />
                 </div>
                 <div class="col-md-3">
-                    <select class="form-control filter-input" @bind="sortBy">
+                    <select class="form-control filter-input" @bind="sortBy" @bind:after="ApplyFilters">
+                        <option value="expiry">⏰ По сроку</option>
                         <option value="name">📋 По названию</option>
                         <option value="date">🕐 По дате</option>
-                        <option value="expiry">⏰ По сроку</option>
                     </select>
                 </div>
                 <div class="col-md-4">
-                    <select class="form-control filter-input" @bind="filterCategory">
+                    <select class="form-control filter-input" @bind="filterCategory" @bind:after="ApplyFilters">
                         <option value="">🗂️ Все категории</option>
                         @if (categories != null)
                         {
@@ -93,14 +83,14 @@
                     var statusColor = daysLeft <= 0 ? "#e74c3c" : daysLeft <= 3 ? "#f39c12" : "#27ae60";
                     var progressWidth = daysLeft > 14 ? 100 : Math.Max(0, Math.Min(100, (daysLeft / 14) * 100));
                     var expiryText = !item.ExpirationDate.HasValue ? "Без срока" :
-                        daysLeft <= 0 ? "Просрочен" :
-                        daysLeft <= 1 ? "Истекает сегодня" :
-                        daysLeft <= 3 ? $"Истекает через {Math.Ceiling(daysLeft)} дн." :
-                        $"Годен ещё {Math.Ceiling(daysLeft)} дн.";
+                    daysLeft <= 0 ? "Просрочен" :
+                    daysLeft <= 1 ? "Истекает сегодня" :
+                    daysLeft <= 3 ? $"Истекает через {Math.Ceiling(daysLeft)} дн." :
+                    $"Годен ещё {Math.Ceiling(daysLeft)} дн.";
 
                     var cardClass = !item.ExpirationDate.HasValue ? "product-card" :
-                        daysLeft <= 0 ? "product-card expired" :
-                        daysLeft <= 3 ? "product-card expiring" : "product-card";
+                    daysLeft <= 0 ? "product-card expired" :
+                    daysLeft <= 3 ? "product-card expiring" : "product-card";
 
                     <div class="col-md-6 col-lg-4 col-xl-3 mb-3">
                         <div class="@cardClass">
@@ -120,8 +110,8 @@
                                     <span class="category-tag">@(item.Product?.Category?.Name ?? "Без категории")</span>
                                 </div>
                                 <div class="d-flex gap-1 ms-2">
-                                    <button class="btn-icon edit" @onclick="() => OpenEditModal(item)">Изменить</button>
-                                    <button class="btn-icon delete" @onclick="() => ConfirmDeleteProduct(item)">Удалить</button>
+                                    <button type="button" class="btn-icon edit" @onclick="() => OpenEditModal(item)">Изменить</button>
+                                    <button type="button" class="btn-icon delete" @onclick="() => ConfirmDeleteProduct(item)">Удалить</button>
                                 </div>
                             </div>
 
@@ -150,13 +140,11 @@
                             }
 
                             <div class="d-flex gap-2 mt-3">
-                                <button class="btn-qty minus" @onclick="() => UpdateQuantity(item, -1)"
+                                <button type="button" class="btn-qty minus" @onclick="() => UpdateQuantity(item, -1)"
                                         disabled="@(item.Quanity <= 1)">
                                     −
                                 </button>
-                                <button class="btn-qty plus" @onclick="() => UpdateQuantity(item, 1)">
-                                    +
-                                </button>
+                                <button type="button" class="btn-qty plus" @onclick="() => UpdateQuantity(item, 1)">+</button>
                             </div>
                         </div>
                     </div>
@@ -169,7 +157,7 @@
                 <div class="empty-icon">🛒</div>
                 <h4 class="empty-title">Холодильник пуст</h4>
                 <p class="empty-text">Добавьте продукты, чтобы начать</p>
-                <button class="btn btn-add" @onclick="OpenAddModal">➕ Добавить первый продукт</button>
+                <button type="button" class="btn btn-add" @onclick="OpenAddModal">➕ Добавить первый продукт</button>
             </div>
         }
     </div>
@@ -177,14 +165,13 @@
 
 @if (showModal)
 {
-    <div class="modal-overlay">
+    <div class="modal-overlay" @onclick="CloseModal">
         <div class="modal-dialog" @onclick:stopPropagation="true">
             <h4 class="modal-title">@(isEditing ? "✏️ Изменить" : "➕ Добавить") продукт</h4>
-            
             <div class="mb-3">
                 <label class="form-label">Продукт</label>
                 <select class="form-control modal-input" @bind="selectedProductId">
-                    <option value="">-- Выберите продукт --</option>
+                    <option value="0">-- Выберите продукт --</option>
                     @if (allProducts != null)
                     {
                         @foreach (var p in allProducts)
@@ -194,22 +181,19 @@
                     }
                 </select>
             </div>
-
             <div class="row mb-3">
                 <div class="col-md-6">
                     <label class="form-label">Количество</label>
                     <input type="number" class="form-control modal-input" @bind="editQuantity" min="0.1" step="0.1" />
                 </div>
             </div>
-
             <div class="mb-4">
                 <label class="form-label">Срок годности</label>
-                <input type="date" class="form-control modal-input" @bind="editExpiryDate" @bind:format="yyyy-MM-dd" />
+                <input type="date" class="form-control modal-input" @bind="editExpiryDate" />
             </div>
-
             <div class="d-flex gap-2">
-                <button class="btn-modal-save" @onclick="SaveProduct">💾 Сохранить</button>
-                <button class="btn-modal-cancel" @onclick="CloseModal">Отмена</button>
+                <button type="button" class="btn-modal-save" @onclick="SaveProduct">💾 Сохранить</button>
+                <button type="button" class="btn-modal-cancel" @onclick="CloseModal">Отмена</button>
             </div>
         </div>
     </div>
@@ -217,77 +201,412 @@
 
 @if (showDeleteConfirm)
 {
-    <div class="modal-overlay">
+    <div class="modal-overlay" @onclick="CancelDelete">
         <div class="modal-dialog" @onclick:stopPropagation="true" style="max-width: 380px;">
             <h4 class="modal-title">🗑️ Подтверждение</h4>
             <p class="delete-text">Удалить <strong class="delete-name">@productToDelete?.Product?.Name</strong>?</p>
             <div class="d-flex gap-2">
-                <button class="btn-modal-delete" @onclick="DeleteProduct">Удалить</button>
-                <button class="btn-modal-cancel" @onclick="CancelDelete">Отмена</button>
+                <button type="button" class="btn-modal-delete" @onclick="DeleteProduct">Удалить</button>
+                <button type="button" class="btn-modal-cancel" @onclick="CancelDelete">Отмена</button>
             </div>
         </div>
     </div>
 }
 
 <style>
-    .page-bg { background: #f0f1f5; min-height: 100vh; }
-    .page-title { color: #1a1a2e; }
-    .page-subtitle { color: #888; }
-    .stat-card { background: white; border: 1px solid #e8e8ec; border-radius: 12px; padding: 16px 20px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
-    .stat-card-danger { background: #fff5f5; border-color: #ffd4d4; }
-    .stat-card-warning { background: #fffcf0; border-color: #ffe8a0; }
-    .stat-label { color: #999; font-size: 11px; font-weight: 600; letter-spacing: 0.5px; margin-bottom: 4px; }
-    .stat-value { font-size: 28px; font-weight: 700; }
-    .filter-bar { background: white; border: 1px solid #e8e8ec; border-radius: 12px; padding: 16px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
-    .filter-input { background: #f8f8fa; border: 1px solid #e0e0e4; border-radius: 8px; padding: 8px 12px; color: #333; font-size: 13px; width: 100%; transition: border-color 0.2s; }
-    .filter-input:focus { border-color: #6c5ce7; outline: none; box-shadow: 0 0 0 3px rgba(108, 92, 231, 0.1); background: white; }
-    .product-card { background: white; border: 2px solid #eee; border-radius: 14px; padding: 20px; height: 100%; transition: all 0.2s; box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
-    .product-card:hover { box-shadow: 0 6px 20px rgba(0,0,0,0.1); transform: translateY(-3px); }
-    .product-card.expired { border-color: #e74c3c; background: #fffafa; }
-    .product-card.expiring { border-color: #f39c12; background: #fffefa; }
-    .status-badge { padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; white-space: nowrap; }
-    .status-badge.status-expired { background: #ffe0e0; color: #c0392b; }
-    .status-badge.status-expiring { background: #fff3d4; color: #c87f0a; }
-    .product-name { color: #1a1a2e; font-size: 15px; font-weight: 600; }
-    .category-tag { display: inline-block; padding: 3px 12px; border-radius: 20px; font-size: 11px; font-weight: 500; background: #f0edff; color: #6c5ce7; }
-    .quantity-value { font-size: 30px; font-weight: 700; color: #1a1a2e; }
-    .quantity-unit { font-size: 14px; color: #999; margin-left: 4px; }
-    .expiry-section { background: #fafafa; border-radius: 10px; padding: 12px; margin-bottom: 4px; }
-    .expiry-date { font-size: 12px; color: #666; }
-    .expiry-status { font-size: 11px; font-weight: 600; }
-    .progress-bar-bg { height: 6px; background: #e8e8e8; border-radius: 10px; overflow: hidden; }
-    .progress-bar-fill { height: 100%; border-radius: 10px; transition: width 0.6s ease; }
-    .btn-add { padding: 9px 20px; border: none; border-radius: 10px; background: #6c5ce7; color: white; font-weight: 500; font-size: 13px; cursor: pointer; box-shadow: 0 2px 8px rgba(108, 92, 231, 0.3); transition: all 0.2s; }
-    .btn-add:hover { background: #5a4bd1; }
-    .btn-icon { padding: 5px 10px; border: 1px solid #e0e0e4; border-radius: 6px; cursor: pointer; font-size: 11px; font-weight: 500; background: white; transition: all 0.2s; }
-    .btn-icon.edit { color: #6c5ce7; border-color: #d5ccff; }
-    .btn-icon.edit:hover { background: #f5f3ff; }
-    .btn-icon.delete { color: #e74c3c; border-color: #ffd4d4; }
-    .btn-icon.delete:hover { background: #fff5f5; }
-    .btn-qty { flex: 1; padding: 8px; border-radius: 8px; cursor: pointer; font-size: 18px; font-weight: 600; transition: all 0.2s; }
-    .btn-qty.minus { background: #fff5f5; color: #e74c3c; border: 1px solid #ffd4d4; }
-    .btn-qty.minus:hover:not(:disabled) { background: #ffe8e8; }
-    .btn-qty.plus { background: #f0fff4; color: #27ae60; border: 1px solid #d4ffd4; }
-    .btn-qty.plus:hover:not(:disabled) { background: #e0ffe0; }
-    .btn-qty:disabled { opacity: 0.3; cursor: not-allowed; }
-    .empty-state { text-align: center; padding: 80px 20px; background: white; border: 2px dashed #e0e0e4; border-radius: 16px; }
-    .empty-icon { font-size: 72px; opacity: 0.25; }
-    .empty-title { color: #555; margin-top: 16px; }
-    .empty-text { color: #999; margin-bottom: 16px; }
-    .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000; backdrop-filter: blur(4px); }
-    .modal-dialog { background: white; border-radius: 20px; padding: 30px; max-width: 460px; width: 90%; box-shadow: 0 20px 60px rgba(0,0,0,0.2); }
-    .modal-title { color: #1a1a2e; margin-bottom: 20px; font-weight: 600; }
-    .form-label { display: block; color: #666; font-size: 12px; margin-bottom: 6px; font-weight: 500; }
-    .modal-input { background: #f8f8fa; border: 1px solid #e0e0e4; border-radius: 10px; padding: 10px 14px; color: #333; font-size: 14px; width: 100%; }
-    .modal-input:focus { border-color: #6c5ce7; outline: none; box-shadow: 0 0 0 3px rgba(108, 92, 231, 0.1); background: white; }
-    .btn-modal-save { flex: 1; padding: 12px; border: none; border-radius: 10px; background: #6c5ce7; color: white; font-weight: 500; cursor: pointer; font-size: 14px; }
-    .btn-modal-save:hover { background: #5a4bd1; }
-    .btn-modal-cancel { flex: 1; padding: 12px; border: 1px solid #e0e0e4; border-radius: 10px; background: white; color: #666; font-weight: 500; cursor: pointer; font-size: 14px; }
-    .btn-modal-cancel:hover { background: #f8f8fa; }
-    .btn-modal-delete { flex: 1; padding: 12px; border: none; border-radius: 10px; background: #e74c3c; color: white; font-weight: 500; cursor: pointer; font-size: 14px; }
-    .btn-modal-delete:hover { background: #c0392b; }
-    .delete-text { color: #666; margin-bottom: 20px; }
-    .delete-name { color: #e74c3c; }
+    .page-bg {
+        background: #f0f1f5;
+        min-height: 100vh;
+    }
+
+    .page-title {
+        color: #1a1a2e;
+    }
+
+    .page-subtitle {
+        color: #888;
+    }
+
+    .stat-card {
+        background: white;
+        border: 1px solid #e8e8ec;
+        border-radius: 12px;
+        padding: 16px 20px;
+        text-align: center;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    }
+
+    .stat-card-danger {
+        background: #fff5f5;
+        border-color: #ffd4d4;
+    }
+
+    .stat-card-warning {
+        background: #fffcf0;
+        border-color: #ffe8a0;
+    }
+
+    .stat-label {
+        color: #999;
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.5px;
+        margin-bottom: 4px;
+    }
+
+    .stat-value {
+        font-size: 28px;
+        font-weight: 700;
+    }
+
+    .filter-bar {
+        background: white;
+        border: 1px solid #e8e8ec;
+        border-radius: 12px;
+        padding: 16px;
+        margin-bottom: 20px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    }
+
+    .filter-input {
+        background: #f8f8fa;
+        border: 1px solid #e0e0e4;
+        border-radius: 8px;
+        padding: 8px 12px;
+        color: #333;
+        font-size: 13px;
+        width: 100%;
+        transition: border-color 0.2s;
+    }
+
+        .filter-input:focus {
+            border-color: #6c5ce7;
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(108, 92, 231, 0.1);
+            background: white;
+        }
+
+    .product-card {
+        background: white;
+        border: 2px solid #eee;
+        border-radius: 14px;
+        padding: 20px;
+        height: 100%;
+        transition: all 0.2s;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    }
+
+        .product-card:hover {
+            box-shadow: 0 6px 20px rgba(0,0,0,0.1);
+            transform: translateY(-3px);
+        }
+
+        .product-card.expired {
+            border-color: #e74c3c;
+            background: #fffafa;
+            box-shadow: 0 2px 12px rgba(231, 76, 60, 0.15);
+        }
+
+        .product-card.expiring {
+            border-color: #f39c12;
+            background: #fffefa;
+            box-shadow: 0 2px 12px rgba(243, 156, 18, 0.15);
+        }
+
+    .status-badge {
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 10px;
+        font-weight: 700;
+        white-space: nowrap;
+    }
+
+        .status-badge.status-expired {
+            background: #ffe0e0;
+            color: #c0392b;
+        }
+
+        .status-badge.status-expiring {
+            background: #fff3d4;
+            color: #c87f0a;
+        }
+
+    .product-name {
+        color: #1a1a2e;
+        font-size: 15px;
+        font-weight: 600;
+    }
+
+    .category-tag {
+        display: inline-block;
+        padding: 3px 12px;
+        border-radius: 20px;
+        font-size: 11px;
+        font-weight: 500;
+        background: #f0edff;
+        color: #6c5ce7;
+    }
+
+    .quantity-value {
+        font-size: 30px;
+        font-weight: 700;
+        color: #1a1a2e;
+    }
+
+    .quantity-unit {
+        font-size: 14px;
+        color: #999;
+        margin-left: 4px;
+    }
+
+    .expiry-section {
+        background: #fafafa;
+        border-radius: 10px;
+        padding: 12px;
+        margin-bottom: 4px;
+    }
+
+    .expiry-date {
+        font-size: 12px;
+        color: #666;
+    }
+
+    .expiry-status {
+        font-size: 11px;
+        font-weight: 600;
+    }
+
+    .progress-bar-bg {
+        height: 6px;
+        background: #e8e8e8;
+        border-radius: 10px;
+        overflow: hidden;
+    }
+
+    .progress-bar-fill {
+        height: 100%;
+        border-radius: 10px;
+        transition: width 0.6s ease;
+    }
+
+    .btn-add {
+        padding: 9px 20px;
+        border: none;
+        border-radius: 10px;
+        background: #6c5ce7;
+        color: white;
+        font-weight: 500;
+        font-size: 13px;
+        cursor: pointer;
+        box-shadow: 0 2px 8px rgba(108, 92, 231, 0.3);
+        transition: all 0.2s;
+    }
+
+        .btn-add:hover {
+            background: #5a4bd1;
+        }
+
+    .btn-icon {
+        padding: 5px 10px;
+        border: 1px solid #e0e0e4;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 11px;
+        font-weight: 500;
+        background: white;
+        transition: all 0.2s;
+    }
+
+        .btn-icon.edit {
+            color: #6c5ce7;
+            border-color: #d5ccff;
+        }
+
+            .btn-icon.edit:hover {
+                background: #f5f3ff;
+            }
+
+        .btn-icon.delete {
+            color: #e74c3c;
+            border-color: #ffd4d4;
+        }
+
+            .btn-icon.delete:hover {
+                background: #fff5f5;
+            }
+
+    .btn-qty {
+        flex: 1;
+        padding: 8px;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 18px;
+        font-weight: 600;
+        transition: all 0.2s;
+    }
+
+        .btn-qty.minus {
+            background: #fff5f5;
+            color: #e74c3c;
+            border: 1px solid #ffd4d4;
+        }
+
+            .btn-qty.minus:hover:not(:disabled) {
+                background: #ffe8e8;
+            }
+
+        .btn-qty.plus {
+            background: #f0fff4;
+            color: #27ae60;
+            border: 1px solid #d4ffd4;
+        }
+
+            .btn-qty.plus:hover:not(:disabled) {
+                background: #e0ffe0;
+            }
+
+        .btn-qty:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+        }
+
+    .empty-state {
+        text-align: center;
+        padding: 80px 20px;
+        background: white;
+        border: 2px dashed #e0e0e4;
+        border-radius: 16px;
+    }
+
+    .empty-icon {
+        font-size: 72px;
+        opacity: 0.25;
+    }
+
+    .empty-title {
+        color: #555;
+        margin-top: 16px;
+    }
+
+    .empty-text {
+        color: #999;
+        margin-bottom: 16px;
+    }
+
+    .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 10000;
+        backdrop-filter: blur(4px);
+        pointer-events: all;
+    }
+
+    .modal-dialog {
+        background: white;
+        border-radius: 20px;
+        padding: 30px;
+        max-width: 460px;
+        width: 90%;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+        position: relative;
+        z-index: 10001;
+        pointer-events: all;
+    }
+
+    .modal-title {
+        color: #1a1a2e;
+        margin-bottom: 20px;
+        font-weight: 600;
+    }
+
+    .form-label {
+        display: block;
+        color: #666;
+        font-size: 12px;
+        margin-bottom: 6px;
+        font-weight: 500;
+    }
+
+    .modal-input {
+        background: #f8f8fa;
+        border: 1px solid #e0e0e4;
+        border-radius: 10px;
+        padding: 10px 14px;
+        color: #333;
+        font-size: 14px;
+        width: 100%;
+    }
+
+        .modal-input:focus {
+            border-color: #6c5ce7;
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(108, 92, 231, 0.1);
+            background: white;
+        }
+
+    .btn-modal-save {
+        flex: 1;
+        padding: 12px;
+        border: none;
+        border-radius: 10px;
+        background: #6c5ce7;
+        color: white;
+        font-weight: 500;
+        cursor: pointer;
+        font-size: 14px;
+    }
+
+        .btn-modal-save:hover {
+            background: #5a4bd1;
+        }
+
+    .btn-modal-cancel {
+        flex: 1;
+        padding: 12px;
+        border: 1px solid #e0e0e4;
+        border-radius: 10px;
+        background: white;
+        color: #666;
+        font-weight: 500;
+        cursor: pointer;
+        font-size: 14px;
+    }
+
+        .btn-modal-cancel:hover {
+            background: #f8f8fa;
+        }
+
+    .btn-modal-delete {
+        flex: 1;
+        padding: 12px;
+        border: none;
+        border-radius: 10px;
+        background: #e74c3c;
+        color: white;
+        font-weight: 500;
+        cursor: pointer;
+        font-size: 14px;
+    }
+
+        .btn-modal-delete:hover {
+            background: #c0392b;
+        }
+
+    .delete-text {
+        color: #666;
+        margin-bottom: 20px;
+    }
+
+    .delete-name {
+        color: #e74c3c;
+    }
 </style>
 
 @code {
@@ -296,7 +615,7 @@
     private List<Product> allProducts = new();
     private List<Category> categories = new();
     private string searchQuery = "";
-    private string sortBy = "name";
+    private string sortBy = "expiry"; // ← По умолчанию сортировка по сроку
     private string filterCategory = "";
     private bool showModal = false;
     private bool isEditing = false;
@@ -305,12 +624,10 @@
     private FridgeItem? productToDelete;
     private int expiringToday = 0;
     private int expiringThisWeek = 0;
-    private string errorMsg = "";
     private int selectedProductId;
     private double editQuantity = 1;
     private DateTime? editExpiryDate = DateTime.Now.AddDays(7);
 
-    // Для привязки input type="date" нужна строка
     private string editExpiryDateString
     {
         get => editExpiryDate?.ToString("yyyy-MM-dd") ?? "";
@@ -333,33 +650,23 @@
         try
         {
             products = await DbContext.FridgeItems
-                .Include(f => f.Product)
-                    .ThenInclude(p => p.Unit)
-                .Include(f => f.Product)
-                    .ThenInclude(p => p.Category)
+                .Include(f => f.Product).ThenInclude(p => p.Unit)
+                .Include(f => f.Product).ThenInclude(p => p.Category)
                 .Where(f => f.UserId == 1)
                 .ToListAsync();
 
             allProducts = await DbContext.Products
-                .Include(p => p.Unit)
-                .Include(p => p.Category)
+                .Include(p => p.Unit).Include(p => p.Category)
                 .ToListAsync();
 
             categories = await DbContext.Categories.ToListAsync();
-
-            errorMsg = "";
         }
-        catch (Exception ex)
-        {
-            errorMsg = ex.Message;
-        }
+        catch (Exception ex) { Console.WriteLine($"Ошибка загрузки: {ex.Message}"); }
 
         UpdateStats();
         ApplyFilters();
         StateHasChanged();
     }
-
-    private async Task ForceReload() => await LoadData();
 
     private void UpdateStats()
     {
@@ -371,18 +678,24 @@
     {
         var query = products.AsEnumerable();
 
+        // Поиск
         if (!string.IsNullOrWhiteSpace(searchQuery))
             query = query.Where(p => p.Product?.Name != null && p.Product.Name.Contains(searchQuery, StringComparison.OrdinalIgnoreCase));
 
+        // Фильтр по категории
         if (!string.IsNullOrEmpty(filterCategory) && int.TryParse(filterCategory, out int catId))
             query = query.Where(p => p.Product?.CategoryId == catId);
 
+        // Сортировка
         filteredProducts = sortBy switch
         {
+            "name" => query.OrderBy(p => p.Product?.Name).ToList(),
             "date" => query.OrderByDescending(p => p.AddetAt).ToList(),
             "expiry" => query.OrderBy(p => p.ExpirationDate ?? DateTime.MaxValue).ToList(),
-            _ => query.OrderBy(p => p.Product?.Name).ToList()
+            _ => query.OrderBy(p => p.ExpirationDate ?? DateTime.MaxValue).ToList()
         };
+
+        StateHasChanged();
     }
 
     private void OpenAddModal()
@@ -405,7 +718,11 @@
         showModal = true;
     }
 
-    private void CloseModal() => showModal = false;
+    private void CloseModal()
+    {
+        showModal = false;
+        StateHasChanged();
+    }
 
     private async Task SaveProduct()
     {
@@ -425,25 +742,21 @@
             }
             else
             {
-                var newItem = new FridgeItem
+                DbContext.FridgeItems.Add(new FridgeItem
                     {
                         UserId = 1,
                         ProductId = selectedProductId,
                         Quanity = editQuantity,
                         ExpirationDate = editExpiryDate,
                         AddetAt = DateTime.UtcNow
-                    };
-                DbContext.FridgeItems.Add(newItem);
+                    });
             }
 
             await DbContext.SaveChangesAsync();
             await LoadData();
             CloseModal();
         }
-        catch (Exception ex)
-        {
-            errorMsg = ex.Message;
-        }
+        catch (Exception ex) { Console.WriteLine($"Ошибка сохранения: {ex.Message}"); }
     }
 
     private void ConfirmDeleteProduct(FridgeItem item)
@@ -461,7 +774,6 @@
     private async Task DeleteProduct()
     {
         if (productToDelete == null) return;
-
         try
         {
             var item = await DbContext.FridgeItems.FindAsync(productToDelete.Id);
@@ -472,11 +784,7 @@
             }
             await LoadData();
         }
-        catch (Exception ex)
-        {
-            errorMsg = ex.Message;
-        }
-
+        catch (Exception ex) { Console.WriteLine($"Ошибка удаления: {ex.Message}"); }
         CancelDelete();
     }
 
@@ -499,9 +807,6 @@
                 await LoadData();
             }
         }
-        catch (Exception ex)
-        {
-            errorMsg = ex.Message;
-        }
+        catch (Exception ex) { Console.WriteLine($"Ошибка: {ex.Message}"); }
     }
 }

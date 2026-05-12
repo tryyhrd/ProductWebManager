@@ -1,23 +1,26 @@
 ﻿@page "/shopping-list"
 @rendermode InteractiveServer
 @inject NavigationManager Navigation
+@inject ProductWebManager.Data.ProductManagerContext DbContext
+@using Microsoft.EntityFrameworkCore
+@using ProductWebManager.Models
 
 <PageTitle>Список покупок</PageTitle>
 
 <div class="container-fluid p-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
-            <h2 class="fw-bold m-0" style="color: #1a1a2e;">Список покупок</h2>
+            <h2 class="fw-bold m-0" style="color: #1a1a2e;">🛒 Список покупок</h2>
             <small style="color: #888;">
                 Осталось купить: @shoppingItems.Count(x => !x.IsPurchased) из @shoppingItems.Count
             </small>
         </div>
         <div class="d-flex gap-2">
             <button class="btn btn-menu" @onclick="ClearPurchased">
-                Очистить купленные
+                🗑️ Очистить купленные
             </button>
             <button class="btn btn-add" @onclick="OpenAddModal">
-                Добавить
+                ➕ Добавить
             </button>
         </div>
     </div>
@@ -44,69 +47,54 @@
         <div class="col-md-3 mb-3">
             <div class="stat-card">
                 <div class="stat-label">ПРИМЕРНАЯ СУММА</div>
-                <div class="stat-value" style="color: #6c5ce7;">@shoppingItems.Sum(x => x.EstimatedPrice) ₽</div>
+                <div class="stat-value" style="color: #6c5ce7;">@estimatedTotal ₽</div>
             </div>
         </div>
     </div>
 
     @if (shoppingItems.Any())
     {
-        @foreach (var group in shoppingItems.GroupBy(x => x.Category))
-        {
-            <div class="category-section mb-3">
-                <h5 class="category-title">
-                    @* @GetCategoryIcon(group.Key) @group.Key *@
-                    <span class="category-count">@group.Count(x => !x.IsPurchased) ост.</span>
-                </h5>
+        <div class="category-section mb-3">
+            @foreach (var item in shoppingItems)
+            {
+                <div class="shopping-item @(item.IsPurchased ? "purchased" : "")">
+                    <div class="d-flex align-items-center gap-3">
+                        <input type="checkbox"
+                               class="form-check-input shopping-checkbox"
+                               checked="@item.IsPurchased"
+                               @onchange="() => TogglePurchased(item)" />
 
-                @foreach (var item in group)
-                {
-                    <div class="shopping-item @(item.IsPurchased ? "purchased" : "")">
-                        <div class="d-flex align-items-center gap-3">
-                            <input type="checkbox"
-                                   class="form-check-input shopping-checkbox"
-                                   checked="@item.IsPurchased"
-                                   @onchange="() => TogglePurchased(item)" />
-
-                            <div class="flex-grow-1">
-                                <div class="item-name @(item.IsPurchased ? "text-decoration-line-through" : "")">
-                                    @item.Name
-                                </div>
-                                <div class="item-details">
-                                    @item.Quantity @item.Unit
-                                    @if (item.EstimatedPrice > 0)
-                                    {
-                                        <span>• ~@item.EstimatedPrice ₽</span>
-                                    }
-                                    @if (item.IsOnSale)
-                                    {
-                                        <span class="sale-badge">АКЦИЯ</span>
-                                    }
-                                </div>
+                        <div class="flex-grow-1">
+                            <div class="item-name @(item.IsPurchased ? "text-decoration-line-through" : "")">
+                                @item.Product?.Name
                             </div>
-
-                            <div class="d-flex gap-1">
-                                <button class="btn-icon" @onclick="() => EditItem(item)">Редактировать</button>
-                                <button class="btn-icon" @onclick="() => RemoveItem(item)">Удалить</button>
+                            <div class="item-details">
+                                @item.Quantity @(item.Product?.Unit?.Name ?? "шт.")
+                                @if (item.Product?.Price > 0)
+                                {
+                                    <span>• ~@(item.Product.Price * item.Quantity) ₽</span>
+                                }
                             </div>
                         </div>
+
+                        <div class="d-flex gap-1">
+                            <button class="btn-icon" @onclick="() => RemoveItem(item)">🗑️</button>
+                        </div>
                     </div>
-                }
-            </div>
-        }
+                </div>
+            }
+        </div>
 
         <div class="d-flex gap-2 justify-content-end mt-4">
-            <button class="btn btn-menu" @onclick="ExportList">Экспорт</button>
-            <button class="btn btn-menu" @onclick="ClearAll">Очистить всё</button>
+            <button class="btn btn-menu" @onclick="ClearAll">🗑️ Очистить всё</button>
         </div>
     }
     else
     {
         <div class="empty-state">
-            @* <div class="empty-icon">🛒</div> *@
             <h4 style="color: #555;">Список пуст</h4>
             <p style="color: #999;">Добавьте продукты для покупки</p>
-            <button class="btn btn-add" @onclick="OpenAddModal">Добавить</button>
+            <button class="btn btn-add" @onclick="OpenAddModal">➕ Добавить</button>
         </div>
     }
 </div>
@@ -115,56 +103,28 @@
 {
     <div class="modal-overlay" @onclick="CloseModal">
         <div class="modal-dialog" @onclick:stopPropagation="true">
-            <h4 style="color: #1a1a2e; margin-bottom: 20px; font-weight: 600;">
-                @(isEditing ? "✏️ Редактировать" : "➕ Добавить") покупку
-            </h4>
+            <h4 style="color: #1a1a2e; margin-bottom: 20px; font-weight: 600;">➕ Добавить покупку</h4>
 
             <div class="mb-3">
-                <label class="form-label">Название</label>
-                <input type="text" class="form-control modal-input" @bind="currentItem.Name" placeholder="Например: Хлеб" />
-            </div>
-
-            <div class="row mb-3">
-                <div class="col-md-4">
-                    <label class="form-label">Количество</label>
-                    <input type="number" class="form-control modal-input" @bind="currentItem.Quantity" min="1" />
-                </div>
-                <div class="col-md-4">
-                    <label class="form-label">Единица</label>
-                    <select class="form-control modal-input" @bind="currentItem.Unit">
-                        <option value="шт.">шт.</option>
-                        <option value="кг">кг</option>
-                        <option value="г">г</option>
-                        <option value="л">л</option>
-                        <option value="упак.">упак.</option>
-                    </select>
-                </div>
-                <div class="col-md-4">
-                    <label class="form-label">Цена (~)</label>
-                    <input type="number" class="form-control modal-input" @bind="currentItem.EstimatedPrice" min="0" />
-                </div>
-            </div>
-
-            <div class="mb-3">
-                <label class="form-label">Категория</label>
-                <select class="form-control modal-input" @bind="currentItem.Category">
-                    <option value="Бакалея">🌾 Бакалея</option>
-                    <option value="Молочные">🥛 Молочные</option>
-                    <option value="Мясо и рыба">🥩 Мясо и рыба</option>
-                    <option value="Овощи и фрукты">🥬 Овощи и фрукты</option>
-                    <option value="Напитки">🥤 Напитки</option>
-                    <option value="Заморозка">❄️ Заморозка</option>
-                    <option value="Другое">📦 Другое</option>
+                <label class="form-label">Продукт</label>
+                <select class="form-control modal-input" @bind="selectedProductId">
+                    <option value="0">-- Выберите продукт --</option>
+                    @foreach (var p in availableProducts)
+                    {
+                        <option value="@p.Id">@p.Name</option>
+                    }
                 </select>
             </div>
 
-            <div class="form-check mb-4">
-                <input type="checkbox" class="form-check-input" @bind="currentItem.IsOnSale" />
-                <label class="form-check-label" style="color: #666; font-size: 13px;">Товар по акции</label>
+            <div class="row mb-4">
+                <div class="col-md-6">
+                    <label class="form-label">Количество</label>
+                    <input type="number" class="form-control modal-input" @bind="editQuantity" min="0.1" step="0.1" />
+                </div>
             </div>
 
             <div class="d-flex gap-2">
-                <button class="btn-modal-save" @onclick="SaveItem">Сохранить</button>
+                <button class="btn-modal-save" @onclick="SaveItem">💾 Сохранить</button>
                 <button class="btn-modal-cancel" @onclick="CloseModal">Отмена</button>
             </div>
         </div>
@@ -184,6 +144,10 @@
         box-shadow: 0 2px 6px rgba(108, 92, 231, 0.3);
     }
 
+        .btn-add:hover {
+            background: #5a4bd1;
+        }
+
     .btn-menu {
         padding: 8px 18px;
         border: 1px solid #ddd;
@@ -195,12 +159,17 @@
         cursor: pointer;
     }
 
+        .btn-menu:hover {
+            background: #f8f8fa;
+        }
+
     .stat-card {
         background: white;
         border: 1px solid #e8e8ec;
         border-radius: 12px;
         padding: 14px 18px;
         text-align: center;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.04);
     }
 
     .stat-card-success {
@@ -217,6 +186,7 @@
         color: #999;
         font-size: 10px;
         font-weight: 600;
+        letter-spacing: 0.5px;
     }
 
     .stat-value {
@@ -229,19 +199,7 @@
         border: 1px solid #e8e8ec;
         border-radius: 14px;
         padding: 20px;
-    }
-
-    .category-title {
-        color: #1a1a2e;
-        font-size: 16px;
-        font-weight: 600;
-        margin-bottom: 12px;
-    }
-
-    .category-count {
-        font-size: 12px;
-        color: #999;
-        font-weight: 400;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.04);
     }
 
     .shopping-item {
@@ -272,31 +230,22 @@
     .item-details {
         color: #999;
         font-size: 12px;
-    }
-
-    .sale-badge {
-        background: #ffe8e8;
-        color: #e74c3c;
-        padding: 2px 8px;
-        border-radius: 4px;
-        font-size: 10px;
-        font-weight: 600;
+        margin-top: 2px;
     }
 
     .btn-icon {
         background: #f8f8fa;
         border: 1px solid #eee;
-        color: #999;
-        font-size: 12px;
-        padding: 4px 6px;
+        color: #e74c3c;
+        font-size: 13px;
+        padding: 4px 8px;
         cursor: pointer;
         border-radius: 6px;
     }
 
         .btn-icon:hover {
-            background: #f0edff;
-            border-color: #d5ccff;
-            color: #6c5ce7;
+            background: #fff5f5;
+            border-color: #ffd4d4;
         }
 
     .empty-state {
@@ -305,11 +254,6 @@
         background: white;
         border: 2px dashed #e0e0e4;
         border-radius: 16px;
-    }
-
-    .empty-icon {
-        font-size: 72px;
-        opacity: 0.25;
     }
 
     .modal-overlay {
@@ -330,7 +274,7 @@
         background: white;
         border-radius: 20px;
         padding: 28px;
-        max-width: 480px;
+        max-width: 460px;
         width: 90%;
         box-shadow: 0 20px 60px rgba(0,0,0,0.2);
     }
@@ -353,6 +297,12 @@
         width: 100%;
     }
 
+        .modal-input:focus {
+            border-color: #6c5ce7;
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(108, 92, 231, 0.1);
+        }
+
     .btn-modal-save {
         flex: 1;
         padding: 11px;
@@ -362,7 +312,12 @@
         color: white;
         font-weight: 500;
         cursor: pointer;
+        font-size: 14px;
     }
+
+        .btn-modal-save:hover {
+            background: #5a4bd1;
+        }
 
     .btn-modal-cancel {
         flex: 1;
@@ -373,76 +328,188 @@
         color: #666;
         font-weight: 500;
         cursor: pointer;
+        font-size: 14px;
     }
+
+        .btn-modal-cancel:hover {
+            background: #f8f8fa;
+        }
 </style>
 
 @code {
-    private List<ShoppingItem> shoppingItems = new();
+    private List<ShoppingListItem> shoppingItems = new();
+    private List<Product> availableProducts = new();
     private bool showModal = false;
-    private bool isEditing = false;
-    private ShoppingItem currentItem = new();
-
-    public class ShoppingItem
-    {
-        public int Id { get; set; }
-        public string Name { get; set; } = "";
-        public double Quantity { get; set; } = 1;
-        public string Unit { get; set; } = "шт.";
-        public string Category { get; set; } = "Другое";
-        public bool IsPurchased { get; set; }
-        public bool IsOnSale { get; set; }
-        public double EstimatedPrice { get; set; }
-    }
+    private int selectedProductId;
+    private double editQuantity = 1;
+    private decimal estimatedTotal;
 
     protected override async Task OnInitializedAsync()
     {
-        await LoadItems();
+        await LoadData();
     }
 
-    private async Task LoadItems()
+    private async Task LoadData()
     {
-        await Task.Delay(100);
-        shoppingItems = new List<ShoppingItem>
+        try
         {
-            new() { Id = 1, Name = "Хлеб", Quantity = 1, Unit = "шт.", Category = "Бакалея", EstimatedPrice = 50 },
-            new() { Id = 2, Name = "Молоко", Quantity = 1, Unit = "л", Category = "Молочные", EstimatedPrice = 80, IsOnSale = true },
-            new() { Id = 3, Name = "Курица", Quantity = 500, Unit = "г", Category = "Мясо и рыба", EstimatedPrice = 200 },
-            new() { Id = 4, Name = "Помидоры", Quantity = 3, Unit = "шт.", Category = "Овощи и фрукты", EstimatedPrice = 120 },
-            new() { Id = 5, Name = "Яблоки", Quantity = 5, Unit = "шт.", Category = "Овощи и фрукты", EstimatedPrice = 150 }
-        };
-    }
+            // Загружаем список покупок
+            var list = await DbContext.ShoppingList
+                .Include(sl => sl.Items)
+                    .ThenInclude(si => si.Product)
+                        .ThenInclude(p => p.Unit)
+                .FirstOrDefaultAsync(sl => sl.UserId == 1 && !sl.IsCompleted);
 
-    private void TogglePurchased(ShoppingItem item) => item.IsPurchased = !item.IsPurchased;
+            if (list != null)
+            {
+                shoppingItems = list.Items.ToList();
+            }
+            else
+            {
+                shoppingItems = new List<ShoppingListItem>();
+            }
 
-    private void OpenAddModal() { currentItem = new ShoppingItem(); isEditing = false; showModal = true; }
-    private void EditItem(ShoppingItem item) { currentItem = new ShoppingItem { Id = item.Id, Name = item.Name, Quantity = item.Quantity, Unit = item.Unit, Category = item.Category, IsOnSale = item.IsOnSale, EstimatedPrice = item.EstimatedPrice }; isEditing = true; showModal = true; }
-    private void CloseModal() { showModal = false; }
+            // Загружаем доступные продукты
+            availableProducts = await DbContext.Products
+                .Include(p => p.Unit)
+                .ToListAsync();
 
-    private void SaveItem()
-    {
-        if (string.IsNullOrWhiteSpace(currentItem.Name)) return;
-        if (isEditing)
-        {
-            var existing = shoppingItems.FirstOrDefault(x => x.Id == currentItem.Id);
-            if (existing != null) { existing.Name = currentItem.Name; existing.Quantity = currentItem.Quantity; existing.Unit = currentItem.Unit; existing.Category = currentItem.Category; existing.IsOnSale = currentItem.IsOnSale; existing.EstimatedPrice = currentItem.EstimatedPrice; }
+            UpdateTotal();
         }
-        else { currentItem.Id = shoppingItems.Any() ? shoppingItems.Max(x => x.Id) + 1 : 1; shoppingItems.Add(currentItem); }
-        CloseModal();
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Ошибка загрузки: {ex.Message}");
+        }
     }
 
-    private void RemoveItem(ShoppingItem item) => shoppingItems.Remove(item);
-    private void ClearPurchased() => shoppingItems.RemoveAll(x => x.IsPurchased);
-    private void ClearAll() => shoppingItems.Clear();
-    private void ExportList() { /* TODO */ }
-
-    private string GetCategoryIcon(string category) => category switch
+    private void UpdateTotal()
     {
-        "Бакалея" => "🌾",
-        "Молочные" => "🥛",
-        "Мясо и рыба" => "🥩",
-        "Овощи и фрукты" => "🥬",
-        "Напитки" => "🥤",
-        "Заморозка" => "❄️",
-        _ => "📦"
-    };
+        estimatedTotal = shoppingItems
+            .Where(x => !x.IsPurchased)
+            .Sum(x => (x.Product?.Price ?? 0) * (decimal)x.Quantity);
+    }
+
+    private async Task TogglePurchased(ShoppingListItem item)
+    {
+        item.IsPurchased = !item.IsPurchased;
+        try
+        {
+            await DbContext.SaveChangesAsync();
+            UpdateTotal();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Ошибка: {ex.Message}");
+        }
+    }
+
+    private void OpenAddModal()
+    {
+        selectedProductId = 0;
+        editQuantity = 1;
+        showModal = true;
+    }
+
+    private void CloseModal() => showModal = false;
+
+    private async Task SaveItem()
+    {
+        if (selectedProductId == 0) return;
+
+        try
+        {
+            // Находим или создаём активный список покупок
+            var list = await DbContext.ShoppingList
+                .Include(sl => sl.Items)
+                .FirstOrDefaultAsync(sl => sl.UserId == 1 && !sl.IsCompleted);
+
+            if (list == null)
+            {
+                list = new Models.ShoppingList
+                    {
+                        UserId = 1,
+                        Name = "Основной",
+                        IsCompleted = false,
+                        CreatedAt = DateTime.UtcNow,
+                        Items = new List<ShoppingListItem>()
+                    };
+                DbContext.ShoppingList.Add(list);
+            }
+
+            // Проверяем, есть ли уже такой продукт в списке
+            var existingItem = list.Items.FirstOrDefault(i => i.ProductId == selectedProductId);
+            if (existingItem != null)
+            {
+                existingItem.Quantity += (decimal)editQuantity;
+            }
+            else
+            {
+                list.Items.Add(new ShoppingListItem
+                    {
+                        ProductId = selectedProductId,
+                        Quantity = (decimal)editQuantity,
+                        IsPurchased = false
+                    });
+            }
+
+            await DbContext.SaveChangesAsync();
+            await LoadData();
+            CloseModal();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Ошибка сохранения: {ex.Message}");
+        }
+    }
+
+    private async Task RemoveItem(ShoppingListItem item)
+    {
+        try
+        {
+            DbContext.ShoppingListItems.Remove(item);
+            await DbContext.SaveChangesAsync();
+            await LoadData();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Ошибка удаления: {ex.Message}");
+        }
+    }
+
+    private async Task ClearPurchased()
+    {
+        try
+        {
+            var purchased = shoppingItems.Where(x => x.IsPurchased).ToList();
+            DbContext.ShoppingListItems.RemoveRange(purchased);
+            await DbContext.SaveChangesAsync();
+            await LoadData();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Ошибка: {ex.Message}");
+        }
+    }
+
+    private async Task ClearAll()
+    {
+        try
+        {
+            var list = await DbContext.ShoppingList
+                .Include(sl => sl.Items)
+                .FirstOrDefaultAsync(sl => sl.UserId == 1 && !sl.IsCompleted);
+
+            if (list != null)
+            {
+                DbContext.ShoppingListItems.RemoveRange(list.Items);
+                await DbContext.SaveChangesAsync();
+                await LoadData();
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Ошибка: {ex.Message}");
+        }
+    }
 }
