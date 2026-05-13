@@ -22,10 +22,6 @@
 
                 <div class="row mb-3">
                     <div class="col-md-6">
-                        <label class="form-label">Имя</label>
-                        <input type="text" class="form-control profile-input" @bind="userProfile.Name" />
-                    </div>
-                    <div class="col-md-6">
                         <label class="form-label">Email</label>
                         <input type="email" class="form-control profile-input" @bind="userProfile.Email" />
                     </div>
@@ -108,7 +104,7 @@
                 </div>
             </div>
 
-            <div class="side-card mb-3">
+            @* <div class="side-card mb-3">
                 <h5 class="side-card-title">🎯 Цели</h5>
                 <div class="mb-3">
                     <label class="form-label">Дневная норма калорий</label>
@@ -128,7 +124,7 @@
                         <option value="gain">Набор массы</option>
                     </select>
                 </div>
-            </div>
+            </div> *@
 
             <button class="btn btn-danger w-100" @onclick="DeleteAccount">
                 Удалить аккаунт

@@ -426,12 +426,10 @@
 
     private async Task LoadData()
     {
-        // Загружаем рецепты
         recipes = await DbContext.Recipes
             .Include(r => r.RecipeIngredients)
             .ToListAsync();
 
-        // Загружаем ID продуктов из холодильника
         fridgeProductIds = (await DbContext.FridgeItems
             .Where(f => f.UserId == 1)
             .Select(f => f.ProductId)
@@ -439,7 +437,6 @@
             .Where(id => id > 0)
             .ToHashSet();
 
-        // Загружаем избранные рецепты пользователя
         favoriteIds = (await DbContext.FavoriteRecipes
             .Where(f => f.UserId == 1)
             .Select(f => f.RecipeId)

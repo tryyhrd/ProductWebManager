@@ -10,20 +10,40 @@
 <div class="container-fluid p-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
-            <h2 class="fw-bold m-0" style="color: #1a1a2e;">🛒 Список покупок</h2>
+            <h2 class="fw-bold m-0" style="color: #1a1a2e;">Список покупок</h2>
             <small style="color: #888;">
                 Осталось купить: @shoppingItems.Count(x => !x.IsPurchased) из @shoppingItems.Count
             </small>
         </div>
         <div class="d-flex gap-2">
-            <button class="btn btn-menu" @onclick="ClearPurchased">
-                🗑️ Очистить купленные
+            <button class="btn btn-menu" @onclick="OpenListModal">
+                Управление списками
             </button>
+            @* <button class="btn btn-menu" @onclick="ClearPurchased">
+                🧹 Очистить купленные
+            </button> *@
             <button class="btn btn-add" @onclick="OpenAddModal">
-                ➕ Добавить
+                Добавить
             </button>
         </div>
     </div>
+
+    @if (shoppingLists.Any())
+    {
+        <div class="lists-tabs mb-4">
+            @foreach (var list in shoppingLists)
+            {
+                <button class="list-tab @(currentListId == list.Id ? "active" : "")"
+                        @onclick="() => SwitchList(list.Id)">
+                    @list.Name
+                    @if (list.Items?.Count(x => !x.IsPurchased) > 0)
+                    {
+                        <span class="badge">@list.Items.Count(x => !x.IsPurchased)</span>
+                    }
+                </button>
+            }
+        </div>
+    }
 
     <div class="row mb-4">
         <div class="col-md-3 mb-3">
@@ -78,7 +98,7 @@
                         </div>
 
                         <div class="d-flex gap-1">
-                            <button class="btn-icon" @onclick="() => RemoveItem(item)">🗑️</button>
+                            <button class="btn-icon-delete" @onclick="() => RemoveItem(item)">✖ Удалить</button>
                         </div>
                     </div>
                 </div>
@@ -86,7 +106,7 @@
         </div>
 
         <div class="d-flex gap-2 justify-content-end mt-4">
-            <button class="btn btn-menu" @onclick="ClearAll">🗑️ Очистить всё</button>
+            <button class="btn btn-danger" @onclick="ClearAll">Очистить всё</button>
         </div>
     }
     else
@@ -94,44 +114,192 @@
         <div class="empty-state">
             <h4 style="color: #555;">Список пуст</h4>
             <p style="color: #999;">Добавьте продукты для покупки</p>
-            <button class="btn btn-add" @onclick="OpenAddModal">➕ Добавить</button>
+            <button class="btn btn-add" @onclick="OpenAddModal">Добавить</button>
         </div>
     }
 </div>
 
+<!-- Модальное окно добавления продукта -->
 @if (showModal)
 {
     <div class="modal-overlay" @onclick="CloseModal">
         <div class="modal-dialog" @onclick:stopPropagation="true">
-            <h4 style="color: #1a1a2e; margin-bottom: 20px; font-weight: 600;">➕ Добавить покупку</h4>
-
+            <h4 class="modal-title">Добавить покупку</h4>
             <div class="mb-3">
                 <label class="form-label">Продукт</label>
                 <select class="form-control modal-input" @bind="selectedProductId">
                     <option value="0">-- Выберите продукт --</option>
-                    @foreach (var p in availableProducts)
+                    @if (availableProducts != null)
                     {
-                        <option value="@p.Id">@p.Name</option>
+                        @foreach (var p in availableProducts)
+                        {
+                            <option value="@p.Id">@p.Name</option>
+                        }
                     }
                 </select>
             </div>
-
             <div class="row mb-4">
                 <div class="col-md-6">
                     <label class="form-label">Количество</label>
                     <input type="number" class="form-control modal-input" @bind="editQuantity" min="0.1" step="0.1" />
                 </div>
             </div>
-
             <div class="d-flex gap-2">
-                <button class="btn-modal-save" @onclick="SaveItem">💾 Сохранить</button>
-                <button class="btn-modal-cancel" @onclick="CloseModal">Отмена</button>
+                <button type="button" class="btn-modal-save" @onclick="SaveItem">Сохранить</button>
+                <button type="button" class="btn-modal-cancel" @onclick="CloseModal">Отмена</button>
+            </div>
+        </div>
+    </div>
+}
+
+@if (showListModal)
+{
+    <div class="modal-overlay" @onclick="CloseListModal">
+        <div class="modal-dialog" @onclick:stopPropagation="true" style="max-width: 500px;">
+            <h4 class="modal-title">Управление списками покупок</h4>
+
+            <div class="mb-3">
+                <label class="form-label">Новый список</label>
+                <div class="d-flex gap-2">
+                    <input type="text" class="form-control modal-input" @bind="newListName" placeholder="Название списка" />
+                    <button type="button" class="btn-modal-save" @onclick="CreateNewList" style="flex: 0 0 auto;">Создать</button>
+                </div>
+            </div>
+
+            <div class="lists-container">
+                @foreach (var list in shoppingLists)
+                {
+                    <div class="list-manager-item">
+                        <div class="list-info">
+                            <div class="list-name">@list.Name</div>
+                            <div class="list-stats">
+                                @(list.Items?.Count ?? 0) товаров,
+                                @(list.Items?.Count(x => !x.IsPurchased) ?? 0) осталось
+                            </div>
+                        </div>
+                        <div class="d-flex gap-1">
+                            @if (list.Id != currentListId)
+                            {
+                                @* <button class="btn-icon-sm" @onclick="() => SetActiveList(list.Id)">⭐ Сделать активным</button> *@
+                                <button class="btn-icon-sm delete" @onclick="() => DeleteList(list.Id)">✖ Удалить</button>
+                            }
+                            @* else
+                            {
+                                <span class="active-badge">✓ Активный</span>
+                            } *@
+                        </div>
+                    </div>
+                }
             </div>
         </div>
     </div>
 }
 
 <style>
+    .lists-tabs {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        border-bottom: 1px solid #e8e8ec;
+        padding-bottom: 10px;
+    }
+
+    .list-tab {
+        padding: 8px 18px;
+        border: 1px solid #e0e0e4;
+        border-radius: 20px;
+        background: white;
+        color: #666;
+        font-size: 13px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+        .list-tab.active {
+            background: #6c5ce7;
+            border-color: #6c5ce7;
+            color: white;
+        }
+
+        .list-tab .badge {
+            background: rgba(0,0,0,0.1);
+            border-radius: 10px;
+            padding: 1px 6px;
+            font-size: 10px;
+            margin-left: 6px;
+        }
+
+        .list-tab.active .badge {
+            background: rgba(255,255,255,0.2);
+        }
+
+    .list-manager-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 12px 0;
+        border-bottom: 1px solid #f0f0f0;
+    }
+
+        .list-manager-item:last-child {
+            border-bottom: none;
+        }
+
+    .list-info {
+        flex: 1;
+    }
+
+    .list-name {
+        font-weight: 600;
+        color: #1a1a2e;
+        margin-bottom: 4px;
+    }
+
+    .list-stats {
+        font-size: 11px;
+        color: #999;
+    }
+
+    .btn-icon-sm {
+        background: #f8f8fa;
+        border: 1px solid #e0e0e4;
+        border-radius: 6px;
+        padding: 6px 12px;
+        font-size: 12px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+        .btn-icon-sm:hover {
+            background: #f0f0f0;
+        }
+
+        .btn-icon-sm.delete {
+            color: white;
+            background: #e74c3c;
+            border-color: #e74c3c;
+        }
+
+            .btn-icon-sm.delete:hover {
+                background: #c0392b;
+            }
+
+    .active-badge {
+        background: #6c5ce7;
+        color: white;
+        padding: 6px 12px;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 500;
+    }
+
+    .lists-container {
+        max-height: 300px;
+        overflow-y: auto;
+        margin-top: 15px;
+    }
+
     .btn-add {
         padding: 8px 18px;
         border: none;
@@ -161,6 +329,21 @@
 
         .btn-menu:hover {
             background: #f8f8fa;
+        }
+
+    .btn-danger {
+        padding: 8px 18px;
+        border: none;
+        border-radius: 8px;
+        background: #e74c3c;
+        color: white;
+        font-weight: 500;
+        font-size: 13px;
+        cursor: pointer;
+    }
+
+        .btn-danger:hover {
+            background: #c0392b;
         }
 
     .stat-card {
@@ -233,19 +416,21 @@
         margin-top: 2px;
     }
 
-    .btn-icon {
-        background: #f8f8fa;
-        border: 1px solid #eee;
-        color: #e74c3c;
-        font-size: 13px;
-        padding: 4px 8px;
+    .btn-icon-delete {
+        background: #e74c3c;
+        border: none;
+        color: white;
+        font-size: 12px;
+        padding: 5px 12px;
         cursor: pointer;
         border-radius: 6px;
+        font-weight: 500;
+        transition: all 0.2s;
     }
 
-        .btn-icon:hover {
-            background: #fff5f5;
-            border-color: #ffd4d4;
+        .btn-icon-delete:hover {
+            background: #c0392b;
+            transform: scale(1.02);
         }
 
     .empty-state {
@@ -266,8 +451,9 @@
         display: flex;
         align-items: center;
         justify-content: center;
-        z-index: 1000;
+        z-index: 10000;
         backdrop-filter: blur(4px);
+        pointer-events: all;
     }
 
     .modal-dialog {
@@ -277,6 +463,16 @@
         max-width: 460px;
         width: 90%;
         box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+        position: relative;
+        z-index: 10001;
+        pointer-events: all;
+    }
+
+    .modal-title {
+        color: #1a1a2e;
+        margin-bottom: 20px;
+        font-weight: 600;
+        font-size: 20px;
     }
 
     .form-label {
@@ -337,49 +533,93 @@
 </style>
 
 @code {
-    private List<ShoppingListItem> shoppingItems = new();
-    private List<Product> availableProducts = new();
+    private List<Models.ShoppingList> shoppingLists = new();
+    private List<Models.ShoppingListItem> shoppingItems = new();
+    private List<Models.Product> availableProducts = new();
+    private int currentListId;
     private bool showModal = false;
+    private bool showListModal = false;
     private int selectedProductId;
     private double editQuantity = 1;
     private decimal estimatedTotal;
+    private string newListName = "";
 
     protected override async Task OnInitializedAsync()
     {
-        await LoadData();
+        await LoadLists();
+        await LoadProducts();
     }
 
-    private async Task LoadData()
+    private async Task LoadLists()
     {
         try
         {
-            // Загружаем список покупок
-            var list = await DbContext.ShoppingList
+            shoppingLists = await DbContext.ShoppingList
                 .Include(sl => sl.Items)
                     .ThenInclude(si => si.Product)
                         .ThenInclude(p => p.Unit)
-                .FirstOrDefaultAsync(sl => sl.UserId == 1 && !sl.IsCompleted);
-
-            if (list != null)
-            {
-                shoppingItems = list.Items.ToList();
-            }
-            else
-            {
-                shoppingItems = new List<ShoppingListItem>();
-            }
-
-            // Загружаем доступные продукты
-            availableProducts = await DbContext.Products
-                .Include(p => p.Unit)
+                .Where(sl => sl.UserId == 1 && !sl.IsCompleted)
+                .OrderByDescending(sl => sl.CreatedAt)
                 .ToListAsync();
 
-            UpdateTotal();
+            if (!shoppingLists.Any())
+            {
+                var defaultList = new Models.ShoppingList
+                    {
+                        UserId = 1,
+                        Name = "Основной",
+                        IsCompleted = false,
+                        CreatedAt = DateTime.UtcNow,
+                        Items = new List<ShoppingListItem>()
+                    };
+                DbContext.ShoppingList.Add(defaultList);
+                await DbContext.SaveChangesAsync();
+                shoppingLists = await DbContext.ShoppingList
+                    .Include(sl => sl.Items)
+                        .ThenInclude(si => si.Product)
+                            .ThenInclude(p => p.Unit)
+                    .Where(sl => sl.UserId == 1 && !sl.IsCompleted)
+                    .ToListAsync();
+            }
+
+            currentListId = shoppingLists.First().Id;
+            await LoadCurrentList();
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Ошибка загрузки: {ex.Message}");
+            Console.WriteLine($"Ошибка загрузки списков: {ex.Message}");
         }
+    }
+
+    private async Task LoadCurrentList()
+    {
+        var currentList = shoppingLists.FirstOrDefault(sl => sl.Id == currentListId);
+        if (currentList != null)
+        {
+            shoppingItems = currentList.Items?.ToList() ?? new List<ShoppingListItem>();
+            UpdateTotal();
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadProducts()
+    {
+        try
+        {
+            availableProducts = await DbContext.Products
+                .Include(p => p.Unit)
+                .ToListAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Ошибка загрузки продуктов: {ex.Message}");
+        }
+    }
+
+    private async Task SwitchList(int listId)
+    {
+        currentListId = listId;
+        await LoadCurrentList();
     }
 
     private void UpdateTotal()
@@ -409,9 +649,86 @@
         selectedProductId = 0;
         editQuantity = 1;
         showModal = true;
+        StateHasChanged();
     }
 
-    private void CloseModal() => showModal = false;
+    private void CloseModal()
+    {
+        showModal = false;
+        StateHasChanged();
+    }
+
+    private void OpenListModal()
+    {
+        showListModal = true;
+        newListName = "";
+        StateHasChanged();
+    }
+
+    private void CloseListModal()
+    {
+        showListModal = false;
+        StateHasChanged();
+    }
+
+    private async Task CreateNewList()
+    {
+        if (string.IsNullOrWhiteSpace(newListName)) return;
+
+        try
+        {
+            var newList = new Models.ShoppingList
+                {
+                    UserId = 1,
+                    Name = newListName.Trim(),
+                    IsCompleted = false,
+                    CreatedAt = DateTime.UtcNow,
+                    Items = new List<ShoppingListItem>()
+                };
+            DbContext.ShoppingList.Add(newList);
+            await DbContext.SaveChangesAsync();
+            await LoadLists();
+            CloseListModal();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Ошибка создания списка: {ex.Message}");
+        }
+    }
+
+    private async Task SetActiveList(int listId)
+    {
+        await SwitchList(listId);
+        CloseListModal();
+    }
+
+    private async Task DeleteList(int listId)
+    {
+        try
+        {
+            var list = await DbContext.ShoppingList
+                .Include(sl => sl.Items)
+                .FirstOrDefaultAsync(sl => sl.Id == listId);
+
+            if (list != null)
+            {
+                DbContext.ShoppingListItems.RemoveRange(list.Items);
+                DbContext.ShoppingList.Remove(list);
+                await DbContext.SaveChangesAsync();
+                await LoadLists();
+
+                if (currentListId == listId && shoppingLists.Any())
+                {
+                    currentListId = shoppingLists.First().Id;
+                    await LoadCurrentList();
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Ошибка удаления списка: {ex.Message}");
+        }
+    }
 
     private async Task SaveItem()
     {
@@ -419,25 +736,12 @@
 
         try
         {
-            // Находим или создаём активный список покупок
             var list = await DbContext.ShoppingList
                 .Include(sl => sl.Items)
-                .FirstOrDefaultAsync(sl => sl.UserId == 1 && !sl.IsCompleted);
+                .FirstOrDefaultAsync(sl => sl.Id == currentListId);
 
-            if (list == null)
-            {
-                list = new Models.ShoppingList
-                    {
-                        UserId = 1,
-                        Name = "Основной",
-                        IsCompleted = false,
-                        CreatedAt = DateTime.UtcNow,
-                        Items = new List<ShoppingListItem>()
-                    };
-                DbContext.ShoppingList.Add(list);
-            }
+            if (list == null) return;
 
-            // Проверяем, есть ли уже такой продукт в списке
             var existingItem = list.Items.FirstOrDefault(i => i.ProductId == selectedProductId);
             if (existingItem != null)
             {
@@ -454,7 +758,7 @@
             }
 
             await DbContext.SaveChangesAsync();
-            await LoadData();
+            await LoadLists();
             CloseModal();
         }
         catch (Exception ex)
@@ -469,7 +773,7 @@
         {
             DbContext.ShoppingListItems.Remove(item);
             await DbContext.SaveChangesAsync();
-            await LoadData();
+            await LoadLists();
         }
         catch (Exception ex)
         {
@@ -484,7 +788,7 @@
             var purchased = shoppingItems.Where(x => x.IsPurchased).ToList();
             DbContext.ShoppingListItems.RemoveRange(purchased);
             await DbContext.SaveChangesAsync();
-            await LoadData();
+            await LoadLists();
         }
         catch (Exception ex)
         {
@@ -498,13 +802,13 @@
         {
             var list = await DbContext.ShoppingList
                 .Include(sl => sl.Items)
-                .FirstOrDefaultAsync(sl => sl.UserId == 1 && !sl.IsCompleted);
+                .FirstOrDefaultAsync(sl => sl.Id == currentListId);
 
             if (list != null)
             {
                 DbContext.ShoppingListItems.RemoveRange(list.Items);
                 await DbContext.SaveChangesAsync();
-                await LoadData();
+                await LoadLists();
             }
         }
         catch (Exception ex)

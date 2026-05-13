@@ -12,12 +12,12 @@
     <div class="container-fluid p-4">
         <div class="d-flex justify-content-between align-items-center mb-4">
             <div>
-                <h2 class="fw-bold m-0 page-title">📦 Холодильник</h2>
+                <h2 class="fw-bold m-0 page-title">Холодильник</h2>
                 <small class="page-subtitle">Управление продуктами</small>
             </div>
             <div class="d-flex gap-2">
                 <button class="btn btn-add" @onclick="OpenAddModal">
-                    ➕ Добавить продукт
+                    Добавить продукт
                 </button>
             </div>
         </div>
@@ -157,7 +157,7 @@
                 <div class="empty-icon">🛒</div>
                 <h4 class="empty-title">Холодильник пуст</h4>
                 <p class="empty-text">Добавьте продукты, чтобы начать</p>
-                <button type="button" class="btn btn-add" @onclick="OpenAddModal">➕ Добавить первый продукт</button>
+                <button type="button" class="btn btn-add" @onclick="OpenAddModal">Добавить первый продукт</button>
             </div>
         }
     </div>
@@ -167,7 +167,7 @@
 {
     <div class="modal-overlay" @onclick="CloseModal">
         <div class="modal-dialog" @onclick:stopPropagation="true">
-            <h4 class="modal-title">@(isEditing ? "✏️ Изменить" : "➕ Добавить") продукт</h4>
+            <h4 class="modal-title">@(isEditing ? "Изменить" : "Добавить") продукт</h4>
             <div class="mb-3">
                 <label class="form-label">Продукт</label>
                 <select class="form-control modal-input" @bind="selectedProductId">
@@ -192,7 +192,7 @@
                 <input type="date" class="form-control modal-input" @bind="editExpiryDate" />
             </div>
             <div class="d-flex gap-2">
-                <button type="button" class="btn-modal-save" @onclick="SaveProduct">💾 Сохранить</button>
+                <button type="button" class="btn-modal-save" @onclick="SaveProduct">Сохранить</button>
                 <button type="button" class="btn-modal-cancel" @onclick="CloseModal">Отмена</button>
             </div>
         </div>
@@ -203,7 +203,7 @@
 {
     <div class="modal-overlay" @onclick="CancelDelete">
         <div class="modal-dialog" @onclick:stopPropagation="true" style="max-width: 380px;">
-            <h4 class="modal-title">🗑️ Подтверждение</h4>
+            <h4 class="modal-title">Подтверждение</h4>
             <p class="delete-text">Удалить <strong class="delete-name">@productToDelete?.Product?.Name</strong>?</p>
             <div class="d-flex gap-2">
                 <button type="button" class="btn-modal-delete" @onclick="DeleteProduct">Удалить</button>
@@ -212,6 +212,7 @@
         </div>
     </div>
 }
+
 
 <style>
     .page-bg {
@@ -615,7 +616,7 @@
     private List<Product> allProducts = new();
     private List<Category> categories = new();
     private string searchQuery = "";
-    private string sortBy = "expiry"; // ← По умолчанию сортировка по сроку
+    private string sortBy = "expiry"; 
     private string filterCategory = "";
     private bool showModal = false;
     private bool isEditing = false;
@@ -678,15 +679,12 @@
     {
         var query = products.AsEnumerable();
 
-        // Поиск
         if (!string.IsNullOrWhiteSpace(searchQuery))
             query = query.Where(p => p.Product?.Name != null && p.Product.Name.Contains(searchQuery, StringComparison.OrdinalIgnoreCase));
 
-        // Фильтр по категории
         if (!string.IsNullOrEmpty(filterCategory) && int.TryParse(filterCategory, out int catId))
             query = query.Where(p => p.Product?.CategoryId == catId);
 
-        // Сортировка
         filteredProducts = sortBy switch
         {
             "name" => query.OrderBy(p => p.Product?.Name).ToList(),
