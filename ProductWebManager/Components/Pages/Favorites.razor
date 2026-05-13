@@ -2,6 +2,7 @@
 @rendermode InteractiveServer
 @inject NavigationManager Navigation
 @inject ProductWebManager.Data.ProductManagerContext DbContext
+@inject ProductWebManager.Services.AuthService AuthService
 @using Microsoft.EntityFrameworkCore
 @using ProductWebManager.Models
 
@@ -342,7 +343,7 @@
                 .Include(f => f.Recipe)
                     .ThenInclude(r => r.RecipeIngredients)
                         .ThenInclude(ri => ri.Product)
-                .Where(f => f.UserId == 1)
+                .Where(f => f.UserId == AuthService.CurrentUserId)
                 .ToListAsync();
 
             fridgeProductIds = (await DbContext.FridgeItems
@@ -378,7 +379,7 @@
         try
         {
             var all = await DbContext.FavoriteRecipes
-                .Where(f => f.UserId == 1)
+                .Where(f => f.UserId == AuthService.CurrentUserId)
                 .ToListAsync();
 
             DbContext.FavoriteRecipes.RemoveRange(all);

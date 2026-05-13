@@ -1,0 +1,282 @@
+﻿@page "/register"
+@rendermode InteractiveServer
+@attribute [AllowAnonymous]
+@layout ProductWebManager.Components.Layout.EmptyLayout
+@inject NavigationManager Navigation
+@inject ProductWebManager.Data.ProductManagerContext DbContext
+@inject ProductWebManager.Services.AuthService AuthService
+@using Microsoft.EntityFrameworkCore
+@using ProductWebManager.Models
+
+<PageTitle>Регистрация</PageTitle>
+
+<div class="login-page">
+    <div class="login-container">
+        <div class="login-card">
+            <div class="login-header">
+                <h2 class="login-title">Регистрация</h2>
+                <p class="login-subtitle">Создайте новый аккаунт</p>
+            </div>
+
+            <div class="login-body">
+                <div class="mb-3">
+                    <label class="form-label">Логин</label>
+                    <div class="input-group">
+                        <input type="text" class="form-control login-input"
+                               placeholder="Придумайте логин" @bind="login" />
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Пароль</label>
+                    <div class="input-group">
+                        <input type="password" class="form-control login-input"
+                               placeholder="Придумайте пароль" @bind="password" />
+                    </div>
+                </div>
+
+                <div class="mb-4">
+                    <label class="form-label">Повторите пароль</label>
+                    <div class="input-group">
+                        <input type="password" class="form-control login-input"
+                               placeholder="Повторите пароль" @bind="confirmPassword" />
+                    </div>
+                </div>
+
+                @if (!string.IsNullOrEmpty(errorMessage))
+                {
+                    <div class="alert alert-danger" style="font-size: 13px; padding: 10px;">
+                        ❌ @errorMessage
+                    </div>
+                }
+
+                @if (!string.IsNullOrEmpty(successMessage))
+                {
+                    <div class="alert alert-success" style="font-size: 13px; padding: 10px;">
+                        ✅ @successMessage
+                    </div>
+                }
+
+                <button class="btn btn-login w-100" @onclick="RegisterUser" disabled="@isLoading">
+                    @if (isLoading)
+                    {
+                        <span class="spinner-border spinner-border-sm me-2"></span>
+                        <span>Регистрация...</span>
+                    }
+                    else
+                    {
+                        <span>Зарегистрироваться</span>
+                    }
+                </button>
+            </div>
+
+            <div class="login-footer">
+                <p>Уже есть аккаунт? <a href="/login" class="login-link">Войти</a></p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .login-page {
+        min-height: 100vh;
+        background: linear-gradient(135deg, #1a1a2e 0%, #252540 50%, #1a1a2e 100%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+    }
+
+    .login-container {
+        width: 100%;
+        max-width: 420px;
+    }
+
+    .login-card {
+        background: white;
+        border-radius: 20px;
+        overflow: hidden;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    }
+
+    .login-header {
+        background: linear-gradient(135deg, #00b894, #55efc4);
+        padding: 30px;
+        text-align: center;
+        color: white;
+    }
+
+    .login-title {
+        font-size: 22px;
+        font-weight: 700;
+        margin: 0 0 8px 0;
+        color: white;
+    }
+
+    .login-subtitle {
+        font-size: 13px;
+        opacity: 0.9;
+        margin: 0;
+    }
+
+    .login-body {
+        padding: 30px;
+    }
+
+    .form-label {
+        display: block;
+        color: #555;
+        font-size: 13px;
+        font-weight: 500;
+        margin-bottom: 6px;
+    }
+
+    .input-group-text {
+        background: #f8f8fa;
+        border: 1px solid #e0e0e4;
+        border-right: none;
+        font-size: 16px;
+    }
+
+    .login-input {
+        background: #f8f8fa;
+        border: 1px solid #e0e0e4;
+        border-left: none;
+        padding: 10px 14px;
+        font-size: 14px;
+        color: #333;
+        transition: all 0.2s;
+    }
+
+        .login-input:focus {
+            border-color: #00b894;
+            box-shadow: 0 0 0 3px rgba(0, 184, 148, 0.1);
+            outline: none;
+            background: white;
+        }
+
+    .btn-login {
+        padding: 12px;
+        border: none;
+        border-radius: 10px;
+        background: #00b894;
+        color: white;
+        font-weight: 600;
+        font-size: 15px;
+        cursor: pointer;
+        transition: all 0.2s;
+        box-shadow: 0 4px 12px rgba(0, 184, 148, 0.3);
+    }
+
+        .btn-login:hover:not(:disabled) {
+            background: #00a381;
+            box-shadow: 0 6px 16px rgba(0, 184, 148, 0.4);
+            transform: translateY(-1px);
+        }
+
+        .btn-login:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+        }
+
+    .login-footer {
+        padding: 16px 30px;
+        text-align: center;
+        background: #fafafa;
+        border-top: 1px solid #e8e8ec;
+        font-size: 13px;
+        color: #888;
+    }
+
+    .login-link {
+        color: #00b894;
+        text-decoration: none;
+        font-weight: 500;
+    }
+
+        .login-link:hover {
+            text-decoration: underline;
+        }
+
+    .spinner-border {
+        width: 16px;
+        height: 16px;
+        border-width: 2px;
+    }
+</style>
+
+@code {
+    private string login = "";
+    private string password = "";
+    private string confirmPassword = "";
+    private string errorMessage = "";
+    private string successMessage = "";
+    private bool isLoading = false;
+
+    private async Task RegisterUser()
+    {
+        errorMessage = "";
+        successMessage = "";
+
+        if (string.IsNullOrWhiteSpace(login))
+        {
+            errorMessage = "Введите логин";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(password))
+        {
+            errorMessage = "Введите пароль";
+            return;
+        }
+
+        if (password != confirmPassword)
+        {
+            errorMessage = "Пароли не совпадают";
+            return;
+        }
+
+        if (password.Length < 3)
+        {
+            errorMessage = "Пароль должен быть не менее 3 символов";
+            return;
+        }
+
+        isLoading = true;
+        StateHasChanged();
+
+        try
+        {
+            var existingUser = await DbContext.Users.FirstOrDefaultAsync(u => u.Login == login);
+            if (existingUser != null)
+            {
+                errorMessage = "Пользователь с таким логином уже существует";
+                isLoading = false;
+                StateHasChanged();
+                return;
+            }
+
+            var newUser = new User
+                {
+                    Login = login,
+                    Password = password
+                };
+
+            DbContext.Users.Add(newUser);
+            await DbContext.SaveChangesAsync();
+
+            successMessage = "Регистрация успешна! Перенаправление...";
+            StateHasChanged();
+
+            await Task.Delay(1500);
+            Navigation.NavigateTo("/login");
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Ошибка: {ex.Message}";
+        }
+
+        isLoading = false;
+        StateHasChanged();
+    }
+}

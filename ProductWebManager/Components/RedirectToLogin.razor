@@ -1,0 +1,17 @@
+﻿@inject NavigationManager Navigation
+
+@code {
+    protected override void OnInitialized()
+    {
+        try
+        {
+            // Выполняем переход на страницу входа
+            Navigation.NavigateTo("/login");
+        }
+        catch (NavigationException)
+        {
+            // ВАЖНОЕ ИСПРАВЛЕНИЕ: Мы НЕ пишем "throw;".
+            // Мы просто пустая область {}, чтобы Blazor тихо выполнил редирект 302.
+        }
+    }
+}

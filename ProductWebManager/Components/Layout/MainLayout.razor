@@ -1,26 +1,37 @@
 ﻿@namespace ProductWebManager.Components.Layout
 @inherits LayoutComponentBase
+@rendermode InteractiveServer
+@using Microsoft.AspNetCore.Components.Authorization
 
 <div class="page">
-    <div class="sidebar">
-        <NavMenu />
-    </div>
+    <AuthorizeView>
+        <Authorized>
+            @* Боковое меню видят только вошедшие пользователи *@
+            <div class="sidebar">
+                <NavMenu />
+            </div>
+        </Authorized>
+    </AuthorizeView>
 
     <main>
-        <div class="top-row px-4">
-            <div class="d-flex align-items-center gap-3">
-                <button class="btn-logout" @onclick="Logout">
-                    Выйти
-                </button>
-            </div>
-        </div>
+        <AuthorizeView>
+            <Authorized>
+                <div class="top-row px-4">
+                    <div class="d-flex align-items-center gap-3">
+                        <span style="color: #888; font-size: 14px;">@context.User.Identity?.Name</span>
+                        <button class="btn-logout" @onclick="HandleLogout">
+                            Выйти
+                        </button>
+                    </div>
+                </div>
+            </Authorized>
+        </AuthorizeView>
 
         <article class="content px-4">
             @Body
         </article>
     </main>
 </div>
-
 
 <style>
     .btn-logout {
@@ -42,8 +53,12 @@
 </style>
 
 @code {
-    private void Logout()
+    [Inject] private ProductWebManager.Services.AuthService AuthService { get; set; } = default!;
+    [Inject] private NavigationManager Navigation { get; set; } = default!;
+
+    private async Task HandleLogout()
     {
-        // TODO: Реализовать выход
+        await AuthService.Logout();
+        Navigation.NavigateTo("/login");
     }
 }

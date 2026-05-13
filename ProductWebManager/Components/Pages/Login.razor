@@ -1,0 +1,228 @@
+﻿@page "/login"
+@rendermode InteractiveServer
+@attribute [AllowAnonymous]
+@layout ProductWebManager.Components.Layout.EmptyLayout
+@inject NavigationManager Navigation
+@inject ProductWebManager.Data.ProductManagerContext DbContext
+@inject ProductWebManager.Services.AuthService AuthService
+@using Microsoft.EntityFrameworkCore
+
+<PageTitle>Вход</PageTitle>
+
+<div class="login-page">
+    <div class="login-container">
+        <div class="login-card">
+            <div class="login-header">
+                <h2 class="login-title">Вход в систему</h2>
+                <p class="login-subtitle">Продуктовый менеджер</p>
+            </div>
+
+            <div class="login-body">
+                <div class="mb-3">
+                    <label class="form-label">Логин</label>
+                    <div class="input-group">
+                        <input type="text" class="form-control login-input"
+                               placeholder="Введите логин" @bind="login" />
+                    </div>
+                </div>
+
+                <div class="mb-4">
+                    <label class="form-label">Пароль</label>
+                    <div class="input-group">
+                        <input type="password" class="form-control login-input"
+                               placeholder="Введите пароль" @bind="password" />
+                    </div>
+                </div>
+
+                @if (!string.IsNullOrEmpty(errorMessage))
+                {
+                    <div class="alert alert-danger" style="font-size: 13px; padding: 10px;">
+                        ❌ @errorMessage
+                    </div>
+                }
+
+                <button class="btn btn-login w-100" @onclick="LoginUser" disabled="@isLoading">
+                    @if (isLoading)
+                    {
+                        <span class="spinner-border spinner-border-sm me-2"></span>
+                        <span>Вход...</span>
+                    }
+                    else
+                    {
+                        <span>Войти</span>
+                    }
+                </button>
+            </div>
+
+            <div class="login-footer">
+                <p>Нет аккаунта? <a href="/register" class="login-link">Зарегистрироваться</a></p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    /* Все ваши стили CSS остаются без изменений */
+    .login-page {
+        min-height: 100vh;
+        background: linear-gradient(135deg, #1a1a2e 0%, #252540 50%, #1a1a2e 100%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+    }
+
+    .login-container {
+        width: 100%;
+        max-width: 420px;
+    }
+
+    .login-card {
+        background: white;
+        border-radius: 20px;
+        overflow: hidden;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    }
+
+    .login-header {
+        background: linear-gradient(135deg, #6c5ce7, #a29bfe);
+        padding: 30px;
+        text-align: center;
+        color: white;
+    }
+
+    .login-title {
+        font-size: 22px;
+        font-weight: 700;
+        margin: 0 0 8px 0;
+        color: white;
+    }
+
+    .login-subtitle {
+        font-size: 13px;
+        opacity: 0.8;
+        margin: 0;
+    }
+
+    .login-body {
+        padding: 30px;
+    }
+
+    .form-label {
+        display: block;
+        color: #555;
+        font-size: 13px;
+        font-weight: 500;
+        margin-bottom: 6px;
+    }
+
+    .input-group-text {
+        background: #f8f8fa;
+        border: 1px solid #e0e0e4;
+        border-right: none;
+        font-size: 16px;
+    }
+
+    .login-input {
+        background: #f8f8fa;
+        border: 1px solid #e0e0e4;
+        border-left: none;
+        padding: 10px 14px;
+        font-size: 14px;
+        color: #333;
+    }
+
+        .login-input:focus {
+            border-color: #6c5ce7;
+            box-shadow: 0 0 0 3px rgba(108,92,231,0.1);
+            outline: none;
+            background: white;
+        }
+
+    .btn-login {
+        padding: 12px;
+        border: none;
+        border-radius: 10px;
+        background: #6c5ce7;
+        color: white;
+        font-weight: 600;
+        font-size: 15px;
+        cursor: pointer;
+        box-shadow: 0 4px 12px rgba(108,92,231,0.3);
+        transition: all 0.2s;
+    }
+
+        .btn-login:hover:not(:disabled) {
+            background: #5a4bd1;
+            transform: translateY(-1px);
+        }
+
+        .btn-login:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+        }
+
+    .login-footer {
+        padding: 16px 30px;
+        text-align: center;
+        background: #fafafa;
+        border-top: 1px solid #e8e8ec;
+        font-size: 13px;
+        color: #888;
+    }
+
+    .login-link {
+        color: #6c5ce7;
+        text-decoration: none;
+        font-weight: 500;
+    }
+
+    .spinner-border {
+        width: 16px;
+        height: 16px;
+        border-width: 2px;
+    }
+</style>
+
+@code {
+    private string login = "";
+    private string password = "";
+    private string errorMessage = "";
+    private bool isLoading = false;
+
+    private async Task LoginUser()
+    {
+        if (string.IsNullOrWhiteSpace(login) || string.IsNullOrWhiteSpace(password))
+        {
+            errorMessage = "Введите логин и пароль";
+            return;
+        }
+
+        isLoading = true;
+        errorMessage = "";
+
+        try
+        {
+            var user = await DbContext.Users
+                .FirstOrDefaultAsync(u => u.Login == login && u.Password == password);
+
+            if (user != null)
+            {
+                await AuthService.Login(user.Id, user.Login);
+
+                // ИСПРАВЛЕНИЕ: Выполняем SPA-навигацию без жесткой перезагрузки страницы
+                Navigation.NavigateTo("/fridge");
+            }
+            else
+            {
+                errorMessage = "Неверный логин или пароль";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Ошибка: {ex.Message}";
+        }
+
+        isLoading = false;
+    }
+}

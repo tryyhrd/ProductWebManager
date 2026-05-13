@@ -1,7 +1,9 @@
+using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.EntityFrameworkCore;
 using ProductWebManager.Components;
 using ProductWebManager.Data;
 using ProductWebManager.Models;
+using ProductWebManager.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -11,36 +13,37 @@ builder.Services.AddRazorComponents()
 builder.Services.AddDbContext<ProductManagerContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
+builder.Services.AddScoped<AuthService>();
+builder.Services.AddScoped<AuthenticationStateProvider>(sp => sp.GetRequiredService<AuthService>());
+builder.Services.AddAuthorizationCore();
+builder.Services.AddCascadingAuthenticationState();
+
+
 var app = builder.Build();
 
-// Создание базы данных и заполнение тестовыми данными
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<ProductManagerContext>();
 
-    // Создаём базу данных
     db.Database.EnsureCreated();
 
-    // Заполняем тестовыми данными, если база пустая
     if (!db.Users.Any())
     {
-        // === ПОЛЬЗОВАТЕЛИ ===
         var admin = new User
         {
             Login = "admin",
-            Password = "admin123",
+            Password = "admin",
             Allergies = new List<Allergie>()
         };
         var user = new User
         {
             Login = "user",
-            Password = "user123",
+            Password = "user",
             Allergies = new List<Allergie>()
         };
         db.Users.AddRange(admin, user);
         db.SaveChanges();
 
-        // === АЛЛЕРГИИ ===
         var allergies = new List<Allergie>
         {
             new() { Name = "Лактоза" },

@@ -1,26 +1,39 @@
-﻿<Router AppAssembly="typeof(Program).Assembly">
+﻿@using Microsoft.AspNetCore.Components.Authorization
+@inject NavigationManager Navigation
+@inject ProductWebManager.Services.AuthService AuthService
+@inject AuthenticationStateProvider AuthStateProvider
+
+<Router AppAssembly="typeof(Program).Assembly">
     <Found Context="routeData">
-        <RouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)" />
+        <CascadingAuthenticationState>
+            @{
+                var currentUri = Navigation.ToAbsoluteUri(Navigation.Uri).AbsolutePath;
+                var isPublicPage = currentUri.Equals("/login", StringComparison.OrdinalIgnoreCase) ||
+                currentUri.Equals("/register", StringComparison.OrdinalIgnoreCase);
+            }
+
+            @if (!AuthService.IsAuthenticated && !isPublicPage)
+            {
+                @* Вместо падения, роутер аккуратно подменит макет на пустой и вызовет редирект *@
+                <LayoutView Layout="typeof(Layout.EmptyLayout)">
+                    <RedirectToLogin />
+                </LayoutView>
+            }
+            else
+            {
+                <RouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)" />
+            }
+        </CascadingAuthenticationState>
         <FocusOnNavigate RouteData="routeData" Selector="h1" />
     </Found>
     <NotFound>
         <PageTitle>Не найдено</PageTitle>
-        <LayoutView Layout="typeof(Layout.MainLayout)">
+        <LayoutView Layout="typeof(Layout.EmptyLayout)">
             <div class="text-center p-5">
-                <h1 class="text-muted" style="font-size: 72px;">404</h1>
-                <p class="text-muted">Страница @GetCurrentUrl() не найдена</p>
-                <a href="/" class="btn btn-add">На главную</a>
+                <h1 style="font-size: 72px; color: #ccc;">404</h1>
+                <p style="color: #888;">Страница не найдена</p>
+                <a href="/fridge" class="btn btn-primary">В холодильник</a>
             </div>
         </LayoutView>
     </NotFound>
 </Router>
-
-@code {
-    [Inject]
-    private NavigationManager Navigation { get; set; } = default!;
-
-    private string GetCurrentUrl()
-    {
-        return Navigation?.Uri ?? "";
-    }
-}

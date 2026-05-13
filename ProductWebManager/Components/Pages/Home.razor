@@ -1,10 +1,29 @@
-﻿@* @page "/" *@
+﻿@page "/"
+@rendermode InteractiveServer
+@inject ProductWebManager.Services.AuthService AuthService
+@inject NavigationManager Navigation
 
-<h3>Home</h3>
+<PageTitle>Загрузка...</PageTitle>
+
+<div class="d-flex justify-content-center align-items-center" style="min-height: 100vh; background: #f0f1f5;">
+    <div class="text-center">
+        <div class="spinner-border text-primary mb-3" role="status" style="width: 48px; height: 48px;"></div>
+        <p style="color: #888;">Загрузка приложения...</p>
+    </div>
+</div>
 
 @code {
-	private void Load()
-	{
-		
-	}
+    protected override async Task OnInitializedAsync()
+    {
+        await AuthService.InitializeAsync();
+
+        if (AuthService.IsAuthenticated)
+        {
+            Navigation.NavigateTo("/fridge");
+        }
+        else
+        {
+            Navigation.NavigateTo("/login");
+        }
+    }
 }

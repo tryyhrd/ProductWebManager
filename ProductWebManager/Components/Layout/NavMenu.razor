@@ -1,60 +1,53 @@
 ﻿@namespace ProductWebManager.Components.Layout
 
-<div class="top-row ps-3 navbar navbar-dark">
-    <div class="container-fluid">
-        <a class="navbar-brand" href="">
-            Продуктовый менеджер
-        </a>
-        <button title="Навигация" class="navbar-toggler" @onclick="ToggleNavMenu">
-            <span class="navbar-toggler-icon"></span>
-        </button>
+<div class="sidebar-container">
+    <div class="sidebar-header navbar navbar-light">
+        <div class="container-fluid d-flex justify-content-between align-items-center w-100">
+            <a class="navbar-brand-custom" href="fridge">
+                Продуктовый менеджер
+            </a>
+        </div>
+    </div>
+
+    <div class="sidebar-menu-wrapper @(collapseNavMenu ? "sidebar-collapsed" : "")">
+        <nav class="sidebar-nav-list">
+            <div class="sidebar-nav-item">
+                <NavLink class="nav-menu-link" href="fridge">
+                    <span class="nav-text">Холодильник</span>
+                </NavLink>
+            </div>
+            <div class="sidebar-nav-item">
+                <NavLink class="nav-menu-link" href="recipes">
+                    <span class="nav-text">Рецепты</span>
+                </NavLink>
+            </div>
+            <div class="sidebar-nav-item">
+                <NavLink class="nav-menu-link" href="menu">
+                   <span class="nav-text">Меню</span>
+                </NavLink>
+            </div>
+            <div class="sidebar-nav-item">
+                <NavLink class="nav-menu-link" href="shopping-list">
+                   <span class="nav-text">Список покупок</span>
+                </NavLink>
+            </div>
+            <div class="sidebar-nav-item">
+                <NavLink class="nav-menu-link" href="favorites">
+                    <span class="nav-text">Избранное</span>
+                </NavLink>
+            </div>
+            <div class="sidebar-nav-item">
+                <NavLink class="nav-menu-link" href="profile">
+                   <span class="nav-text">Профиль</span>
+                </NavLink>
+            </div>
+        </nav>
     </div>
 </div>
 
-<div class="@NavMenuCssClass nav-scrollable" @onclick="ToggleNavMenu">
-    <nav class="flex-column">
-        @* <div class="nav-item px-3">
-            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
-                <span class="oi oi-home"></span> Главная
-            </NavLink>
-        </div> *@
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="fridge">
-                <span class="oi oi-list"></span> Холодильник
-            </NavLink>
-        </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="recipes">
-                <span class="oi oi-book"></span> Рецепты
-            </NavLink>
-        </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="menu">
-                <span class="oi oi-calendar"></span> Меню
-            </NavLink>
-        </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="shopping-list">
-                <span class="oi oi-cart"></span> Список покупок
-            </NavLink>
-        </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="favorites">
-                <span class="oi oi-star"></span> Избранное
-            </NavLink>
-        </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="profile">
-                <span class="oi oi-profile"></span> Профиль
-            </NavLink>
-        </div>
-    </nav>
-</div>
-
 @code {
-    private bool collapseNavMenu = false; 
-
-    private string? NavMenuCssClass => collapseNavMenu ? "collapse" : null;
+    // По умолчанию меню открыто на больших экранах
+    private bool collapseNavMenu = false;
 
     private void ToggleNavMenu()
     {

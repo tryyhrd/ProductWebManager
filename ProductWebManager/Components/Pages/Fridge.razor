@@ -1,8 +1,8 @@
-﻿@page "/"
-@page "/fridge"
+﻿@page "/fridge"
 @rendermode InteractiveServer
 @inject NavigationManager Navigation
 @inject ProductWebManager.Data.ProductManagerContext DbContext
+@inject ProductWebManager.Services.AuthService AuthService
 @using Microsoft.EntityFrameworkCore
 @using ProductWebManager.Models
 
@@ -653,7 +653,7 @@
             products = await DbContext.FridgeItems
                 .Include(f => f.Product).ThenInclude(p => p.Unit)
                 .Include(f => f.Product).ThenInclude(p => p.Category)
-                .Where(f => f.UserId == 1)
+                .Where(f => f.UserId == AuthService.CurrentUserId)
                 .ToListAsync();
 
             allProducts = await DbContext.Products
@@ -742,7 +742,7 @@
             {
                 DbContext.FridgeItems.Add(new FridgeItem
                     {
-                        UserId = 1,
+                        UserId = AuthService.CurrentUserId,
                         ProductId = selectedProductId,
                         Quanity = editQuantity,
                         ExpirationDate = editExpiryDate,

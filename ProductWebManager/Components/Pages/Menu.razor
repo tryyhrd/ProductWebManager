@@ -2,6 +2,7 @@
 @rendermode InteractiveServer
 @inject NavigationManager Navigation
 @inject ProductWebManager.Data.ProductManagerContext DbContext
+@inject ProductWebManager.Services.AuthService AuthService
 @using Microsoft.EntityFrameworkCore
 @using ProductWebManager.Models
 
@@ -146,7 +147,6 @@
             else
             {
                 <div class="empty-state">
-                    <span class="empty-icon-large">📅</span>
                     <h4 style="color: #555; margin-top: 16px;">Меню не составлено</h4>
                     <p style="color: #999; margin-bottom: 16px;">
                         @if (!fridgeItems.Any())
@@ -548,7 +548,7 @@
     {
         if (!fridgeItems.Any()) return;
         isGenerating = true;
-        generationStatus = "⏳ Генерация меню через ИИ... Это может занять до минуты.";
+        generationStatus = "Генерация меню через ИИ... Это может занять до минуты.";
         StateHasChanged();
 
         try
@@ -557,7 +557,7 @@
 
             if (generatedMenu == null || !generatedMenu.Items.Any())
             {
-                generationStatus = "❌ Не удалось сгенерировать меню.";
+                generationStatus = "Не удалось сгенерировать меню.";
                 isGenerating = false;
                 StateHasChanged();
                 return;

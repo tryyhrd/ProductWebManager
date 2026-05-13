@@ -2,6 +2,7 @@
 @rendermode InteractiveServer
 @inject NavigationManager Navigation
 @inject ProductWebManager.Data.ProductManagerContext DbContext
+@inject ProductWebManager.Services.AuthService AuthService
 @using Microsoft.EntityFrameworkCore
 @using ProductWebManager.Models
 
@@ -431,14 +432,14 @@
             .ToListAsync();
 
         fridgeProductIds = (await DbContext.FridgeItems
-            .Where(f => f.UserId == 1)
+            .Where(f => f.UserId == AuthService.CurrentUserId)
             .Select(f => f.ProductId)
             .ToListAsync())
             .Where(id => id > 0)
             .ToHashSet();
 
         favoriteIds = (await DbContext.FavoriteRecipes
-            .Where(f => f.UserId == 1)
+            .Where(f => f.UserId == AuthService.CurrentUserId)
             .Select(f => f.RecipeId)
             .ToListAsync())
             .ToHashSet();
@@ -504,21 +505,19 @@
         try
         {
             var existing = await DbContext.FavoriteRecipes
-                .FirstOrDefaultAsync(f => f.RecipeId == recipeId && f.UserId == 1);
+                .FirstOrDefaultAsync(f => f.RecipeId == recipeId && f.UserId == AuthService.CurrentUserId);
 
             if (existing != null)
             {
-                // Удаляем из избранного
                 DbContext.FavoriteRecipes.Remove(existing);
                 favoriteIds.Remove(recipeId);
             }
             else
             {
-                // Добавляем в избранное
                 var favorite = new FavoriteRecipe
                     {
                         RecipeId = recipeId,
-                        UserId = 1
+                        UserId = AuthService.CurrentUserId
                     };
                 DbContext.FavoriteRecipes.Add(favorite);
                 favoriteIds.Add(recipeId);
