@@ -1,389 +1,478 @@
 ﻿@page "/profile"
 @rendermode InteractiveServer
-@inject NavigationManager Navigation
+
 @inject ProductWebManager.Services.AuthService AuthService
+@inject ProductWebManager.Data.ProductManagerContext DbContext
+
+@using Microsoft.EntityFrameworkCore
+@using ProductWebManager.Models
 
 <PageTitle>Профиль</PageTitle>
 
-<div class="container-fluid p-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <div>
-            <h2 class="fw-bold m-0" style="color: #1a1a2e;">Профиль</h2>
-            <small style="color: #888;">Настройки и предпочтения</small>
-        </div>
-        <button class="btn btn-add" @onclick="SaveProfile">
-            Сохранить
-        </button>
-    </div>
+<div class="profile-page">
 
-    <div class="row">
-        <div class="col-lg-8">
-            @* <div class="profile-card mb-4">
-                <h4 class="section-title">Личная информация</h4>
+    <div class="profile-container">
 
-                <div class="row mb-3">
-                    <div class="col-md-6">
-                        <label class="form-label">Email</label>
-                        <input type="email" class="form-control profile-input" @bind="userProfile.Email" />
-                    </div>
+        <!-- PAGE HEADER -->
+        <div class="page-header">
+
+            <div>
+
+                <h1 class="page-title">
+                    Профиль
+                </h1>
+
+                <div class="page-subtitle">
+                    Настройки аккаунта и предпочтений
                 </div>
 
-                <div class="row mb-3">
-                    <div class="col-md-4">
-                        <label class="form-label">Возраст</label>
-                        <input type="number" class="form-control profile-input" @bind="userProfile.Age" />
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label">Вес (кг)</label>
-                        <input type="number" class="form-control profile-input" @bind="userProfile.Weight" />
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label">Рост (см)</label>
-                        <input type="number" class="form-control profile-input" @bind="userProfile.Height" />
-                    </div>
-                </div>
-            </div> *@
-
-            <div class="profile-card mb-4">
-                <h4 class="section-title">⚠️ Аллергены</h4>
-                <p class="text-muted-custom mb-3">Отметьте продукты, которые вам нельзя употреблять</p>
-
-                <div class="allergens-grid">
-                    @foreach (var allergen in allergens)
-                    {
-                        <div class="allergen-item @(allergen.Selected ? "selected" : "")"
-                             @onclick="() => ToggleAllergen(allergen)">
-                            <span class="allergen-icon">@allergen.Icon</span>
-                            <span class="allergen-name">@allergen.Name</span>
-                            <span class="allergen-check">@(allergen.Selected ? "✅" : "⬜")</span>
-                        </div>
-                    }
-                </div>
             </div>
 
-            @* <div class="profile-card">
-                <h4 class="section-title">🍽️ Диетические предпочтения</h4>
+        </div>
 
-                <div class="diet-options">
-                    @foreach (var diet in diets)
-                    {
-                        <label class="diet-option @(diet.Selected ? "selected" : "")">
-                            <input type="checkbox" class="diet-checkbox" checked="@diet.Selected"
-                                   @onchange="() => ToggleDiet(diet)" />
-                            <span class="diet-icon">@diet.Icon</span>
-                            <div>
-                                <div class="diet-name">@diet.Name</div>
-                                <div class="diet-desc">@diet.Description</div>
+        <div class="row g-4">
+
+            <div class="col-12">
+
+                <!-- ACCOUNT -->
+                <div class="content-card">
+
+                    <div class="card-header-custom">
+
+                        <div>
+
+                            <h3 class="section-title">
+                                Аккаунт
+                            </h3>
+
+                            <div class="section-subtitle">
+                                Основная информация профиля
                             </div>
-                        </label>
-                    }
-                </div>
-            </div> *@
-        </div>
 
-        <!-- Правая колонка - статистика -->
-        <div class="col-lg-4">
-            <div class="side-card mb-3">
-                <h5 class="side-card-title">📊 Статистика</h5>
-                <div class="stats-list">
-                    <div class="stat-row">
-                        <span>Приготовлено блюд</span>
-                        <span class="stat-number">@stats.CookedMeals</span>
+                        </div>
+
                     </div>
-                    <div class="stat-row">
-                        <span>В избранном</span>
-                        <span class="stat-number">@stats.FavoriteRecipes</span>
+
+                    <div class="account-grid">
+
+                        <div class="account-item">
+
+                            <div class="account-content">
+
+                                <div class="account-label">
+                                    Логин
+                                </div>
+
+                                <div class="account-value">
+                                    @AuthService.CurrentUserName
+                                </div>
+
+                            </div>
+
+                        </div>
+
+                        
+                        <div class="account-item">
+
+                            <div class="account-icon">
+                                ⚠️
+                            </div>
+
+                            <div class="account-content">
+
+                                <div class="account-label">
+                                    Выбрано аллергенов
+                                </div>
+
+                                <div class="account-value">
+                                    @allergens.Count(x => x.Selected)
+                                </div>
+
+                            </div>
+
+                        </div>
+
                     </div>
-                    @* <div class="stat-row">
-                        <span>🛒 Куплено продуктов</span>
-                        <span class="stat-number">@stats.PurchasedItems</span>
-                    </div> *@
-                    <div class="stat-row">
-                        <span>Дней планирования</span>
-                        <span class="stat-number">@stats.PlanDays</span>
-                    </div>
+
                 </div>
+
+                <div class="content-card mt-4">
+
+                    <div class="card-header-custom">
+
+                        <div>
+
+                            <h3 class="section-title">
+                                Аллергены
+                            </h3>
+
+                            <div class="section-subtitle">
+                                Исключаются при подборе рецептов и меню
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                    <div class="allergens-grid">
+
+                        @foreach (var allergen in allergens)
+                        {
+                            <div class="allergen-card @(allergen.Selected ? "selected" : "")"
+                                 @onclick="async () => await ToggleAllergen(allergen)">
+
+                                <div class="allergen-top">
+
+                                    <div class="allergen-icon">
+                                        @GetAllergenIcon(allergen.Name)
+                                    </div>
+
+                                    @if (allergen.Selected)
+                                    {
+                                        <div class="allergen-check">
+                                            ✓
+                                        </div>
+                                    }
+
+                                </div>
+
+                                <div class="allergen-name">
+                                    @allergen.Name
+                                </div>
+
+                                <div class="allergen-status">
+                                    @(allergen.Selected
+                                        ? "Исключён"
+                                        : "Разрешён")
+                                </div>
+
+                            </div>
+                        }
+
+                    </div>
+
+                </div>
+
             </div>
 
-            @* <div class="side-card mb-3">
-                <h5 class="side-card-title">🎯 Цели</h5>
-                <div class="mb-3">
-                    <label class="form-label">Дневная норма калорий</label>
-                    <select class="form-control profile-input" @bind="userProfile.DailyCalories">
-                        <option value="1500">1500 ккал</option>
-                        <option value="1800">1800 ккал</option>
-                        <option value="2000">2000 ккал</option>
-                        <option value="2500">2500 ккал</option>
-                        <option value="3000">3000 ккал</option>
-                    </select>
-                </div>
-                <div class="mb-3">
-                    <label class="form-label">Цель</label>
-                    <select class="form-control profile-input" @bind="userProfile.Goal">
-                        <option value="lose">Похудение</option>
-                        <option value="maintain">Поддержание</option>
-                        <option value="gain">Набор массы</option>
-                    </select>
-                </div>
-            </div> *@
-
-            @* <button class="btn btn-danger w-100" @onclick="DeleteAccount">
-                Удалить аккаунт
-            </button> *@
         </div>
+
     </div>
+
 </div>
 
 <style>
-    .btn-add {
-        padding: 8px 18px;
-        border: none;
-        border-radius: 8px;
-        background: #6c5ce7;
-        color: white;
-        font-weight: 500;
-        font-size: 13px;
-        cursor: pointer;
-        box-shadow: 0 2px 6px rgba(108, 92, 231, 0.3);
-    }
 
-    .btn-danger {
-        padding: 10px;
-        border: none;
-        border-radius: 10px;
-        background: #e74c3c;
-        color: white;
-        font-weight: 500;
-        font-size: 14px;
-        cursor: pointer;
-    }
-
-    .profile-card {
-        background: white;
-        border: 1px solid #e8e8ec;
-        border-radius: 14px;
+    .profile-page {
+        min-height: 100vh;
+        background: #f6f7fb;
         padding: 24px;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    }
+
+    .profile-container {
+        max-width: 1450px;
+        margin: 0 auto;
+    }
+
+    .page-header {
+        margin-bottom: 24px;
+    }
+
+    .page-title {
+        margin: 0;
+        font-size: 36px;
+        font-weight: 800;
+        color: #1a1a2e;
+        letter-spacing: -0.5px;
+    }
+
+    .page-subtitle {
+        margin-top: 8px;
+        color: #8d90a1;
+        font-size: 14px;
+    }
+
+    .content-card {
+        background: white;
+        border: 1px solid #ececf3;
+        border-radius: 28px;
+        padding: 28px;
+        box-shadow: 0 2px 18px rgba(0,0,0,0.04);
+    }
+
+    .card-header-custom {
+        margin-bottom: 24px;
     }
 
     .section-title {
+        margin: 0;
+        font-size: 24px;
+        font-weight: 800;
         color: #1a1a2e;
-        font-size: 18px;
-        font-weight: 600;
-        margin-bottom: 20px;
     }
 
-    .form-label {
-        display: block;
-        color: #666;
+    .section-subtitle {
+        margin-top: 6px;
+        color: #8d90a1;
+        font-size: 13px;
+    }
+
+    .account-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit,minmax(260px,1fr));
+        gap: 18px;
+    }
+
+    .account-item {
+        background: #fafbff;
+        border: 1px solid #eef0f5;
+        border-radius: 24px;
+        padding: 22px;
+        display: flex;
+        align-items: center;
+        gap: 18px;
+        transition: 0.2s ease;
+    }
+
+        .account-item:hover {
+            transform: translateY(-2px);
+            border-color: #dfe3ee;
+        }
+
+    .account-icon {
+        width: 58px;
+        height: 58px;
+        border-radius: 18px;
+        background: #f3f4f9;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 26px;
+        flex-shrink: 0;
+    }
+
+    .account-content {
+        min-width: 0;
+    }
+
+    .account-label {
+        color: #8d90a1;
         font-size: 12px;
         margin-bottom: 4px;
-        font-weight: 500;
     }
 
-    .profile-input {
-        background: #f8f8fa;
-        border: 1px solid #e0e0e4;
-        border-radius: 8px;
-        padding: 9px 12px;
-        color: #333;
-        font-size: 13px;
-        width: 100%;
+    .account-value {
+        color: #1a1a2e;
+        font-size: 24px;
+        font-weight: 800;
+        line-height: 1.2;
+        word-break: break-word;
     }
-
-        .profile-input:focus {
-            border-color: #6c5ce7;
-            outline: none;
-            box-shadow: 0 0 0 3px rgba(108, 92, 231, 0.1);
-        }
 
     .allergens-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-        gap: 8px;
+        grid-template-columns: repeat(auto-fill,minmax(190px,1fr));
+        gap: 18px;
     }
 
-    .allergen-item {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        padding: 10px 14px;
-        border: 1px solid #e8e8ec;
-        border-radius: 10px;
+    .allergen-card {
+        position: relative;
+        background: #fafbff;
+        border: 1px solid #ececf3;
+        border-radius: 24px;
+        padding: 20px;
         cursor: pointer;
-        transition: all 0.2s;
+        transition: all 0.2s ease;
+        user-select: none;
+        overflow: hidden;
     }
 
-        .allergen-item:hover {
+        .allergen-card:hover {
+            transform: translateY(-3px);
+            border-color: #d9dced;
+            box-shadow: 0 10px 24px rgba(0,0,0,0.05);
+        }
+
+        .allergen-card.selected {
+            background: linear-gradient(180deg,#f6f3ff 0%,#ffffff 100%);
             border-color: #6c5ce7;
         }
 
-        .allergen-item.selected {
-            background: #f5f3ff;
-            border-color: #6c5ce7;
-        }
+    .allergen-top {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 18px;
+    }
 
     .allergen-icon {
-        font-size: 20px;
-    }
-
-    .allergen-name {
-        font-size: 13px;
-        color: #333;
-        flex: 1;
+        width: 54px;
+        height: 54px;
+        border-radius: 18px;
+        background: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 28px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.04);
     }
 
     .allergen-check {
-        font-size: 14px;
-    }
-
-    .diet-options {
-        display: flex;
-        flex-direction: column;
-        gap: 10px;
-    }
-
-    .diet-option {
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        background: #6c5ce7;
+        color: white;
         display: flex;
         align-items: center;
-        gap: 12px;
-        padding: 14px;
-        border: 1px solid #e8e8ec;
-        border-radius: 12px;
-        cursor: pointer;
-        transition: all 0.2s;
+        justify-content: center;
+        font-size: 13px;
+        font-weight: 700;
     }
 
-        .diet-option:hover {
-            border-color: #6c5ce7;
-        }
-
-        .diet-option.selected {
-            background: #f5f3ff;
-            border-color: #6c5ce7;
-        }
-
-    .diet-checkbox {
-        opacity: 0;
-        position: absolute;
-    }
-
-    .diet-icon {
-        font-size: 28px;
-    }
-
-    .diet-name {
-        font-weight: 600;
-        color: #1a1a2e;
-        font-size: 14px;
-    }
-
-    .diet-desc {
-        color: #999;
-        font-size: 11px;
-    }
-
-    .side-card {
-        background: white;
-        border: 1px solid #e8e8ec;
-        border-radius: 14px;
-        padding: 20px;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.04);
-    }
-
-    .side-card-title {
+    .allergen-name {
         color: #1a1a2e;
         font-size: 16px;
-        font-weight: 600;
-        margin-bottom: 16px;
+        font-weight: 700;
+        margin-bottom: 6px;
     }
 
-    .stats-list {
-        display: flex;
-        flex-direction: column;
-        gap: 12px;
-    }
-
-    .stat-row {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        color: #666;
+    .allergen-status {
+        color: #8d90a1;
         font-size: 13px;
     }
 
-    .stat-number {
-        font-weight: 700;
-        color: #1a1a2e;
-        font-size: 18px;
+    @@media (max-width: 992px) {
+
+        .profile-page {
+            padding: 16px;
+        }
+
+        .page-title {
+            font-size: 30px;
+        }
+
+        .content-card {
+            padding: 22px;
+            border-radius: 24px;
+        }
+
+        .account-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .allergens-grid {
+            grid-template-columns: repeat(auto-fill,minmax(150px,1fr));
+        }
+
+        .account-value {
+            font-size: 22px;
+        }
     }
+
 </style>
 
 @code {
-    private UserProfile userProfile = new();
-    private List<Allergen> allergens = new();
-    private List<Diet> diets = new();
-    private UserStats stats = new();
 
-    public class UserProfile
-    {
-        public string Name { get; set; } = "Admin";
-        public string Email { get; set; } = "admin@example.com";
-        public int Age { get; set; } = 30;
-        public int Weight { get; set; } = 75;
-        public int Height { get; set; } = 175;
-        public int DailyCalories { get; set; } = 2000;
-        public string Goal { get; set; } = "maintain";
-    }
+    private List<AllergenViewModel> allergens = new();
 
-    public class Allergen
+    private int generatedMenusCount;
+
+    public class AllergenViewModel
     {
+        public int Id { get; set; }
+
         public string Name { get; set; } = "";
-        public string Icon { get; set; } = "";
+
         public bool Selected { get; set; }
     }
 
-    public class Diet
+    protected override async Task OnInitializedAsync()
     {
-        public string Name { get; set; } = "";
-        public string Icon { get; set; } = "";
-        public string Description { get; set; } = "";
-        public bool Selected { get; set; }
+        var currentUser = await DbContext.Users
+
+            .Include(x => x.UserAllergies)
+                .ThenInclude(x => x.Allergie)
+
+            .FirstOrDefaultAsync(x =>
+                x.Id == AuthService.CurrentUserId);
+
+        if (currentUser == null)
+            return;
+
+        var dbAllergens = await DbContext.Allergies
+            .ToListAsync();
+
+        allergens = dbAllergens
+
+            .Select(x => new AllergenViewModel
+                {
+                    Id = x.Id,
+
+                    Name = x.Name,
+
+                    Selected = currentUser.UserAllergies
+                        .Any(a => a.Allergieid == x.Id)
+                })
+
+            .ToList();
+
+        generatedMenusCount = await DbContext.Menus
+
+            .CountAsync(x =>
+                x.UserId == currentUser.Id);
     }
 
-    public class UserStats
+    private async Task ToggleAllergen(
+        AllergenViewModel allergen)
     {
-        public int CookedMeals { get; set; } = 42;
-        public int FavoriteRecipes { get; set; } = 15;
-        public int PurchasedItems { get; set; } = 128;
-        public int PlanDays { get; set; } = 30;
-    }
+        var currentUser = await DbContext.Users
 
-    protected override void OnInitialized()
-    {
-        allergens = new List<Allergen>
+            .Include(x => x.UserAllergies)
+
+            .FirstOrDefaultAsync(x =>
+                x.Id == AuthService.CurrentUserId);
+
+        if (currentUser == null)
+            return;
+
+        var existing = currentUser.UserAllergies
+
+            .FirstOrDefault(x =>
+                x.Allergieid == allergen.Id);
+
+        if (existing != null)
         {
-            new() { Name = "Лактоза", Icon = "🥛" },
-            new() { Name = "Глютен", Icon = "🌾" },
-            new() { Name = "Орехи", Icon = "🥜" },
-            new() { Name = "Яйца", Icon = "🥚" },
-            new() { Name = "Мёд", Icon = "🍯" },
-            new() { Name = "Соя", Icon = "🫘" },
-            new() { Name = "Морепродукты", Icon = "🦐" },
-            new() { Name = "Цитрусы", Icon = "🍊" }
-        };
+            DbContext.UserAllergies.Remove(existing);
 
-        diets = new List<Diet>
+            allergen.Selected = false;
+        }
+        else
         {
-            new() { Name = "Вегетарианство", Icon = "🥬", Description = "Без мяса и рыбы" },
-            new() { Name = "Веганство", Icon = "🌱", Description = "Без продуктов животного происхождения" },
-            new() { Name = "Кето", Icon = "🥑", Description = "Низкоуглеводное питание" },
-            new() { Name = "Без сахара", Icon = "🚫", Description = "Исключение добавленного сахара" }
+            currentUser.UserAllergies.Add(new UserAllergie
+                {
+                    UserId = currentUser.Id,
+                    Allergieid = allergen.Id
+                });
+
+            allergen.Selected = true;
+        }
+
+        await DbContext.SaveChangesAsync();
+    }
+
+    private string GetAllergenIcon(string name)
+    {
+        return name switch
+        {
+            "Лактоза" => "🥛",
+            "Глютен" => "🌾",
+            "Орехи" => "🥜",
+            "Яйца" => "🥚",
+            "Мёд" => "🍯",
+            "Морепродукты" => "🦐",
+            _ => "⚠️"
         };
     }
 
-    private void ToggleAllergen(Allergen allergen) => allergen.Selected = !allergen.Selected;
-    private void ToggleDiet(Diet diet) => diet.Selected = !diet.Selected;
-    private void SaveProfile() { /* TODO: Сохранить */ }
-    private void DeleteAccount() { /* TODO: Удалить */ }
 }

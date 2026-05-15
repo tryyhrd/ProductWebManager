@@ -9,214 +9,537 @@
 <PageTitle>Холодильник</PageTitle>
 
 <div class="page-bg">
+
     <div class="container-fluid p-4">
+
+        <!-- HEADER -->
         <div class="d-flex justify-content-between align-items-center mb-4">
+
             <div>
-                <h2 class="fw-bold m-0 page-title">Холодильник</h2>
-                <small class="page-subtitle">Управление продуктами</small>
+                <h2 class="fw-bold m-0 page-title">
+                    Холодильник
+                </h2>
+
+                <small class="page-subtitle">
+                    Управление продуктами
+                </small>
             </div>
-            <div class="d-flex gap-2">
-                <button class="btn btn-add" @onclick="OpenAddModal">
-                    Добавить продукт
-                </button>
-            </div>
+
+            <button class="btn btn-add"
+                    @onclick="OpenAddModal">
+                + Добавить продукт
+            </button>
+
         </div>
 
-        <div class="row mb-4">
-            <div class="col-md-4 mb-3">
-                <div class="stat-card">
-                    <div class="stat-label">ВСЕГО ПРОДУКТОВ</div>
-                    <div class="stat-value" style="color: #6c5ce7;">@products.Count</div>
+        <!-- OVERVIEW -->
+        <div class="top-overview">
+
+            <div class="overview-card purple">
+                <div class="overview-value">
+                    @products.Count
+                </div>
+
+                <div class="overview-label">
+                    Всего продуктов
                 </div>
             </div>
-            <div class="col-md-4 mb-3">
-                <div class="stat-card stat-card-danger">
-                    <div class="stat-label">ИСТЕКАЮТ СЕГОДНЯ</div>
-                    <div class="stat-value" style="color: #e74c3c;">@expiringToday</div>
+
+            <div class="overview-card red">
+                <div class="overview-value">
+                    @expiringToday
+                </div>
+
+                <div class="overview-label">
+                    Просрочено / сегодня
                 </div>
             </div>
-            <div class="col-md-4 mb-3">
-                <div class="stat-card stat-card-warning">
-                    <div class="stat-label">ИСТЕКАЮТ ЗА НЕДЕЛЮ</div>
-                    <div class="stat-value" style="color: #f39c12;">@expiringThisWeek</div>
+
+            <div class="overview-card orange">
+                <div class="overview-value">
+                    @expiringThisWeek
+                </div>
+
+                <div class="overview-label">
+                    Истекает за неделю
                 </div>
             </div>
+
+            <div class="overview-card gray">
+                <div class="overview-value">
+                    @products.Count(x => !x.ExpirationDate.HasValue)
+                </div>
+
+                <div class="overview-label">
+                    Без срока
+                </div>
+            </div>
+
         </div>
 
+        <!-- FILTERS -->
         <div class="filter-bar">
+
             <div class="row g-3">
+
                 <div class="col-md-5">
-                    <input type="text" class="form-control filter-input"
+
+                    <input type="text"
+                           class="form-control filter-input"
                            placeholder="🔍 Поиск продуктов..."
                            @bind="searchQuery"
                            @bind:event="oninput"
                            @bind:after="ApplyFilters" />
+
                 </div>
+
                 <div class="col-md-3">
-                    <select class="form-control filter-input" @bind="sortBy" @bind:after="ApplyFilters">
-                        <option value="expiry">⏰ По сроку</option>
-                        <option value="name">📋 По названию</option>
-                        <option value="date">🕐 По дате</option>
+
+                    <select class="form-control filter-input"
+                            @bind="sortBy"
+                            @bind:after="ApplyFilters">
+
+                        <option value="expiry">
+                            ⏰ По сроку
+                        </option>
+
+                        <option value="name">
+                            📋 По названию
+                        </option>
+
+                        <option value="date">
+                            🕐 По дате
+                        </option>
+
                     </select>
+
                 </div>
+
                 <div class="col-md-4">
-                    <select class="form-control filter-input" @bind="filterCategory" @bind:after="ApplyFilters">
-                        <option value="">🗂️ Все категории</option>
-                        @if (categories != null)
+
+                    <select class="form-control filter-input"
+                            @bind="filterCategory"
+                            @bind:after="ApplyFilters">
+
+                        <option value="">
+                            🗂️ Все категории
+                        </option>
+
+                        @foreach (var cat in categories)
                         {
-                            @foreach (var cat in categories)
-                            {
-                                <option value="@cat.Id">@cat.Name</option>
-                            }
+                            <option value="@cat.Id">
+                                @cat.Name
+                            </option>
                         }
+
                     </select>
+
                 </div>
+
             </div>
+
         </div>
 
         @if (filteredProducts.Any())
         {
-            <div class="row">
-                @foreach (var item in filteredProducts)
+            <!-- EXPIRY SECTION -->
+            @if (filteredProducts.Any(x => x.ExpirationDate.HasValue))
+            {
+                <div class="list-section-header"
+                     @onclick="() => collapseExpiry = !collapseExpiry">
+
+                    <div class="list-section-left">
+
+                        <span class="section-arrow">
+                            @(collapseExpiry ? "▶" : "▼")
+                        </span>
+
+                        <span>
+                            Со сроком годности
+                        </span>
+
+                    </div>
+
+                    <div class="section-counter">
+                        @filteredProducts.Count(x => x.ExpirationDate.HasValue)
+                    </div>
+
+                </div>
+
+                @if (!collapseExpiry)
                 {
-                    var daysLeft = item.ExpirationDate.HasValue ? (item.ExpirationDate.Value - DateTime.Now).TotalDays : 999;
-                    var statusColor = daysLeft <= 0 ? "#e74c3c" : daysLeft <= 3 ? "#f39c12" : "#27ae60";
-                    var progressWidth = daysLeft > 14 ? 100 : Math.Max(0, Math.Min(100, (daysLeft / 14) * 100));
-                    var expiryText = !item.ExpirationDate.HasValue ? "Без срока" :
-                    daysLeft <= 0 ? "Просрочен" :
-                    daysLeft <= 1 ? "Истекает сегодня" :
-                    daysLeft <= 3 ? $"Истекает через {Math.Ceiling(daysLeft)} дн." :
-                    $"Годен ещё {Math.Ceiling(daysLeft)} дн.";
+                    <div class="mb-4">
 
-                    var cardClass = !item.ExpirationDate.HasValue ? "product-card" :
-                    daysLeft <= 0 ? "product-card expired" :
-                    daysLeft <= 3 ? "product-card expiring" : "product-card";
+                        @foreach (var item in filteredProducts.Where(x => x.ExpirationDate.HasValue))
+                        {
+                            var daysLeft =
+                            (item.ExpirationDate!.Value.Date - DateTime.Now.Date).TotalDays;
 
-                    <div class="col-md-6 col-lg-4 col-xl-3 mb-3">
-                        <div class="@cardClass">
-                            <div class="d-flex justify-content-between align-items-start mb-3">
-                                <div class="flex-grow-1" style="min-width: 0;">
-                                    <div class="d-flex align-items-center gap-2 mb-1">
-                                        <h6 class="product-name">@item.Product?.Name</h6>
-                                        @if (item.ExpirationDate.HasValue && daysLeft <= 0)
-                                        {
-                                            <span class="status-badge status-expired">Просрочен</span>
-                                        }
-                                        else if (item.ExpirationDate.HasValue && daysLeft <= 3)
-                                        {
-                                            <span class="status-badge status-expiring">Истекает</span>
-                                        }
+                            var totalDays = 14.0;
+
+                            var progress =
+                            Math.Max(0,
+                            Math.Min(100,
+                            (daysLeft / totalDays) * 100));
+
+                            var statusClass =
+                            daysLeft <= 0 ? "expired" :
+                            daysLeft <= 3 ? "warning" :
+                            "fresh";
+
+                            var expiryText =
+                            daysLeft <= 0 ? "Просрочен" :
+                            daysLeft == 0 ? "Сегодня" :
+                            $"{Math.Ceiling(daysLeft)} дн.";
+
+                            <div class="inventory-item @statusClass">
+
+                                <div class="inventory-accent @statusClass"></div>
+
+                                <div class="inventory-image">
+                                    🥛
+                                </div>
+
+                                <div class="inventory-content">
+
+                                    <div class="inventory-top">
+
+                                        <div>
+
+                                            <div class="inventory-title">
+                                                @item.Product?.Name
+                                            </div>
+
+                                            <div class="inventory-category">
+                                                @(item.Product?.Category?.Name ?? "Без категории")
+                                            </div>
+
+                                        </div>
+
+                                        <div class="inventory-expiry-block">
+
+                                            <div class="inventory-expiry-date">
+                                                @item.ExpirationDate?.ToString("dd.MM.yyyy")
+                                            </div>
+
+                                            <div class="inventory-status @statusClass">
+                                                @expiryText
+                                            </div>
+
+                                        </div>
+
                                     </div>
-                                    <span class="category-tag">@(item.Product?.Category?.Name ?? "Без категории")</span>
-                                </div>
-                                <div class="d-flex gap-1 ms-2">
-                                    <button type="button" class="btn-icon edit" @onclick="() => OpenEditModal(item)">Изменить</button>
-                                    <button type="button" class="btn-icon delete" @onclick="() => ConfirmDeleteProduct(item)">Удалить</button>
-                                </div>
-                            </div>
 
-                            <div class="mb-3">
-                                <span class="quantity-value">@(item.Quanity?.ToString() ?? "0")</span>
-                                <span class="quantity-unit">@(item.Product?.Unit?.Name ?? "шт.")</span>
-                            </div>
+                                    <div class="inventory-bottom">
 
-                            @if (item.ExpirationDate.HasValue)
-                            {
-                                <div class="expiry-section">
-                                    <div class="d-flex justify-content-between align-items-center mb-2">
-                                        <span class="expiry-date">@item.ExpirationDate.Value.ToString("dd.MM.yyyy")</span>
-                                        <span class="expiry-status" style="color: @statusColor;">@expiryText</span>
+                                        <div class="inventory-qty">
+                                            @(item.Quanity ?? 0)
+                                            @(item.Product?.Unit?.Name ?? "шт.")
+                                        </div>
+
+                                        <div class="inventory-progress">
+
+                                            <div class="inventory-progress-fill @statusClass"
+                                                 style="width:@($"{progress}%")">
+                                            </div>
+
+                                        </div>
+
+                                        <div class="inventory-actions">
+
+                                            <button class="tiny-btn edit"
+                                                    @onclick="() => OpenEditModal(item)">
+                                                Изменить
+                                            </button>
+
+                                            <button class="tiny-btn delete"
+                                                    @onclick="() => ConfirmDeleteProduct(item)">
+                                                Удалить
+                                            </button>
+
+                                        </div>
+
                                     </div>
-                                    <div class="progress-bar-bg">
-                                        <div class="progress-bar-fill" style="width: @progressWidth%; background: @statusColor;"></div>
-                                    </div>
-                                </div>
-                            }
-                            else
-                            {
-                                <div class="expiry-section" style="background: #f0f4ff;">
-                                    <span class="expiry-date" style="color: #6c5ce7;">Без срока годности</span>
-                                </div>
-                            }
 
-                            <div class="d-flex gap-2 mt-3">
-                                <button type="button" class="btn-qty minus" @onclick="() => UpdateQuantity(item, -1)"
-                                        disabled="@(item.Quanity <= 1)">
-                                    −
-                                </button>
-                                <button type="button" class="btn-qty plus" @onclick="() => UpdateQuantity(item, 1)">+</button>
+                                </div>
+
                             </div>
-                        </div>
+                        }
+
                     </div>
                 }
-            </div>
+            }
+
+            <!-- NO EXPIRY -->
+            @if (filteredProducts.Any(x => !x.ExpirationDate.HasValue))
+            {
+                <div class="list-section-header"
+                     @onclick="() => collapseNoExpiry = !collapseNoExpiry">
+
+                    <div class="list-section-left">
+
+                        <span class="section-arrow">
+                            @(collapseNoExpiry ? "▶" : "▼")
+                        </span>
+
+                        <span>
+                            Без срока годности
+                        </span>
+
+                    </div>
+
+                    <div class="section-counter neutral">
+                        @filteredProducts.Count(x => !x.ExpirationDate.HasValue)
+                    </div>
+
+                </div>
+
+                @if (!collapseNoExpiry)
+                {
+                    @foreach (var item in filteredProducts.Where(x => !x.ExpirationDate.HasValue))
+                    {
+                        <div class="inventory-item noexpiry">
+
+                            <div class="inventory-accent neutral"></div>
+
+                            <div class="inventory-image neutral">
+                                🥫
+                            </div>
+
+                            <div class="inventory-content">
+
+                                <div class="inventory-top">
+
+                                    <div>
+
+                                        <div class="inventory-title">
+                                            @item.Product?.Name
+                                        </div>
+
+                                        <div class="inventory-category">
+                                            @(item.Product?.Category?.Name ?? "Без категории")
+                                        </div>
+
+                                    </div>
+
+                                    <div class="inventory-status neutral">
+                                        Без срока
+                                    </div>
+
+                                </div>
+
+                                <div class="inventory-bottom">
+
+                                    <div class="inventory-qty">
+                                        @(item.Quanity ?? 0)
+                                        @(item.Product?.Unit?.Name ?? "шт.")
+                                    </div>
+
+                                    <div class="inventory-noexpiry-line"></div>
+
+                                    <div class="inventory-actions">
+
+                                        <button class="tiny-btn edit"
+                                                @onclick="() => OpenEditModal(item)">
+                                            Изменить
+                                        </button>
+
+                                        <button class="tiny-btn delete"
+                                                @onclick="() => ConfirmDeleteProduct(item)">
+                                            Удалить
+                                        </button>
+
+                                    </div>
+
+                                </div>
+
+                            </div>
+
+                        </div>
+                    }
+                }
+            }
         }
         else
         {
             <div class="empty-state">
-                <div class="empty-icon">🛒</div>
-                <h4 class="empty-title">Холодильник пуст</h4>
-                <p class="empty-text">Добавьте продукты, чтобы начать</p>
-                <button type="button" class="btn btn-add" @onclick="OpenAddModal">Добавить первый продукт</button>
+
+                <div class="empty-icon">
+                    🧊
+                </div>
+
+                <h4 class="empty-title">
+                    Холодильник пуст
+                </h4>
+
+                <p class="empty-text">
+                    Добавьте продукты
+                </p>
+
+                <button class="btn btn-add"
+                        @onclick="OpenAddModal">
+                    Добавить продукт
+                </button>
+
             </div>
         }
+
     </div>
+
 </div>
 
+<!-- MODAL -->
 @if (showModal)
 {
-    <div class="modal-overlay" @onclick="CloseModal">
-        <div class="modal-dialog" @onclick:stopPropagation="true">
-            <h4 class="modal-title">@(isEditing ? "Изменить" : "Добавить") продукт</h4>
+    <div class="modal-overlay">
+
+        <div class="modal-dialog"
+             @onclick:stopPropagation="true">
+
+            <h4 class="modal-title">
+                @(isEditing ? "Изменить" : "Добавить") продукт
+            </h4>
+
             <div class="mb-3">
-                <label class="form-label">Продукт</label>
-                <select class="form-control modal-input" @bind="selectedProductId">
-                    <option value="0">-- Выберите продукт --</option>
-                    @if (allProducts != null)
+
+                <label class="form-label">
+                    Продукт
+                </label>
+
+                <select class="form-control modal-input"
+                        @bind="selectedProductId">
+
+                    <option value="0">
+                        -- Выберите продукт --
+                    </option>
+
+                    @foreach (var p in allProducts)
                     {
-                        @foreach (var p in allProducts)
-                        {
-                            <option value="@p.Id">@p.Name</option>
-                        }
+                        <option value="@p.Id">
+                            @p.Name
+                        </option>
                     }
+
                 </select>
+
             </div>
-            <div class="row mb-3">
-                <div class="col-md-6">
-                    <label class="form-label">Количество</label>
-                    <input type="number" class="form-control modal-input" @bind="editQuantity" min="0.1" step="0.1" />
-                </div>
+
+            <div class="mb-3">
+
+                <label class="form-label">
+                    Количество
+                </label>
+
+                <input type="number"
+                       class="form-control modal-input"
+                       @bind="editQuantity"
+                       min="0.1"
+                       step="0.1" />
+
             </div>
+
             <div class="mb-4">
-                <label class="form-label">Срок годности</label>
-                <input type="date" class="form-control modal-input" @bind="editExpiryDate" />
+
+                <div class="d-flex justify-content-between align-items-center mb-2">
+
+                    <label class="form-label m-0">
+                        Срок годности
+                    </label>
+
+                    <div class="form-check">
+
+                        <input class="form-check-input"
+                               type="checkbox"
+                               id="hasExpiry"
+                               @bind="hasExpiryDate" />
+
+                        <label class="form-check-label"
+                               for="hasExpiry">
+                            Есть срок
+                        </label>
+
+                    </div>
+
+                </div>
+
+                <input type="date"
+                       class="form-control modal-input"
+                       disabled="@(!hasExpiryDate)"
+                       @bind="editExpiryDate" />
+
+                @if (!hasExpiryDate)
+                {
+                    <div class="no-expiry-box mt-2">
+                        Продукт без срока годности
+                    </div>
+                }
+
             </div>
+
             <div class="d-flex gap-2">
-                <button type="button" class="btn-modal-save" @onclick="SaveProduct">Сохранить</button>
-                <button type="button" class="btn-modal-cancel" @onclick="CloseModal">Отмена</button>
+
+                <button class="btn-modal-save"
+                        @onclick="SaveProduct">
+                    Сохранить
+                </button>
+
+                <button class="btn-modal-cancel"
+                        @onclick="CloseModal">
+                    Отмена
+                </button>
+
             </div>
+
         </div>
+
     </div>
 }
 
 @if (showDeleteConfirm)
 {
-    <div class="modal-overlay" @onclick="CancelDelete">
-        <div class="modal-dialog" @onclick:stopPropagation="true" style="max-width: 380px;">
-            <h4 class="modal-title">Подтверждение</h4>
-            <p class="delete-text">Удалить <strong class="delete-name">@productToDelete?.Product?.Name</strong>?</p>
+    <div class="modal-overlay">
+
+        <div class="modal-dialog"
+             style="max-width:380px;"
+             @onclick:stopPropagation="true">
+
+            <h4 class="modal-title">
+                Подтверждение
+            </h4>
+
+            <p class="delete-text">
+
+                Удалить
+
+                <strong class="delete-name">
+                    @productToDelete?.Product?.Name
+                </strong>?
+
+            </p>
+
             <div class="d-flex gap-2">
-                <button type="button" class="btn-modal-delete" @onclick="DeleteProduct">Удалить</button>
-                <button type="button" class="btn-modal-cancel" @onclick="CancelDelete">Отмена</button>
+
+                <button class="btn-modal-delete"
+                        @onclick="DeleteProduct">
+                    Удалить
+                </button>
+
+                <button class="btn-modal-cancel"
+                        @onclick="CancelDelete">
+                    Отмена
+                </button>
+
             </div>
+
         </div>
+
     </div>
 }
 
-
 <style>
+
     .page-bg {
-        background: #f0f1f5;
+        background: #f5f6fb;
         min-height: 100vh;
     }
 
@@ -228,418 +551,352 @@
         color: #888;
     }
 
-    .stat-card {
+    .top-overview {
+        display: grid;
+        grid-template-columns: repeat(auto-fit,minmax(180px,1fr));
+        gap: 14px;
+        margin-bottom: 22px;
+    }
+
+    .overview-card {
         background: white;
-        border: 1px solid #e8e8ec;
-        border-radius: 12px;
-        padding: 16px 20px;
-        text-align: center;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+        border-radius: 18px;
+        padding: 20px;
+        border: 1px solid #ececf3;
     }
 
-    .stat-card-danger {
-        background: #fff5f5;
-        border-color: #ffd4d4;
-    }
-
-    .stat-card-warning {
-        background: #fffcf0;
-        border-color: #ffe8a0;
-    }
-
-    .stat-label {
-        color: #999;
-        font-size: 11px;
-        font-weight: 600;
-        letter-spacing: 0.5px;
-        margin-bottom: 4px;
-    }
-
-    .stat-value {
-        font-size: 28px;
+    .overview-value {
+        font-size: 30px;
         font-weight: 700;
+    }
+
+    .overview-label {
+        color: #888;
+        font-size: 13px;
+    }
+
+    .purple .overview-value {
+        color: #6c5ce7;
+    }
+
+    .red .overview-value {
+        color: #e74c3c;
+    }
+
+    .orange .overview-value {
+        color: #f39c12;
+    }
+
+    .gray .overview-value {
+        color: #636e72;
     }
 
     .filter-bar {
         background: white;
-        border: 1px solid #e8e8ec;
-        border-radius: 12px;
-        padding: 16px;
-        margin-bottom: 20px;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+        border-radius: 18px;
+        padding: 18px;
+        margin-bottom: 22px;
+        border: 1px solid #ececf3;
     }
 
     .filter-input {
-        background: #f8f8fa;
-        border: 1px solid #e0e0e4;
-        border-radius: 8px;
-        padding: 8px 12px;
-        color: #333;
-        font-size: 13px;
-        width: 100%;
-        transition: border-color 0.2s;
+        background: #f8f9fd;
+        border: 1px solid #e3e5ee;
+        border-radius: 12px;
+        padding: 10px 14px;
     }
 
-        .filter-input:focus {
-            border-color: #6c5ce7;
-            outline: none;
-            box-shadow: 0 0 0 3px rgba(108, 92, 231, 0.1);
-            background: white;
-        }
-
-    .product-card {
+    .list-section-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 14px 18px;
         background: white;
-        border: 2px solid #eee;
-        border-radius: 14px;
-        padding: 20px;
-        height: 100%;
-        transition: all 0.2s;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+        border-radius: 16px;
+        margin-bottom: 14px;
+        cursor: pointer;
+        border: 1px solid #ececf3;
     }
 
-        .product-card:hover {
-            box-shadow: 0 6px 20px rgba(0,0,0,0.1);
-            transform: translateY(-3px);
-        }
-
-        .product-card.expired {
-            border-color: #e74c3c;
-            background: #fffafa;
-            box-shadow: 0 2px 12px rgba(231, 76, 60, 0.15);
-        }
-
-        .product-card.expiring {
-            border-color: #f39c12;
-            background: #fffefa;
-            box-shadow: 0 2px 12px rgba(243, 156, 18, 0.15);
-        }
-
-    .status-badge {
-        padding: 2px 8px;
-        border-radius: 4px;
-        font-size: 10px;
+    .list-section-left {
+        display: flex;
+        align-items: center;
+        gap: 10px;
         font-weight: 700;
-        white-space: nowrap;
     }
 
-        .status-badge.status-expired {
-            background: #ffe0e0;
-            color: #c0392b;
-        }
-
-        .status-badge.status-expiring {
-            background: #fff3d4;
-            color: #c87f0a;
-        }
-
-    .product-name {
-        color: #1a1a2e;
-        font-size: 15px;
-        font-weight: 600;
-    }
-
-    .category-tag {
-        display: inline-block;
-        padding: 3px 12px;
-        border-radius: 20px;
-        font-size: 11px;
-        font-weight: 500;
-        background: #f0edff;
+    .section-counter {
+        min-width: 30px;
+        height: 30px;
+        border-radius: 999px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #f3f0ff;
         color: #6c5ce7;
-    }
-
-    .quantity-value {
-        font-size: 30px;
-        font-weight: 700;
-        color: #1a1a2e;
-    }
-
-    .quantity-unit {
-        font-size: 14px;
-        color: #999;
-        margin-left: 4px;
-    }
-
-    .expiry-section {
-        background: #fafafa;
-        border-radius: 10px;
-        padding: 12px;
-        margin-bottom: 4px;
-    }
-
-    .expiry-date {
         font-size: 12px;
-        color: #666;
+        font-weight: 700;
     }
 
-    .expiry-status {
-        font-size: 11px;
-        font-weight: 600;
+        .section-counter.neutral {
+            background: #eef1f5;
+            color: #636e72;
+        }
+
+    .inventory-item {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        background: white;
+        border-radius: 18px;
+        padding: 14px 16px;
+        margin-bottom: 10px;
+        border: 1px solid #ececf3;
     }
 
-    .progress-bar-bg {
-        height: 6px;
-        background: #e8e8e8;
-        border-radius: 10px;
+        .inventory-item.expired {
+            background: #fffafa;
+            border-color: #ffd6d6;
+        }
+
+        .inventory-item.warning {
+            border-color: #ffe0b2;
+        }
+
+    .inventory-accent {
+        width: 6px;
+        align-self: stretch;
+        border-radius: 999px;
+    }
+
+        .inventory-accent.expired {
+            background: #e74c3c;
+        }
+
+        .inventory-accent.warning {
+            background: #f39c12;
+        }
+
+        .inventory-accent.fresh {
+            background: #27ae60;
+        }
+
+        .inventory-accent.neutral {
+            background: #b2bec3;
+        }
+
+    .inventory-image {
+        width: 54px;
+        height: 54px;
+        border-radius: 14px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #f4f5fb;
+        font-size: 24px;
+    }
+
+        .inventory-image.neutral {
+            background: #eef1f5;
+        }
+
+    .inventory-content {
+        flex: 1;
+    }
+
+    .inventory-top {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 10px;
+    }
+
+    .inventory-title {
+        font-size: 15px;
+        font-weight: 700;
+    }
+
+    .inventory-category {
+        font-size: 12px;
+        color: #888;
+    }
+
+    .inventory-status.expired {
+        color: #e74c3c;
+        font-weight: 700;
+    }
+
+    .inventory-status.warning {
+        color: #f39c12;
+        font-weight: 700;
+    }
+
+    .inventory-status.fresh {
+        color: #27ae60;
+        font-weight: 700;
+    }
+
+    .inventory-status.neutral {
+        color: #636e72;
+        font-weight: 700;
+    }
+
+    .inventory-bottom {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+    }
+
+    .inventory-progress {
+        flex: 1;
+        height: 8px;
+        border-radius: 999px;
+        background: #eceff4;
         overflow: hidden;
     }
 
-    .progress-bar-fill {
+    .inventory-progress-fill {
         height: 100%;
-        border-radius: 10px;
-        transition: width 0.6s ease;
     }
+
+        .inventory-progress-fill.expired {
+            background: #e74c3c;
+        }
+
+        .inventory-progress-fill.warning {
+            background: #f39c12;
+        }
+
+        .inventory-progress-fill.fresh {
+            background: #27ae60;
+        }
+
+    .inventory-noexpiry-line {
+        flex: 1;
+        height: 8px;
+        border-radius: 999px;
+        background: linear-gradient(90deg,#dfe6e9,#f5f6fa);
+    }
+
+    .inventory-actions {
+        display: flex;
+        gap: 8px;
+    }
+
+    .tiny-btn {
+        border: none;
+        padding: 7px 12px;
+        border-radius: 10px;
+        font-size: 11px;
+        font-weight: 700;
+    }
+
+        .tiny-btn.edit {
+            background: #f2eeff;
+            color: #6c5ce7;
+        }
+
+        .tiny-btn.delete {
+            background: #fff1f1;
+            color: #e74c3c;
+        }
 
     .btn-add {
-        padding: 9px 20px;
         border: none;
-        border-radius: 10px;
         background: #6c5ce7;
         color: white;
-        font-weight: 500;
-        font-size: 13px;
-        cursor: pointer;
-        box-shadow: 0 2px 8px rgba(108, 92, 231, 0.3);
-        transition: all 0.2s;
-    }
-
-        .btn-add:hover {
-            background: #5a4bd1;
-        }
-
-    .btn-icon {
-        padding: 5px 10px;
-        border: 1px solid #e0e0e4;
-        border-radius: 6px;
-        cursor: pointer;
-        font-size: 11px;
-        font-weight: 500;
-        background: white;
-        transition: all 0.2s;
-    }
-
-        .btn-icon.edit {
-            color: #6c5ce7;
-            border-color: #d5ccff;
-        }
-
-            .btn-icon.edit:hover {
-                background: #f5f3ff;
-            }
-
-        .btn-icon.delete {
-            color: #e74c3c;
-            border-color: #ffd4d4;
-        }
-
-            .btn-icon.delete:hover {
-                background: #fff5f5;
-            }
-
-    .btn-qty {
-        flex: 1;
-        padding: 8px;
-        border-radius: 8px;
-        cursor: pointer;
-        font-size: 18px;
-        font-weight: 600;
-        transition: all 0.2s;
-    }
-
-        .btn-qty.minus {
-            background: #fff5f5;
-            color: #e74c3c;
-            border: 1px solid #ffd4d4;
-        }
-
-            .btn-qty.minus:hover:not(:disabled) {
-                background: #ffe8e8;
-            }
-
-        .btn-qty.plus {
-            background: #f0fff4;
-            color: #27ae60;
-            border: 1px solid #d4ffd4;
-        }
-
-            .btn-qty.plus:hover:not(:disabled) {
-                background: #e0ffe0;
-            }
-
-        .btn-qty:disabled {
-            opacity: 0.3;
-            cursor: not-allowed;
-        }
-
-    .empty-state {
-        text-align: center;
-        padding: 80px 20px;
-        background: white;
-        border: 2px dashed #e0e0e4;
-        border-radius: 16px;
-    }
-
-    .empty-icon {
-        font-size: 72px;
-        opacity: 0.25;
-    }
-
-    .empty-title {
-        color: #555;
-        margin-top: 16px;
-    }
-
-    .empty-text {
-        color: #999;
-        margin-bottom: 16px;
+        padding: 10px 20px;
+        border-radius: 12px;
     }
 
     .modal-overlay {
         position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: rgba(0,0,0,0.5);
+        inset: 0;
+        background: rgba(15,15,20,.55);
         display: flex;
         align-items: center;
         justify-content: center;
-        z-index: 10000;
-        backdrop-filter: blur(4px);
-        pointer-events: all;
+        z-index: 99999;
     }
 
     .modal-dialog {
-        background: white;
-        border-radius: 20px;
-        padding: 30px;
-        max-width: 460px;
         width: 90%;
-        box-shadow: 0 20px 60px rgba(0,0,0,0.2);
-        position: relative;
-        z-index: 10001;
-        pointer-events: all;
-    }
-
-    .modal-title {
-        color: #1a1a2e;
-        margin-bottom: 20px;
-        font-weight: 600;
-    }
-
-    .form-label {
-        display: block;
-        color: #666;
-        font-size: 12px;
-        margin-bottom: 6px;
-        font-weight: 500;
+        max-width: 460px;
+        background: white;
+        border-radius: 24px;
+        padding: 28px;
+        box-shadow: 0 25px 60px rgba(0,0,0,.25);
     }
 
     .modal-input {
-        background: #f8f8fa;
-        border: 1px solid #e0e0e4;
-        border-radius: 10px;
-        padding: 10px 14px;
-        color: #333;
-        font-size: 14px;
-        width: 100%;
+        border-radius: 12px;
+        padding: 11px 14px;
+        border: 1px solid #dfe2eb;
     }
 
-        .modal-input:focus {
-            border-color: #6c5ce7;
-            outline: none;
-            box-shadow: 0 0 0 3px rgba(108, 92, 231, 0.1);
-            background: white;
-        }
-
-    .btn-modal-save {
-        flex: 1;
-        padding: 12px;
-        border: none;
-        border-radius: 10px;
-        background: #6c5ce7;
-        color: white;
-        font-weight: 500;
-        cursor: pointer;
-        font-size: 14px;
-    }
-
-        .btn-modal-save:hover {
-            background: #5a4bd1;
-        }
-
-    .btn-modal-cancel {
-        flex: 1;
-        padding: 12px;
-        border: 1px solid #e0e0e4;
-        border-radius: 10px;
-        background: white;
-        color: #666;
-        font-weight: 500;
-        cursor: pointer;
-        font-size: 14px;
-    }
-
-        .btn-modal-cancel:hover {
-            background: #f8f8fa;
-        }
-
+    .btn-modal-save,
+    .btn-modal-cancel,
     .btn-modal-delete {
         flex: 1;
         padding: 12px;
+        border-radius: 12px;
         border: none;
-        border-radius: 10px;
+        font-weight: 600;
+    }
+
+    .btn-modal-save {
+        background: #6c5ce7;
+        color: white;
+    }
+
+    .btn-modal-delete {
         background: #e74c3c;
         color: white;
-        font-weight: 500;
-        cursor: pointer;
-        font-size: 14px;
     }
 
-        .btn-modal-delete:hover {
-            background: #c0392b;
-        }
-
-    .delete-text {
-        color: #666;
-        margin-bottom: 20px;
+    .no-expiry-box {
+        background: #f4f5fb;
+        border-radius: 12px;
+        padding: 14px;
+        text-align: center;
+        color: #7b7f92;
+        font-size: 13px;
     }
 
-    .delete-name {
-        color: #e74c3c;
-    }
 </style>
 
 @code {
+
     private List<FridgeItem> products = new();
     private List<FridgeItem> filteredProducts = new();
+
     private List<Product> allProducts = new();
     private List<Category> categories = new();
+
     private string searchQuery = "";
-    private string sortBy = "expiry"; 
+    private string sortBy = "expiry";
     private string filterCategory = "";
+
     private bool showModal = false;
     private bool isEditing = false;
+
     private bool showDeleteConfirm = false;
+
+    private bool hasExpiryDate = true;
+
+    private bool collapseExpiry = false;
+    private bool collapseNoExpiry = false;
+
     private FridgeItem currentProduct = new();
     private FridgeItem? productToDelete;
+
     private int expiringToday = 0;
     private int expiringThisWeek = 0;
-    private int selectedProductId;
-    private double editQuantity = 1;
-    private DateTime? editExpiryDate = DateTime.Now.AddDays(7);
 
-    private string editExpiryDateString
-    {
-        get => editExpiryDate?.ToString("yyyy-MM-dd") ?? "";
-        set
-        {
-            if (string.IsNullOrEmpty(value))
-                editExpiryDate = null;
-            else if (DateTime.TryParse(value, out var date))
-                editExpiryDate = date;
-        }
-    }
+    private int selectedProductId;
+
+    private double editQuantity = 1;
+
+    private DateTime? editExpiryDate = DateTime.Now.AddDays(7);
 
     protected override async Task OnInitializedAsync()
     {
@@ -648,31 +905,32 @@
 
     private async Task LoadData()
     {
-        try
-        {
-            products = await DbContext.FridgeItems
-                .Include(f => f.Product).ThenInclude(p => p.Unit)
-                .Include(f => f.Product).ThenInclude(p => p.Category)
-                .Where(f => f.UserId == AuthService.CurrentUserId)
-                .ToListAsync();
+        products = await DbContext.FridgeItems
+            .Include(f => f.Product).ThenInclude(p => p.Unit)
+            .Include(f => f.Product).ThenInclude(p => p.Category)
+            .Where(f => f.UserId == AuthService.CurrentUserId)
+            .ToListAsync();
 
-            allProducts = await DbContext.Products
-                .Include(p => p.Unit).Include(p => p.Category)
-                .ToListAsync();
+        allProducts = await DbContext.Products
+            .Include(p => p.Unit)
+            .Include(p => p.Category)
+            .ToListAsync();
 
-            categories = await DbContext.Categories.ToListAsync();
-        }
-        catch (Exception ex) { Console.WriteLine($"Ошибка загрузки: {ex.Message}"); }
+        categories = await DbContext.Categories.ToListAsync();
 
         UpdateStats();
         ApplyFilters();
-        StateHasChanged();
     }
 
     private void UpdateStats()
     {
-        expiringToday = products.Count(p => p.ExpirationDate.HasValue && p.ExpirationDate.Value.Date == DateTime.Now.Date);
-        expiringThisWeek = products.Count(p => p.ExpirationDate.HasValue && p.ExpirationDate.Value.Date > DateTime.Now.Date && p.ExpirationDate.Value.Date <= DateTime.Now.AddDays(7).Date);
+        expiringToday = products.Count(p =>
+            p.ExpirationDate.HasValue &&
+            p.ExpirationDate.Value.Date <= DateTime.Now.Date);
+
+        expiringThisWeek = products.Count(p =>
+            p.ExpirationDate.HasValue &&
+            p.ExpirationDate.Value.Date <= DateTime.Now.AddDays(7).Date);
     }
 
     private void ApplyFilters()
@@ -680,81 +938,104 @@
         var query = products.AsEnumerable();
 
         if (!string.IsNullOrWhiteSpace(searchQuery))
-            query = query.Where(p => p.Product?.Name != null && p.Product.Name.Contains(searchQuery, StringComparison.OrdinalIgnoreCase));
+        {
+            query = query.Where(p =>
+                p.Product?.Name != null &&
+                p.Product.Name.Contains(searchQuery,
+                StringComparison.OrdinalIgnoreCase));
+        }
 
-        if (!string.IsNullOrEmpty(filterCategory) && int.TryParse(filterCategory, out int catId))
-            query = query.Where(p => p.Product?.CategoryId == catId);
+        if (!string.IsNullOrEmpty(filterCategory)
+            && int.TryParse(filterCategory, out int catId))
+        {
+            query = query.Where(p =>
+                p.Product?.CategoryId == catId);
+        }
 
         filteredProducts = sortBy switch
         {
             "name" => query.OrderBy(p => p.Product?.Name).ToList(),
             "date" => query.OrderByDescending(p => p.AddetAt).ToList(),
-            "expiry" => query.OrderBy(p => p.ExpirationDate ?? DateTime.MaxValue).ToList(),
             _ => query.OrderBy(p => p.ExpirationDate ?? DateTime.MaxValue).ToList()
         };
-
-        StateHasChanged();
     }
 
     private void OpenAddModal()
     {
         currentProduct = new FridgeItem();
+
         selectedProductId = 0;
+
         editQuantity = 1;
+
+        hasExpiryDate = true;
+
         editExpiryDate = DateTime.Now.AddDays(7);
+
         isEditing = false;
+
         showModal = true;
     }
 
     private void OpenEditModal(FridgeItem item)
     {
         currentProduct = item;
+
         selectedProductId = item.ProductId;
+
         editQuantity = item.Quanity ?? 1;
+
+        hasExpiryDate = item.ExpirationDate.HasValue;
+
         editExpiryDate = item.ExpirationDate;
+
         isEditing = true;
+
         showModal = true;
     }
 
     private void CloseModal()
     {
         showModal = false;
-        StateHasChanged();
     }
 
     private async Task SaveProduct()
     {
-        if (selectedProductId == 0) return;
+        if (selectedProductId == 0)
+            return;
 
-        try
+        var finalExpiry =
+        hasExpiryDate ? editExpiryDate : null;
+
+        if (isEditing)
         {
-            if (isEditing)
-            {
-                var existing = await DbContext.FridgeItems.FindAsync(currentProduct.Id);
-                if (existing != null)
-                {
-                    existing.ProductId = selectedProductId;
-                    existing.Quanity = editQuantity;
-                    existing.ExpirationDate = editExpiryDate;
-                }
-            }
-            else
-            {
-                DbContext.FridgeItems.Add(new FridgeItem
-                    {
-                        UserId = AuthService.CurrentUserId,
-                        ProductId = selectedProductId,
-                        Quanity = editQuantity,
-                        ExpirationDate = editExpiryDate,
-                        AddetAt = DateTime.UtcNow
-                    });
-            }
+            var existing =
+            await DbContext.FridgeItems.FindAsync(currentProduct.Id);
 
-            await DbContext.SaveChangesAsync();
-            await LoadData();
-            CloseModal();
+            if (existing != null)
+            {
+                existing.ProductId = selectedProductId;
+                existing.Quanity = editQuantity;
+                existing.ExpirationDate = finalExpiry;
+            }
         }
-        catch (Exception ex) { Console.WriteLine($"Ошибка сохранения: {ex.Message}"); }
+        else
+        {
+            DbContext.FridgeItems.Add(new FridgeItem
+                {
+                    UserId = AuthService.CurrentUserId,
+                    ProductId = selectedProductId,
+                    Quanity = editQuantity,
+                    ExpirationDate = finalExpiry,
+                    AddetAt = DateTime.UtcNow
+                });
+        }
+
+        await DbContext.SaveChangesAsync();
+
+        await LoadData();
+
+        CloseModal();
     }
 
     private void ConfirmDeleteProduct(FridgeItem item)
@@ -771,40 +1052,21 @@
 
     private async Task DeleteProduct()
     {
-        if (productToDelete == null) return;
-        try
+        if (productToDelete == null)
+            return;
+
+        var item =
+        await DbContext.FridgeItems.FindAsync(productToDelete.Id);
+
+        if (item != null)
         {
-            var item = await DbContext.FridgeItems.FindAsync(productToDelete.Id);
-            if (item != null)
-            {
-                DbContext.FridgeItems.Remove(item);
-                await DbContext.SaveChangesAsync();
-            }
-            await LoadData();
+            DbContext.FridgeItems.Remove(item);
+            await DbContext.SaveChangesAsync();
         }
-        catch (Exception ex) { Console.WriteLine($"Ошибка удаления: {ex.Message}"); }
+
+        await LoadData();
+
         CancelDelete();
     }
 
-    private async Task UpdateQuantity(FridgeItem item, int delta)
-    {
-        var newQty = (item.Quanity ?? 0) + delta;
-        if (newQty <= 0)
-        {
-            ConfirmDeleteProduct(item);
-            return;
-        }
-
-        try
-        {
-            var existing = await DbContext.FridgeItems.FindAsync(item.Id);
-            if (existing != null)
-            {
-                existing.Quanity = newQty;
-                await DbContext.SaveChangesAsync();
-                await LoadData();
-            }
-        }
-        catch (Exception ex) { Console.WriteLine($"Ошибка: {ex.Message}"); }
-    }
 }

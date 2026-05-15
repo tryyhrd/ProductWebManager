@@ -33,13 +33,13 @@ using (var scope = app.Services.CreateScope())
         {
             Login = "admin",
             Password = "admin",
-            Allergies = new List<Allergie>()
+            UserAllergies = new List<UserAllergie>()
         };
         var user = new User
         {
             Login = "user",
             Password = "user",
-            Allergies = new List<Allergie>()
+            UserAllergies = new List<UserAllergie>()
         };
         db.Users.AddRange(admin, user);
         db.SaveChanges();
@@ -56,7 +56,6 @@ using (var scope = app.Services.CreateScope())
         db.Allergies.AddRange(allergies);
         db.SaveChanges();
 
-        // === ЕДИНИЦЫ ИЗМЕРЕНИЯ ===
         var units = new List<Unit>
         {
             new() { Name = "шт." },
@@ -73,7 +72,6 @@ using (var scope = app.Services.CreateScope())
         db.Units.AddRange(units);
         db.SaveChanges();
 
-        // === КАТЕГОРИИ ===
         var categories = new List<Category>
         {
             new() { Name = "Молочные" },
@@ -88,41 +86,325 @@ using (var scope = app.Services.CreateScope())
         db.Categories.AddRange(categories);
         db.SaveChanges();
 
-        // === ПРОДУКТЫ (СПРАВОЧНИК) ===
         var products = new List<Product>
 {
-    // Молочные (category 1)
-    new() { Name = "Молоко", UnitId = units[3].Id, CategoryId = categories[0].Id, Price = 80 },
-    new() { Name = "Сыр", UnitId = units[2].Id, CategoryId = categories[0].Id, Price = 400 },
-    new() { Name = "Яйца", UnitId = units[0].Id, CategoryId = categories[0].Id, Price = 120 },
-    new() { Name = "Сливки", UnitId = units[4].Id, CategoryId = categories[0].Id, Price = 150 },
-    new() { Name = "Сметана", UnitId = units[2].Id, CategoryId = categories[0].Id, Price = 90 },
-    // Мясо (category 2)
-    new() { Name = "Курица", UnitId = units[2].Id, CategoryId = categories[1].Id, Price = 300 },
-    new() { Name = "Бекон", UnitId = units[2].Id, CategoryId = categories[1].Id, Price = 450 },
-    new() { Name = "Говядина", UnitId = units[2].Id, CategoryId = categories[1].Id, Price = 600 },
-    // Овощи (category 3)
-    new() { Name = "Помидоры", UnitId = units[2].Id, CategoryId = categories[2].Id, Price = 150 },
-    new() { Name = "Огурцы", UnitId = units[2].Id, CategoryId = categories[2].Id, Price = 100 },
-    new() { Name = "Чеснок", UnitId = units[8].Id, CategoryId = categories[2].Id, Price = 30 },
-    new() { Name = "Лук", UnitId = units[2].Id, CategoryId = categories[2].Id, Price = 40 },
-    new() { Name = "Картофель", UnitId = units[1].Id, CategoryId = categories[2].Id, Price = 50 },
-    new() { Name = "Морковь", UnitId = units[2].Id, CategoryId = categories[2].Id, Price = 60 },
-    new() { Name = "Болгарский перец", UnitId = units[0].Id, CategoryId = categories[2].Id, Price = 120 },
-    // Фрукты (category 4)
-    new() { Name = "Яблоки", UnitId = units[0].Id, CategoryId = categories[3].Id, Price = 90 },
-    new() { Name = "Лимоны", UnitId = units[0].Id, CategoryId = categories[3].Id, Price = 60 },
-    // Бакалея (category 5)
-    new() { Name = "Спагетти", UnitId = units[2].Id, CategoryId = categories[4].Id, Price = 80 },
-    new() { Name = "Рис", UnitId = units[2].Id, CategoryId = categories[4].Id, Price = 100 },
-    new() { Name = "Мука", UnitId = units[2].Id, CategoryId = categories[4].Id, Price = 60 },
-    new() { Name = "Сахар", UnitId = units[2].Id, CategoryId = categories[4].Id, Price = 70 },
-    new() { Name = "Соль", UnitId = units[9].Id, CategoryId = categories[4].Id, Price = 20 },
-    new() { Name = "Оливковое масло", UnitId = units[4].Id, CategoryId = categories[4].Id, Price = 350 },
-    new() { Name = "Овсянка", UnitId = units[2].Id, CategoryId = categories[4].Id, Price = 120 },
-    // Напитки (category 6)
-    new() { Name = "Чай", UnitId = units[5].Id, CategoryId = categories[5].Id, Price = 150 },
-    new() { Name = "Кофе", UnitId = units[5].Id, CategoryId = categories[5].Id, Price = 400 },
+    // Молочные
+    new()
+    {
+        Name = "Молоко",
+        UnitId = units[3].Id,
+        CategoryId = categories[0].Id,
+        Price = 80,
+        Proteins = 3.2,
+        Fats = 3.6,
+        Carbohydrates = 4.8,
+        Calories = 64
+    },
+
+    new()
+    {
+        Name = "Сыр",
+        UnitId = units[2].Id,
+        CategoryId = categories[0].Id,
+        Price = 400,
+        Proteins = 24,
+        Fats = 30,
+        Carbohydrates = 0,
+        Calories = 360
+    },
+
+    new()
+    {
+        Name = "Яйца",
+        UnitId = units[0].Id,
+        CategoryId = categories[0].Id,
+        Price = 120,
+        Proteins = 12.7,
+        Fats = 10.9,
+        Carbohydrates = 0.7,
+        Calories = 157
+    },
+
+    new()
+    {
+        Name = "Сливки",
+        UnitId = units[4].Id,
+        CategoryId = categories[0].Id,
+        Price = 150,
+        Proteins = 2.5,
+        Fats = 20,
+        Carbohydrates = 3.4,
+        Calories = 206
+    },
+
+    new()
+    {
+        Name = "Сметана",
+        UnitId = units[2].Id,
+        CategoryId = categories[0].Id,
+        Price = 90,
+        Proteins = 2.8,
+        Fats = 20,
+        Carbohydrates = 3.2,
+        Calories = 206
+    },
+
+    // Мясо
+    new()
+    {
+        Name = "Курица",
+        UnitId = units[2].Id,
+        CategoryId = categories[1].Id,
+        Price = 300,
+        Proteins = 23,
+        Fats = 9,
+        Carbohydrates = 0,
+        Calories = 190
+    },
+
+    new()
+    {
+        Name = "Бекон",
+        UnitId = units[2].Id,
+        CategoryId = categories[1].Id,
+        Price = 450,
+        Proteins = 12,
+        Fats = 45,
+        Carbohydrates = 1,
+        Calories = 458
+    },
+
+    new()
+    {
+        Name = "Говядина",
+        UnitId = units[2].Id,
+        CategoryId = categories[1].Id,
+        Price = 600,
+        Proteins = 26,
+        Fats = 15,
+        Carbohydrates = 0,
+        Calories = 250
+    },
+
+    // Овощи
+    new()
+    {
+        Name = "Помидоры",
+        UnitId = units[2].Id,
+        CategoryId = categories[2].Id,
+        Price = 150,
+        Proteins = 1.1,
+        Fats = 0.2,
+        Carbohydrates = 3.7,
+        Calories = 20
+    },
+
+    new()
+    {
+        Name = "Огурцы",
+        UnitId = units[2].Id,
+        CategoryId = categories[2].Id,
+        Price = 100,
+        Proteins = 0.8,
+        Fats = 0.1,
+        Carbohydrates = 2.8,
+        Calories = 15
+    },
+
+    new()
+    {
+        Name = "Чеснок",
+        UnitId = units[8].Id,
+        CategoryId = categories[2].Id,
+        Price = 30,
+        Proteins = 6.5,
+        Fats = 0.5,
+        Carbohydrates = 29.9,
+        Calories = 143
+    },
+
+    new()
+    {
+        Name = "Лук",
+        UnitId = units[2].Id,
+        CategoryId = categories[2].Id,
+        Price = 40,
+        Proteins = 1.4,
+        Fats = 0,
+        Carbohydrates = 10.4,
+        Calories = 47
+    },
+
+    new()
+    {
+        Name = "Картофель",
+        UnitId = units[1].Id,
+        CategoryId = categories[2].Id,
+        Price = 50,
+        Proteins = 2,
+        Fats = 0.4,
+        Carbohydrates = 16.3,
+        Calories = 77
+    },
+
+    new()
+    {
+        Name = "Морковь",
+        UnitId = units[2].Id,
+        CategoryId = categories[2].Id,
+        Price = 60,
+        Proteins = 1.3,
+        Fats = 0.1,
+        Carbohydrates = 6.9,
+        Calories = 32
+    },
+
+    new()
+    {
+        Name = "Болгарский перец",
+        UnitId = units[0].Id,
+        CategoryId = categories[2].Id,
+        Price = 120,
+        Proteins = 1.3,
+        Fats = 0.1,
+        Carbohydrates = 5.3,
+        Calories = 27
+    },
+
+    // Фрукты
+    new()
+    {
+        Name = "Яблоки",
+        UnitId = units[0].Id,
+        CategoryId = categories[3].Id,
+        Price = 90,
+        Proteins = 0.4,
+        Fats = 0.4,
+        Carbohydrates = 9.8,
+        Calories = 47
+    },
+
+    new()
+    {
+        Name = "Лимоны",
+        UnitId = units[0].Id,
+        CategoryId = categories[3].Id,
+        Price = 60,
+        Proteins = 0.9,
+        Fats = 0.1,
+        Carbohydrates = 3,
+        Calories = 16
+    },
+
+    // Бакалея
+    new()
+    {
+        Name = "Спагетти",
+        UnitId = units[2].Id,
+        CategoryId = categories[4].Id,
+        Price = 80,
+        Proteins = 11,
+        Fats = 1.3,
+        Carbohydrates = 70,
+        Calories = 344
+    },
+
+    new()
+    {
+        Name = "Рис",
+        UnitId = units[2].Id,
+        CategoryId = categories[4].Id,
+        Price = 100,
+        Proteins = 7,
+        Fats = 0.6,
+        Carbohydrates = 74,
+        Calories = 330
+    },
+
+    new()
+    {
+        Name = "Мука",
+        UnitId = units[2].Id,
+        CategoryId = categories[4].Id,
+        Price = 60,
+        Proteins = 10.3,
+        Fats = 1.1,
+        Carbohydrates = 70.6,
+        Calories = 334
+    },
+
+    new()
+    {
+        Name = "Сахар",
+        UnitId = units[2].Id,
+        CategoryId = categories[4].Id,
+        Price = 70,
+        Proteins = 0,
+        Fats = 0,
+        Carbohydrates = 99.8,
+        Calories = 399
+    },
+
+    new()
+    {
+        Name = "Соль",
+        UnitId = units[9].Id,
+        CategoryId = categories[4].Id,
+        Price = 20,
+        Proteins = 0,
+        Fats = 0,
+        Carbohydrates = 0,
+        Calories = 0
+    },
+
+    new()
+    {
+        Name = "Оливковое масло",
+        UnitId = units[4].Id,
+        CategoryId = categories[4].Id,
+        Price = 350,
+        Proteins = 0,
+        Fats = 99.8,
+        Carbohydrates = 0,
+        Calories = 898
+    },
+
+    new()
+    {
+        Name = "Овсянка",
+        UnitId = units[2].Id,
+        CategoryId = categories[4].Id,
+        Price = 120,
+        Proteins = 11.9,
+        Fats = 5.8,
+        Carbohydrates = 65.4,
+        Calories = 352
+    },
+
+    // Напитки
+    new()
+    {
+        Name = "Чай",
+        UnitId = units[5].Id,
+        CategoryId = categories[5].Id,
+        Price = 150,
+        Proteins = 20,
+        Fats = 5.1,
+        Carbohydrates = 6.9,
+        Calories = 140
+    },
+
+    new()
+    {
+        Name = "Кофе",
+        UnitId = units[5].Id,
+        CategoryId = categories[5].Id,
+        Price = 400,
+        Proteins = 13.9,
+        Fats = 14.4,
+        Carbohydrates = 4.1,
+        Calories = 201
+    }
 };
         db.Products.AddRange(products);
         db.SaveChanges();

@@ -10,6 +10,7 @@ namespace ProductWebManager.Data
         public DbSet<Product> Products { get; set; }
         public DbSet<FridgeItem> FridgeItems { get; set; }
         public DbSet<User> Users { get; set; }
+        public DbSet<UserAllergie> UserAllergies { get; set; }
         public DbSet<Unit> Units { get; set; }
         public DbSet<RecipeIngredient> RecipeIngredients { get; set; }
         public DbSet<Recipe> Recipes { get; set; }

@@ -48,7 +48,7 @@ namespace ProductWebManager.Services
             }
             else
             {
-                identity = new ClaimsIdentity(); // Пустой identity означает "Не авторизован"
+                identity = new ClaimsIdentity();
             }
 
             var user = new ClaimsPrincipal(identity);
