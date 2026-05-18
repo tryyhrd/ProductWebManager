@@ -1,11 +1,11 @@
 ﻿namespace ProductWebManager.Models
 {
-    public class UserAllergie
+    public class UserAllergy
     {
         public int Id { get; set; }
         public int UserId { get; set; }
-        public int Allergieid { get; set; }
+        public int AllergyId { get; set; }
         public User User { get; set; }
-        public Allergie Allergie { get; set; }
+        public Allergy Allergy { get; set; }
     }
 }

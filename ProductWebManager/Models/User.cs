@@ -5,6 +5,7 @@
         public int Id { get; set; }
         public string Login {  get; set; }
         public string Password { get; set; }
-        public List<UserAllergie> UserAllergies { get; set; } = new();
+        public UserProfile? Profile { get; set; }
+        public List<UserAllergy> UserAllergies { get; set; } = new();
     }
 }

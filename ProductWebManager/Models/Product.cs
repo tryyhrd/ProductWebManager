@@ -7,11 +7,15 @@
         public Unit Unit { get; set; }
         public Category Category { get; set; }
         public int UnitId { get; set; }
+        public bool IsPieceBased { get; set; }
+        public double? AverageWeightGrams { get; set; }
         public int CategoryId { get; set; }
         public decimal? Price { get; set; }
         public double Proteins { get; set; }
         public double Fats { get; set; }
         public double Carbohydrates { get; set; }
         public double Calories { get; set; }
+        public ICollection<ProductAllergy> ProductAllergies { get; set; }
+            = new List<ProductAllergy>();
     }
 }

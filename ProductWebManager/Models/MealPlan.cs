@@ -2,7 +2,7 @@
 
 namespace ProductWebManager.Models
 {
-    public class Menu
+    public class MealPlan
     {
         public int Id { get; set; }
         public int UserId { get; set; }
@@ -10,6 +10,6 @@ namespace ProductWebManager.Models
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
         public User User { get; set; }
-        public List<MenuItem> Items { get; set; } = new List<MenuItem>();
+        public List<MealPlanItem> Items { get; set; } = new List<MealPlanItem>();
     }
 }

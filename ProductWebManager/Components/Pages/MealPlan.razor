@@ -1,0 +1,1317 @@
+﻿@page "/meal-plan"
+@rendermode InteractiveServer
+
+@using System.Globalization
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.Extensions.Logging
+@using ProductWebManager.Classes.AI
+@using ProductWebManager.Classes.Helpers
+@using ProductWebManager.Data
+@using ProductWebManager.Models
+@using ProductWebManager.Services
+
+@inject NavigationManager Navigation
+@inject ProductManagerContext DbContext
+@inject AuthService AuthService
+@inject GigaChatHelper GigaChatHelper
+@inject ILogger<MealPlan> Logger
+
+<PageTitle>План питания</PageTitle>
+
+<div class="mealplan-page">
+
+    <div class="top-header">
+        <div>
+            <h1 class="main-title">План питания</h1>
+            <div class="main-subtitle">
+                Персональный рацион на @daysToGenerate дн.
+            </div>
+        </div>
+
+        <button class="generate-btn"
+                disabled="@isGenerating"
+                @onclick="GenerateMealPlan">
+            @if (isGenerating)
+            {
+                <span>Генерация...</span>
+            }
+            else
+            {
+                <span>Сгенерировать план</span>
+            }
+        </button>
+    </div>
+
+    <div class="settings-card">
+        <div class="settings-grid">
+
+            <div>
+                <label class="setting-label">Цель</label>
+                <select class="setting-input"
+                        @bind="selectedGoal"
+                        @bind:after="CalculateTargets">
+                    <option value="@GoalType.Maintain">Поддержание</option>
+                    <option value="@GoalType.LoseWeight">Похудение</option>
+                    <option value="@GoalType.GainWeight">Набор массы</option>
+                </select>
+            </div>
+
+            <div>
+                <label class="setting-label">Количество дней</label>
+                <select class="setting-input" @bind="daysToGenerate">
+                    <option value="1">1 день</option>
+                    <option value="3">3 дня</option>
+                    <option value="5">5 дней</option>
+                    <option value="7">7 дней</option>
+                </select>
+            </div>
+
+            <div>
+                <label class="setting-label">Использовать продукты из холодильника</label>
+                <div class="toggle-box">
+                    <input type="checkbox" @bind="useFridgeProducts" />
+                    <span>@(useFridgeProducts ? "Да" : "Нет")</span>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <div class="stats-grid">
+        <div class="stat-card calories">
+            <div class="stat-label">Калории</div>
+            <div class="stat-value">@targetCalories</div>
+            <div class="stat-unit">ккал</div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-label">Белки</div>
+            <div class="stat-value">@targetProteins</div>
+            <div class="stat-unit">г</div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-label">Жиры</div>
+            <div class="stat-value">@targetFats</div>
+            <div class="stat-unit">г</div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-label">Углеводы</div>
+            <div class="stat-value">@targetCarbs</div>
+            <div class="stat-unit">г</div>
+        </div>
+    </div>
+
+    @if (mealPlanDays.Any())
+    {
+        <div class="days-wrapper">
+            @foreach (var day in mealPlanDays)
+            {
+                var totalCalories = day.Meals.Sum(x => x.Calories);
+                var deviation = targetCalories > 0
+                ? Math.Round((double)(totalCalories - targetCalories) / targetCalories * 100, 1)
+                : 0;
+                var deviationClass = Math.Abs(deviation) <= 5 ? "good" : "warning";
+
+                <div class="day-card">
+                    <div class="day-header" @onclick="() => ToggleDay(day)">
+                        <div class="day-left">
+                            <span class="collapse-icon">
+                                @(day.IsExpanded ? "▼" : "▶")
+                            </span>
+
+                            <div>
+                                <div class="day-title">
+                                    @day.Date.ToString("dddd", RuCulture)
+                                </div>
+
+                                <div class="day-date">
+                                    @day.Date.ToString("dd MMMM yyyy", RuCulture)
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="day-kcal-container">
+                            <div class="day-kcal">
+                                @((int)totalCalories) ккал
+                            </div>
+                            @if (deviation != 0)
+                            {
+                                <div class="day-deviation @deviationClass">
+                                    @(deviation > 0 ? "+" : "")@deviation%
+                                </div>
+                            }
+                        </div>
+                    </div>
+
+                    @if (day.IsExpanded)
+                    {
+                        <div class="meals-list">
+                            @foreach (var meal in day.Meals)
+                            {
+                                <div class="meal-card @(meal.Recipe != null && !meal.IsSnack ? "clickable" : "")"
+                                     @onclick="() => OpenMeal(meal)">
+
+                                    <div class="meal-left">
+                                        <div class="meal-icon">
+                                            @GetMealIcon(meal.MealType)
+                                        </div>
+
+                                        <div>
+                                            <div class="meal-type">
+                                                @GetMealTypeText(meal.MealType)
+                                            </div>
+
+                                            <div class="meal-title">
+                                                @meal.Title
+                                            </div>
+
+                                            <div class="meal-description">
+                                                @meal.Description
+                                            </div>
+
+                                            <div class="meal-macros">
+                                                <span>Б: @meal.Proteins г</span>
+                                                <span>Ж: @meal.Fats г</span>
+                                                <span>У: @meal.Carbs г</span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="meal-right">
+                                        <div class="meal-kcal">
+                                            @meal.Calories ккал
+                                        </div>
+
+                                        @if (meal.Recipe != null && !meal.IsSnack)
+                                        {
+                                            <div class="meal-open">
+                                                Открыть →
+                                            </div>
+                                        }
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    }
+</div>
+
+<style>
+    .mealplan-page {
+        min-height: 100vh;
+        background: #f4f6fb;
+        padding: 32px;
+    }
+
+    .top-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 28px;
+        gap: 20px;
+        flex-wrap: wrap;
+    }
+
+    .main-title {
+        margin: 0;
+        font-size: 40px;
+        font-weight: 800;
+        color: #1a1a2e;
+    }
+
+    .main-subtitle {
+        margin-top: 6px;
+        color: #8d93b0;
+        font-size: 14px;
+    }
+
+    .generate-btn {
+        border: none;
+        background: #6c5ce7;
+        color: white;
+        padding: 14px 24px;
+        border-radius: 18px;
+        font-weight: 700;
+        font-size: 14px;
+        transition: .2s;
+        box-shadow: 0 10px 30px rgba(108,92,231,.2);
+        cursor: pointer;
+    }
+
+        .generate-btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            background: #5f4fd1;
+        }
+
+        .generate-btn:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+        }
+
+    .settings-card {
+        background: white;
+        border-radius: 28px;
+        padding: 28px;
+        margin-bottom: 24px;
+        border: 1px solid #ececf3;
+    }
+
+    .settings-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit,minmax(240px,1fr));
+        gap: 20px;
+    }
+
+    .setting-label {
+        display: block;
+        margin-bottom: 10px;
+        font-size: 13px;
+        color: #7f849b;
+        font-weight: 700;
+    }
+
+    .setting-input {
+        width: 100%;
+        border: 1px solid #e6e8f0;
+        border-radius: 16px;
+        padding: 14px;
+        background: #fafbff;
+        font-size: 14px;
+    }
+
+    .toggle-box {
+        height: 52px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        background: #fafbff;
+        border: 1px solid #e6e8f0;
+        border-radius: 16px;
+        padding: 0 16px;
+        font-size: 14px;
+    }
+
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit,minmax(180px,1fr));
+        gap: 18px;
+        margin-bottom: 30px;
+    }
+
+    .stat-card {
+        background: white;
+        border-radius: 24px;
+        padding: 24px;
+        border: 1px solid #ececf3;
+    }
+
+        .stat-card.calories {
+            background: linear-gradient(135deg,#6c5ce7,#8d7cff);
+        }
+
+            .stat-card.calories .stat-label,
+            .stat-card.calories .stat-value,
+            .stat-card.calories .stat-unit {
+                color: white;
+            }
+
+    .stat-label {
+        color: #8d93b0;
+        font-size: 13px;
+        margin-bottom: 10px;
+    }
+
+    .stat-value {
+        font-size: 36px;
+        font-weight: 800;
+        color: #1a1a2e;
+        line-height: 1;
+    }
+
+    .stat-unit {
+        margin-top: 6px;
+        font-size: 13px;
+        color: #8d93b0;
+    }
+
+    .days-wrapper {
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+    }
+
+    .day-card {
+        background: white;
+        border-radius: 28px;
+        border: 1px solid #ececf3;
+        overflow: hidden;
+        transition: box-shadow 0.2s;
+    }
+
+        .day-card:hover {
+            box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+        }
+
+    .day-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 24px 28px;
+        cursor: pointer;
+        user-select: none;
+    }
+
+    .day-left {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+    }
+
+    .collapse-icon {
+        color: #6c5ce7;
+        font-size: 13px;
+        font-weight: 700;
+        width: 20px;
+    }
+
+    .day-title {
+        font-size: 22px;
+        font-weight: 800;
+        color: #1a1a2e;
+        text-transform: capitalize;
+    }
+
+    .day-date {
+        color: #8d93b0;
+        font-size: 13px;
+        margin-top: 4px;
+    }
+
+    .day-kcal-container {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .day-kcal {
+        background: #f2efff;
+        color: #6c5ce7;
+        padding: 10px 16px;
+        border-radius: 14px;
+        font-weight: 800;
+        font-size: 13px;
+        flex-shrink: 0;
+    }
+
+    .day-deviation {
+        font-size: 12px;
+        font-weight: 700;
+        padding: 6px 10px;
+        border-radius: 12px;
+    }
+
+        .day-deviation.good {
+            background: #e8f5e9;
+            color: #2e7d32;
+        }
+
+        .day-deviation.warning {
+            background: #fff3e0;
+            color: #e65100;
+        }
+
+    .meals-list {
+        padding: 0 24px 24px;
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+    }
+
+    .meal-card {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        background: #fafbff;
+        border: 1px solid #ececf3;
+        border-radius: 22px;
+        padding: 22px;
+        gap: 16px;
+        transition: 0.2s;
+    }
+
+        .meal-card.clickable {
+            cursor: pointer;
+        }
+
+            .meal-card.clickable:hover {
+                transform: translateY(-2px);
+                border-color: #d9d2ff;
+                background: #fcfcff;
+                box-shadow: 0 4px 15px rgba(108,92,231,0.1);
+            }
+
+    .meal-left {
+        display: flex;
+        align-items: flex-start;
+        gap: 18px;
+        min-width: 0;
+        flex: 1;
+    }
+
+    .meal-icon {
+        width: 60px;
+        height: 60px;
+        border-radius: 18px;
+        background: #ede9ff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 26px;
+        flex-shrink: 0;
+    }
+
+    .meal-type {
+        color: #6c5ce7;
+        font-size: 12px;
+        font-weight: 800;
+        text-transform: uppercase;
+        margin-bottom: 6px;
+        letter-spacing: 0.5px;
+    }
+
+    .meal-title {
+        font-size: 20px;
+        font-weight: 800;
+        color: #1a1a2e;
+        margin-bottom: 6px;
+        word-break: break-word;
+    }
+
+    .meal-description {
+        color: #7d8198;
+        font-size: 14px;
+        line-height: 1.5;
+        margin-bottom: 10px;
+    }
+
+    .meal-macros {
+        display: flex;
+        gap: 12px;
+        font-size: 12px;
+        color: #8d93b0;
+        font-weight: 600;
+    }
+
+        .meal-macros span {
+            background: #f4f6fb;
+            padding: 4px 8px;
+            border-radius: 8px;
+        }
+
+    .meal-right {
+        text-align: right;
+        margin-left: 16px;
+        flex-shrink: 0;
+    }
+
+    .meal-kcal {
+        font-size: 20px;
+        font-weight: 800;
+        color: #1a1a2e;
+    }
+
+    .meal-open {
+        margin-top: 8px;
+        font-size: 13px;
+        color: #6c5ce7;
+        font-weight: 700;
+    }
+
+    @@media (max-width: 992px) {
+        .mealplan-page {
+            padding: 16px;
+        }
+
+        .main-title {
+            font-size: 30px;
+        }
+
+        .settings-card {
+            padding: 22px;
+            border-radius: 24px;
+        }
+
+        .day-header {
+            padding: 18px 20px;
+        }
+
+        .meal-card {
+            flex-direction: column;
+        }
+
+        .meal-right {
+            text-align: left;
+            margin-left: 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .meal-title {
+            font-size: 18px;
+        }
+
+        .meal-macros {
+            flex-wrap: wrap;
+        }
+    }
+</style>
+
+@code
+{
+    private static readonly CultureInfo RuCulture = CultureInfo.GetCultureInfo("ru-RU");
+
+    private const double DailyTolerance = 0.05; // 5% допуск для дневной суммы
+    private const int MinMealCalories = 150;
+
+    // Семафор для безопасного создания продуктов
+    private static readonly SemaphoreSlim _productCreationLock = new(1, 1);
+
+    private UserProfile profile = new();
+    private GoalType selectedGoal = GoalType.Maintain;
+    private bool useFridgeProducts = true;
+    private int daysToGenerate = 7;
+    private bool isGenerating = false;
+
+    private int targetCalories;
+    private int targetProteins;
+    private int targetFats;
+    private int targetCarbs;
+
+    private List<MealPlanDay> mealPlanDays = new();
+
+    public class MealPlanDay
+    {
+        public DateTime Date { get; set; }
+        public bool IsExpanded { get; set; }
+        public List<MealPlanMeal> Meals { get; set; } = new();
+    }
+
+    public class MealPlanMeal
+    {
+        public MealType MealType { get; set; }
+        public Recipe? Recipe { get; set; }
+        public string Title { get; set; } = "";
+        public string Description { get; set; } = "";
+        public bool IsSnack { get; set; }
+        public int TargetCalories { get; set; }
+        public int Calories { get; set; }
+        public int Proteins { get; set; }
+        public int Fats { get; set; }
+        public int Carbs { get; set; }
+    }
+
+    private sealed record CreatedRecipeResult(Recipe Recipe, MealNutrition Nutrition);
+
+    protected override async Task OnInitializedAsync()
+    {
+        var user = await DbContext.Users
+            .Include(x => x.Profile)
+            .FirstOrDefaultAsync(x => x.Id == AuthService.CurrentUserId);
+
+        if (user == null)
+        {
+            Logger.LogWarning("Пользователь {UserId} не найден", AuthService.CurrentUserId);
+            return;
+        }
+
+        profile = user.Profile ?? new UserProfile();
+        selectedGoal = profile.Goal;
+
+        CalculateTargets();
+        await LoadExistingPlan();
+    }
+
+    private void CalculateTargets()
+    {
+        double calories =
+            profile.Gender == Gender.Male
+                ? 10 * profile.Weight + 6.25 * profile.Height - 5 * profile.Age + 5
+                : 10 * profile.Weight + 6.25 * profile.Height - 5 * profile.Age - 161;
+
+        calories *= profile.ActivityLevel switch
+        {
+            ActivityLevel.Low => 1.2,
+            ActivityLevel.Medium => 1.55,
+            ActivityLevel.High => 1.8,
+            _ => 1.2
+        };
+
+        calories = selectedGoal switch
+        {
+            GoalType.LoseWeight => calories - 300,
+            GoalType.GainWeight => calories + 300,
+            _ => calories
+        };
+
+        targetCalories = (int)Math.Round(calories);
+        targetProteins = (int)Math.Round(calories * 0.30 / 4.0);
+        targetFats = (int)Math.Round(calories * 0.25 / 9.0);
+        targetCarbs = (int)Math.Round(calories * 0.45 / 4.0);
+    }
+
+    private async Task LoadExistingPlan()
+    {
+        mealPlanDays.Clear();
+
+        var latestPlan = await DbContext.MealPlans
+            .AsNoTracking()
+            .Include(x => x.Items)
+                .ThenInclude(x => x.Recipe)
+            .Where(x => x.UserId == AuthService.CurrentUserId)
+            .OrderByDescending(x => x.CreatedAt)
+            .FirstOrDefaultAsync();
+
+        if (latestPlan == null || latestPlan.Items == null || latestPlan.Items.Count == 0)
+            return;
+
+        foreach (var group in latestPlan.Items
+                     .GroupBy(x => x.Date.Date)
+                     .OrderBy(x => x.Key))
+        {
+            var day = new MealPlanDay
+                {
+                    Date = group.Key,
+                    IsExpanded = group.Key == DateTime.Today,
+                    Meals = group
+                            .OrderBy(x => GetMealSortOrder(x.MealType))
+                            .Select(x => new MealPlanMeal
+                            {
+                                MealType = x.MealType,
+                                Recipe = x.Recipe,
+                                Title = x.Recipe?.Title ?? string.Empty,
+                                Description = x.Recipe?.Description ?? string.Empty,
+                                IsSnack = x.MealType == MealType.Snack,
+                                Calories = x.Calories,
+                                Proteins = x.Proteins,
+                                Fats = x.Fats,
+                                Carbs = x.Carbs
+                            })
+                            .ToList()
+                };
+
+            mealPlanDays.Add(day);
+        }
+    }
+
+    private async Task GenerateMealPlan()
+    {
+        if (isGenerating)
+            return;
+
+        isGenerating = true;
+        StateHasChanged();
+
+        try
+        {
+            Logger.LogInformation("Начало генерации плана: {Days} дней, цель {Goal}", daysToGenerate, selectedGoal);
+
+            CalculateTargets();
+            mealPlanDays.Clear();
+
+            var oldPlans = await DbContext.MealPlans
+                .Include(x => x.Items)
+                .Where(x => x.UserId == AuthService.CurrentUserId)
+                .ToListAsync();
+
+            if (oldPlans.Any())
+            {
+                DbContext.MealPlanItems.RemoveRange(oldPlans.SelectMany(x => x.Items));
+                DbContext.MealPlans.RemoveRange(oldPlans);
+                await DbContext.SaveChangesAsync();
+                Logger.LogInformation("Удалено {Count} старых планов", oldPlans.Count);
+            }
+
+            var fridgeItems = new List<FridgeItem>();
+            if (useFridgeProducts)
+            {
+                fridgeItems = await DbContext.FridgeItems
+                    .Include(x => x.Product)
+                        .ThenInclude(x => x.Unit)
+                    .Where(x => x.UserId == AuthService.CurrentUserId && x.Quantity > 0)
+                    .ToListAsync();
+            }
+
+            var recipeTitles = await DbContext.Recipes
+                .Where(x => x.Title != null)
+                .Select(x => x.Title!)
+                .ToListAsync();
+
+            var fridgeProductNames = fridgeItems
+                .Where(x => x.Product != null && !string.IsNullOrWhiteSpace(x.Product.Name))
+                .Select(x => x.Product!.Name)
+                .Distinct()
+                .ToList();
+
+            Logger.LogInformation("Запрос структуры плана к ИИ...");
+            var structure = await GigaChatHelper.GenerateMealPlanStructureAsync(
+                profile,
+                daysToGenerate,
+                selectedGoal,
+                targetCalories,
+                targetProteins,
+                targetFats,
+                targetCarbs,
+                useFridgeProducts,
+                "balanced",
+                recipeTitles,
+                fridgeProductNames);
+
+            if (structure?.Days == null || structure.Days.Count == 0)
+            {
+                Logger.LogError("Не удалось получить структуру плана от ИИ");
+                return;
+            }
+
+            Logger.LogInformation("Получена структура: {DaysCount} дней", structure.Days.Count);
+
+            var mealPlan = new Models.MealPlan
+                {
+                    UserId = AuthService.CurrentUserId,
+                    Name = string.IsNullOrWhiteSpace(structure.Name)
+                            ? $"План питания {DateTime.Today:dd.MM.yyyy}"
+                            : structure.Name.Trim(),
+                    CreatedAt = DateTime.UtcNow
+                };
+
+            DbContext.MealPlans.Add(mealPlan);
+            await DbContext.SaveChangesAsync();
+
+            // Обработка каждого дня ПОСЛЕДОВАТЕЛЬНО
+            foreach (var generatedDay in structure.Days.OrderBy(x => x.DayNumber))
+            {
+                var date = DateTime.Today.AddDays(Math.Max(0, generatedDay.DayNumber - 1));
+                var day = new MealPlanDay
+                    {
+                        Date = date,
+                        IsExpanded = date.Date == DateTime.Today
+                    };
+
+                await ProcessDayAIFirst(day, generatedDay.Meals, mealPlan, date);
+                Logger.LogInformation("Обработан день {Date}: {MealsCount} приёмов пищи", date, day.Meals.Count);
+            }
+
+            Logger.LogInformation("Генерация плана завершена успешно");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Ошибка при генерации плана питания");
+            // Можно добавить уведомление пользователю
+        }
+        finally
+        {
+            isGenerating = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task ProcessDayAIFirst(MealPlanDay day, List<MealStructureDto> aiMeals,
+        Models.MealPlan mealPlan, DateTime date)
+    {
+        if (aiMeals == null || aiMeals.Count == 0)
+            return;
+
+        // 1. Валидация распределения калорий от ИИ
+        int aiTotalCalories = aiMeals.Sum(m => m.TargetCalories);
+
+        if (aiTotalCalories <= 0 || Math.Abs(aiTotalCalories - targetCalories) > targetCalories * 0.3)
+        {
+            Logger.LogWarning("Некорректное распределение калорий от ИИ ({AiTotal} vs {Target}), используем fallback",
+                aiTotalCalories, targetCalories);
+
+            var shares = new[] { 0.25, 0.35, 0.25, 0.15 };
+            for (int i = 0; i < Math.Min(aiMeals.Count, shares.Length); i++)
+            {
+                aiMeals[i].TargetCalories = Math.Max(MinMealCalories, (int)(targetCalories * shares[i]));
+            }
+        }
+
+        // 2. Ограничение перекусов
+        foreach (var meal in aiMeals)
+        {
+            if (meal.IsSnack || ParseMealType(meal.MealType) == MealType.Snack)
+            {
+                meal.TargetCalories = Math.Min(meal.TargetCalories, (int)(targetCalories * 0.2));
+            }
+            meal.TargetCalories = Math.Max(MinMealCalories, meal.TargetCalories);
+        }
+
+        // 3. Нормализация суммы
+        NormalizeMealTargets(aiMeals);
+
+        // 4. ПОСЛЕДОВАТЕЛЬНАЯ генерация рецептов (устраняет гонки)
+        var createdMeals = new List<MealPlanMeal>();
+
+        foreach (var meal in aiMeals)
+        {
+            try
+            {
+                var recipeResult = await BuildRecipeAsync(
+                    meal.Title, meal.TargetCalories, meal.IsSnack, meal.MealType, profile, selectedGoal);
+
+                if (recipeResult != null)
+                {
+                    createdMeals.Add(CreateMealPlanMeal(meal, recipeResult, meal.TargetCalories));
+                    Logger.LogDebug("Создан рецепт: {Title} ({Calories} ккал)",
+                        recipeResult.Recipe.Title, recipeResult.Nutrition.Calories);
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "Ошибка при создании рецепта \"{Title}\"", meal.Title);
+                // Пропускаем проблемный рецепт, продолжаем генерацию
+            }
+        }
+
+        if (!createdMeals.Any())
+        {
+            Logger.LogError("Не удалось создать ни одного рецепта для дня {Date}", date);
+            return;
+        }
+
+        // 5. Валидация дневной суммы калорий
+        int actualTotal = createdMeals.Sum(m => m.Calories);
+        double error = targetCalories > 0
+            ? Math.Abs(actualTotal - targetCalories) / (double)targetCalories
+            : 0;
+
+        Logger.LogInformation("Дневная калорийность: {Actual}/{Target} ккал (отклонение {Error}%)",
+            actualTotal, targetCalories, error * 100);
+
+        if (error > DailyTolerance)
+        {
+            Logger.LogWarning("Отклонение {Error}% превышает допуск {Tolerance}%, применяем коррекцию",
+                error * 100, DailyTolerance * 100);
+
+            // Пропорциональная коррекция
+            double factor = Math.Clamp((double)targetCalories / actualTotal, 0.9, 1.1);
+
+            foreach (var meal in createdMeals.Where(m => m.Recipe != null))
+            {
+                int newTarget = Math.Max(MinMealCalories, (int)Math.Round(meal.Calories * factor));
+                var nutrition = RecipeNutritionAdjuster.ScaleRecipeToTarget(meal.Recipe!, newTarget);
+
+                meal.Calories = (int)Math.Round(nutrition.Calories);
+                meal.Proteins = (int)Math.Round(nutrition.Proteins);
+                meal.Fats = (int)Math.Round(nutrition.Fats);
+                meal.Carbs = (int)Math.Round(nutrition.Carbs);
+            }
+
+            // Повторная проверка
+            actualTotal = createdMeals.Sum(m => m.Calories);
+            error = targetCalories > 0
+                ? Math.Abs(actualTotal - targetCalories) / (double)targetCalories
+                : 0;
+
+            // Точечная замена при необходимости
+            if (error > DailyTolerance)
+            {
+                Logger.LogWarning("После коррекции отклонение {Error}% всё ещё велико, заменяем один приём", error * 100);
+
+                var worstMeal = createdMeals
+                    .Where(m => m.Recipe != null)
+                    .OrderByDescending(m => Math.Abs(m.Calories - m.TargetCalories))
+                    .FirstOrDefault();
+
+                if (worstMeal != null)
+                {
+                    int correctionTarget = worstMeal.Calories + (targetCalories - actualTotal);
+                    correctionTarget = Math.Max(MinMealCalories, correctionTarget);
+
+                    var originalMeal = aiMeals.First(m =>
+                        ParseMealType(m.MealType) == worstMeal.MealType);
+
+                    var newRecipe = await BuildRecipeAsync(
+                        originalMeal.Title, correctionTarget, originalMeal.IsSnack,
+                        originalMeal.MealType, profile, selectedGoal);
+
+                    if (newRecipe != null)
+                    {
+                        int idx = createdMeals.IndexOf(worstMeal);
+                        createdMeals[idx] = CreateMealPlanMeal(originalMeal, newRecipe, correctionTarget);
+                        Logger.LogInformation("Заменён рецепт: {Title}", newRecipe.Recipe.Title);
+                    }
+                }
+            }
+        }
+
+        // 6. Сохранение в БД
+        foreach (var meal in createdMeals.Where(m => m.Recipe != null))
+        {
+            DbContext.MealPlanItems.Add(new MealPlanItem
+                {
+                    MealPlanId = mealPlan.Id,
+                    RecipeId = meal.Recipe!.Id,
+                    Date = date,
+                    MealType = meal.MealType,
+                    Calories = meal.Calories,
+                    Proteins = meal.Proteins,
+                    Fats = meal.Fats,
+                    Carbs = meal.Carbs
+                });
+        }
+
+        day.Meals.AddRange(createdMeals.OrderBy(m => GetMealSortOrder(m.MealType)));
+        mealPlanDays.Add(day);
+        await DbContext.SaveChangesAsync();
+    }
+
+    private void NormalizeMealTargets(List<MealStructureDto> meals)
+    {
+        if (meals == null || meals.Count == 0)
+            return;
+
+        int total = meals.Sum(m => m.TargetCalories);
+        if (total == 0 || total == targetCalories)
+            return;
+
+        int diff = targetCalories - total;
+        var sortedMeals = meals
+            .Select((m, i) => (meal: m, index: i))
+            .OrderByDescending(x => x.meal.TargetCalories)
+            .ToList();
+
+        foreach (var (meal, _) in sortedMeals)
+        {
+            if (diff == 0)
+                break;
+
+            int sign = diff > 0 ? 1 : -1;
+            int adjustment = sign * Math.Min(Math.Abs(diff), 50);
+            adjustment = Math.Clamp(adjustment, -meal.TargetCalories / 4, meal.TargetCalories / 4);
+
+            meal.TargetCalories = Math.Max(MinMealCalories, meal.TargetCalories + adjustment);
+            diff -= adjustment;
+        }
+
+        if (diff != 0)
+        {
+            var mainMeal = sortedMeals
+                .FirstOrDefault(x => !x.meal.IsSnack && ParseMealType(x.meal.MealType) != MealType.Snack)
+                .meal ?? sortedMeals.First().meal;
+
+            mainMeal.TargetCalories = Math.Max(MinMealCalories, mainMeal.TargetCalories + diff);
+        }
+    }
+
+    private MealPlanMeal CreateMealPlanMeal(
+        MealStructureDto meal,
+        CreatedRecipeResult recipeResult,
+        int targetCalories)
+    {
+        return new MealPlanMeal
+            {
+                MealType = ParseMealType(meal.MealType),
+                Recipe = recipeResult.Recipe,
+                Title = recipeResult.Recipe.Title ?? meal.Title,
+                Description = recipeResult.Recipe.Description ?? string.Empty,
+                IsSnack = meal.IsSnack,
+                TargetCalories = targetCalories,
+                Calories = (int)Math.Round(recipeResult.Nutrition.Calories),
+                Proteins = (int)Math.Round(recipeResult.Nutrition.Proteins),
+                Fats = (int)Math.Round(recipeResult.Nutrition.Fats),
+                Carbs = (int)Math.Round(recipeResult.Nutrition.Carbs)
+            };
+    }
+
+    /// <summary>
+    /// Поиск существующего рецепта по названию (улучшенная нормализация)
+    /// </summary>
+    /// <summary>
+    /// Поиск существующего рецепта по названию.
+    /// ⚠️ Использует клиентскую фильтрацию, т.к. NormalizeForSearch не транслируется в SQL
+    /// </summary>
+    private async Task<Recipe?> FindExistingRecipeAsync(string title)
+    {
+        var normalizedTitle = NormalizeForSearch(title);
+
+        // 1. Загружаем все рецепты с ингредиентами (клиентская фильтрация)
+        // Для продакшена можно добавить кэширование или полнотекстовый поиск
+        var allRecipes = await DbContext.Recipes
+            .Include(x => x.RecipeIngredients)
+                .ThenInclude(x => x.Product)
+            .ToListAsync();
+
+        // 2. Точное совпадение после нормализации
+        var exact = allRecipes
+            .FirstOrDefault(x => NormalizeForSearch(x.Title) == normalizedTitle);
+
+        if (exact != null)
+            return exact;
+
+        // 3. Частичное совпадение по ключевым словам
+        var keywords = normalizedTitle
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries)
+            .Where(k => k.Length > 3)
+            .Take(3)
+            .ToList();
+
+        if (keywords.Any())
+        {
+            foreach (var candidate in allRecipes)
+            {
+                var candidateNormalized = NormalizeForSearch(candidate.Title);
+                // Проверяем, содержит ли название все ключевые слова
+                if (keywords.All(k => candidateNormalized.Contains(k)))
+                    return candidate;
+            }
+        }
+
+        return null;
+    }
+
+    private async Task<CreatedRecipeResult?> BuildRecipeAsync(
+    string title,
+    int targetCalories,
+    bool isSnack,
+    string? mealType,
+    UserProfile? profile,
+    GoalType? goal)
+    {
+        // 1. Проверяем существующий рецепт
+        var existingRecipe = await FindExistingRecipeAsync(title);
+        if (existingRecipe != null)
+        {
+            Logger.LogDebug("Найден существующий рецепт: {Title}", existingRecipe.Title);
+            var existingNutrition = RecipeNutritionAdjuster.AdjustRecipeToTarget(existingRecipe, targetCalories);
+            return new CreatedRecipeResult(existingRecipe, existingNutrition);
+        }
+
+        // 2. Генерируем новый через ИИ
+        var meal = await GigaChatHelper.GenerateRecipeByTitleAsync(
+            title, targetCalories, isSnack, mealType, profile, goal);
+
+        if (meal == null)
+        {
+            Logger.LogWarning("ИИ не вернул рецепт для \"{Title}\"", title);
+            return null;
+        }
+
+        var recipe = new Recipe
+            {
+                Title = meal.Title,
+                Description = meal.Description,
+                Instructions = string.Join("\n", meal.Instructions ?? new List<string>()),
+                PrepTime = meal.IsSnack ? 5 : 15,
+                CookTime = meal.IsSnack ? 0 : 20,
+                ImageUrl = "",
+                RecipeIngredients = new List<RecipeIngredient>()
+            };
+
+        foreach (var ingredient in meal.Ingredients ?? new List<GigaChatHelper.GeneratedIngredientDto>())
+        {
+            var normalizedIngredientName = NormalizeForSearch(ingredient.Name);
+            var normalizedUnit = NormalizeUnit(ingredient.Unit);
+            var normalizedCategory = NormalizeForSearch(ingredient.Category);
+
+            // Поиск или создание единицы измерения
+            var unit = await DbContext.Units
+                .FirstOrDefaultAsync(x => NormalizeUnit(x.Name) == normalizedUnit);
+
+            if (unit == null)
+            {
+                unit = new Unit
+                    {
+                        Name = string.IsNullOrWhiteSpace(ingredient.Unit) ? "г" : ingredient.Unit.Trim()
+                    };
+                DbContext.Units.Add(unit);
+                await DbContext.SaveChangesAsync();
+            }
+
+            // Поиск или создание категории
+            var category = await DbContext.Categories
+                .FirstOrDefaultAsync(x => NormalizeForSearch(x.Name) == normalizedCategory);
+
+            if (category == null)
+            {
+                category = new Category
+                    {
+                        Name = string.IsNullOrWhiteSpace(ingredient.Category) ? "Другое" : ingredient.Category.Trim()
+                    };
+                DbContext.Categories.Add(category);
+                await DbContext.SaveChangesAsync();
+            }
+
+            // ПОТОКОБЕЗОПАСНЫЙ поиск/создание продукта
+            Product? product = null;
+            await _productCreationLock.WaitAsync();
+            try
+            {
+                // ❌ НЕЛЬЗЯ: NormalizeForSearch не транслируется в SQL
+                // product = await DbContext.Products
+                //     .Include(x => x.Unit)
+                //     .Include(x => x.Category)
+                //     .FirstOrDefaultAsync(x => NormalizeForSearch(x.Name) == normalizedIngredientName);
+
+                // ✅ ПРАВИЛЬНО: сначала загружаем, потом фильтруем в памяти
+                var allProducts = await DbContext.Products
+                    .Include(x => x.Unit)
+                    .Include(x => x.Category)
+                    .ToListAsync();
+
+                product = allProducts
+                    .FirstOrDefault(x => NormalizeForSearch(x.Name) == normalizedIngredientName);
+
+                if (product == null)
+                {
+                    product = new Product
+                        {
+                            Name = ingredient.Name.Trim(),
+                            UnitId = unit.Id,
+                            Unit = unit,
+                            CategoryId = category.Id,
+                            Category = category,
+                            IsPieceBased = normalizedUnit == "шт",
+                            AverageWeightGrams = normalizedUnit == "шт" ? 100 : null,
+                            Calories = (int)Math.Round(ingredient.Calories),
+                            Proteins = (int)Math.Round(ingredient.Proteins),
+                            Fats = (int)Math.Round(ingredient.Fats),
+                            Carbohydrates = (int)Math.Round(ingredient.Carbs)
+                        };
+
+                    DbContext.Products.Add(product);
+                    await DbContext.SaveChangesAsync();
+                    Logger.LogDebug("Создан новый продукт: {Name}", product.Name);
+                }
+            }
+            finally
+            {
+                _productCreationLock.Release();
+            }
+
+            recipe.RecipeIngredients.Add(new RecipeIngredient
+                {
+                    ProductId = product.Id,
+                    Product = product,
+                    Quantity = (double)ingredient.Quantity
+                });
+        }
+
+        DbContext.Recipes.Add(recipe);
+
+        // 🔥 ИСПРАВЛЕНО: используем уникальное имя переменной
+        var newRecipeNutrition = RecipeNutritionAdjuster.AdjustRecipeToTarget(recipe, targetCalories);
+
+        await DbContext.SaveChangesAsync();
+
+        Logger.LogDebug("Создан рецепт: {Title} ({Calories} ккал)", recipe.Title, newRecipeNutrition.Calories);
+        return new CreatedRecipeResult(recipe, newRecipeNutrition);
+    }
+
+    private void ToggleDay(MealPlanDay day)
+    {
+        day.IsExpanded = !day.IsExpanded;
+    }
+
+    private void OpenMeal(MealPlanMeal meal)
+    {
+        if (meal.Recipe != null && !meal.IsSnack)
+        {
+            Navigation.NavigateTo($"/recipe/{meal.Recipe.Id}");
+        }
+    }
+
+    private MealType ParseMealType(string mealType)
+    {
+        return NormalizeForSearch(mealType) switch
+        {
+            var s when s.Contains("завтрак") || s.Contains("breakfast") => MealType.Breakfast,
+            var s when s.Contains("обед") || s.Contains("lunch") => MealType.Lunch,
+            var s when s.Contains("ужин") || s.Contains("dinner") => MealType.Dinner,
+            var s when s.Contains("перекус") || s.Contains("snack") => MealType.Snack,
+            _ => MealType.Snack
+        };
+    }
+
+    private static int GetMealSortOrder(MealType mealType)
+    {
+        return mealType switch
+        {
+            MealType.Breakfast => 0,
+            MealType.Lunch => 1,
+            MealType.Dinner => 2,
+            MealType.Snack => 3,
+            _ => 4
+        };
+    }
+
+    private string GetMealTypeText(MealType type)
+    {
+        return type switch
+        {
+            MealType.Breakfast => "Завтрак",
+            MealType.Lunch => "Обед",
+            MealType.Dinner => "Ужин",
+            MealType.Snack => "Перекус",
+            _ => ""
+        };
+    }
+
+    private string GetMealIcon(MealType type)
+    {
+        return type switch
+        {
+            MealType.Breakfast => "🌅",
+            MealType.Lunch => "🍲",
+            MealType.Dinner => "🌙",
+            MealType.Snack => "🍎",
+            _ => "🍽️"
+        };
+    }
+
+    /// <summary>
+    /// Улучшенная нормализация для поиска: игнорирует порядок слов, спецсимволы, ё/е
+    /// </summary>
+    private static string NormalizeForSearch(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return string.Empty;
+
+        return string.Join(" ",
+            value
+                .ToLowerInvariant()
+                .Replace("ё", "е")
+                .Replace("-", " ")
+                .Replace(",", " ")
+                .Replace(".", " ")
+                .Replace("(", " ")
+                .Replace(")", " ")
+                .Split(' ', StringSplitOptions.RemoveEmptyEntries)
+                .OrderBy(x => x) // сортировка для нечувствительности к порядку слов
+        );
+    }
+
+    private static string NormalizeUnit(string? value)
+    {
+        var unit = NormalizeForSearch(value);
+
+        return unit switch
+        {
+            var s when s.Contains("гр") || s.Contains("грамм") => "г",
+            var s when s.Contains("шт") || s.Contains("штука") => "шт",
+            var s when s.Contains("мл") || s.Contains("миллилитр") => "мл",
+            var s when s.Contains("л") || s.Contains("литр") => "л",
+            _ => unit
+        };
+    }
+
+    public void Dispose()
+    {
+        _productCreationLock?.Dispose();
+    }
+}

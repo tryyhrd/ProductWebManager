@@ -1,4 +1,4 @@
-﻿@page "/favorites"
+﻿@* @page "/favorites"
 @rendermode InteractiveServer
 @inject NavigationManager Navigation
 @inject ProductWebManager.Data.ProductManagerContext DbContext
@@ -347,7 +347,7 @@
                 .ToListAsync();
 
             fridgeProductIds = (await DbContext.FridgeItems
-                .Where(f => f.UserId == 1 && f.Quanity > 0)
+                .Where(f => f.UserId == 1 && f.Quantity > 0)
                 .Select(f => f.ProductId)
                 .ToListAsync())
                 .ToHashSet();
@@ -426,4 +426,4 @@
         <= 60 => "Средне",
         _ => "Сложно"
     };
-}
+} *@

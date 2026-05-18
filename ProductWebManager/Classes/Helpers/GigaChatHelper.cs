@@ -1,252 +1,502 @@
-﻿using Newtonsoft.Json;
+﻿using System.Net.Http.Headers;
 using System.Text;
-using System.Net.Http.Headers;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using Newtonsoft.Json;
 using ProductWebManager.Models;
 
-namespace ProductWebManager.Classes.Helpers
+namespace ProductWebManager.Classes.AI;
+
+public sealed class GigaChatHelper
 {
-    public static class GigaChatHelper
+    private readonly HttpClient _httpClient;
+    private readonly GigaChatOptions _options;
+    private readonly ILogger<GigaChatHelper> _logger;
+
+    private static readonly SemaphoreSlim _tokenLock = new(1, 1);
+    private static string _cachedToken = string.Empty;
+    private static DateTime _tokenExpiry = DateTime.MinValue;
+
+    public GigaChatHelper(
+        HttpClient httpClient,
+        IOptions<GigaChatOptions> options,
+        ILogger<GigaChatHelper> logger)
     {
-        private const string ClientId = "019bca1f-0f50-72b2-b33b-7fb5c3b89be6";
-        private const string AuthorizationKey = "MDE5YmNhMWYtMGY1MC03MmIyLWIzM2ItN2ZiNWMzYjg5YmU2OjE2NjQxYWQ0LWVhMjctNDYzYi1hYjRmLTRjZTI4ZDU1NTVkOA==";
+        _httpClient = httpClient;
+        _options = options.Value;
+        _logger = logger;
+    }
 
-        private static readonly HttpClient _httpClient = new HttpClient(new HttpClientHandler
+    public async Task<MealPlanStructureDto?> GenerateMealPlanStructureAsync(
+        UserProfile profile,
+        int days,
+        GoalType goal)
+    {
+        var calories = CalculateTargetCalories(profile, goal);
+        var proteins = (int)Math.Round(calories * 0.30 / 4.0);
+        var fats = (int)Math.Round(calories * 0.25 / 9.0);
+        var carbs = (int)Math.Round(calories * 0.45 / 4.0);
+
+        return await GenerateMealPlanStructureAsync(
+            profile, days, goal, calories, proteins, fats, carbs,
+            useFridgeProducts: false, generationMode: "balanced",
+            existingRecipeTitles: null, fridgeProductNames: null);
+    }
+
+    public async Task<MealPlanStructureDto?> GenerateMealPlanStructureAsync(
+        UserProfile profile,
+        int days,
+        GoalType goal,
+        int targetCalories,
+        int targetProteins,
+        int targetFats,
+        int targetCarbs,
+        bool useFridgeProducts,
+        string generationMode,
+        IEnumerable<string>? existingRecipeTitles,
+        IEnumerable<string>? fridgeProductNames)
+    {
+        var recipeTitles = LimitAndNormalize(existingRecipeTitles, 40);
+        var fridgeProducts = LimitAndNormalize(fridgeProductNames, 30);
+
+        var systemPrompt =
+            "Ты профессиональный нутрициолог и шеф-повар. " +
+            "Ты создаёшь реалистичную структуру плана питания. " +
+            "Верни ТОЛЬКО валидный JSON без пояснений.";
+
+        var userPrompt = $$"""
+Составь структуру плана питания на {{days}} дней.
+
+ДАННЫЕ ПОЛЬЗОВАТЕЛЯ:
+- Возраст: {{profile.Age}}, Рост: {{profile.Height}} см, Вес: {{profile.Weight}} кг
+- Пол: {{profile.Gender}}, Активность: {{profile.ActivityLevel}}, Цель: {{goal}}
+
+ЦЕЛЕВЫЕ КБЖУ НА СУТКИ:
+- Калории: {{targetCalories}} ккал
+- Белки: {{targetProteins}} г, Жиры: {{targetFats}} г, Углеводы: {{targetCarbs}} г
+
+РЕЖИМ: {{generationMode}}
+ИСПОЛЬЗОВАТЬ ПРОДУКТЫ ИЗ ХОЛОДИЛЬНИКА: {{(useFridgeProducts ? "да" : "нет")}}
+{{(fridgeProducts.Count > 0 ? "Продукты: " + string.Join(", ", fridgeProducts) : "")}}
+{{(recipeTitles.Count > 0 ? "Уже есть рецепты: " + string.Join(", ", recipeTitles.Take(20)) : "")}}
+
+ПРАВИЛА:
+1. Верни ТОЛЬКО валидный JSON.
+2. Для каждого дня ровно 4 приёма: Breakfast, Lunch, Dinner, Snack.
+3. Перекус (Snack) не более 20% от дневных калорий.
+4. Завтрак легче обеда, ужин легче обеда.
+5. Не повторяй блюда чаще 2 раз за план.
+6. Названия блюд реалистичные, на русском.
+7. Сумма targetCalories всех приёмов = {{targetCalories}}.
+
+ФОРМАТ JSON:
+{
+  "name": "План питания",
+  "totalDailyCalories": {{targetCalories}},
+  "days": [
+    {
+      "dayNumber": 1,
+      "meals": [
         {
-            ServerCertificateCustomValidationCallback = (sender, cert, chain, sslPolicyErrors) => true
-        })
-        { Timeout = TimeSpan.FromMinutes(5) };
-
-        private static string _cachedToken = "";
-        private static DateTime _tokenExpiry = DateTime.MinValue;
-
-        public static async Task<GeneratedMenuDto?> GenerateAndParseMenuAsync(List<FridgeItem> fridgeItems, int daysCount)
-        {
-            var finalMenu = new GeneratedMenuDto
-            {
-                MenuName = "Сгенерированное меню",
-                Items = new List<GeneratedMenuItemDto>()
-            };
-
-            for (int i = 1; i <= daysCount; i++)
-            {
-                string systemPrompt = CreateSingleDayPrompt(fridgeItems, i);
-
-                var messages = new List<Message>
-                {
-                    new Message { role = "user", content = systemPrompt }
-                };
-
-                for (int attempt = 1; attempt <= 3; attempt++)
-                {
-                    try
-                    {
-                        string token = await GetToken();
-                        var response = await GetAnswer(token, messages);
-
-                        if (response?.choices?.Count > 0)
-                        {
-                            string rawContent = response.choices[0].message.content;
-                            string json = CleanJson(rawContent);
-
-                            var dayMenu = JsonConvert.DeserializeObject<GeneratedMenuDto>(json);
-
-                            if (dayMenu?.Items != null && dayMenu.Items.Any())
-                            {
-                                foreach (var item in dayMenu.Items) item.DayNumber = i;
-                                finalMenu.Items.AddRange(dayMenu.Items);
-                                break;
-                            }
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        Console.WriteLine($"Ошибка генерации дня {i} (попытка {attempt}): {ex.Message}");
-                        await Task.Delay(1500);
-                    }
-                }
-            }
-
-            return finalMenu.Items.Count > 0 ? finalMenu : null;
+          "mealType": "Breakfast",
+          "title": "Овсянка с бананом",
+          "isSnack": false,
+          "targetCalories": 450
         }
+      ]
+    }
+  ]
+}
+""";
 
-        private static async Task<ResponseMessage?> GetAnswer(string token, List<Message> messages)
+        try
         {
-            string url = "https://gigachat.devices.sberbank.ru/api/v1/chat/completions";
-
-            var requestData = new
+            var raw = await SendPromptAsync(systemPrompt, userPrompt);
+            if (string.IsNullOrWhiteSpace(raw))
             {
-                model = "GigaChat",
-                stream = false,
-                repetition_penalty = 1,
-                messages = messages,
-                temperature = 0.25
-            };
-
-            var jsonContent = JsonConvert.SerializeObject(requestData);
-            var content = new StringContent(jsonContent, Encoding.UTF8, "application/json");
-
-            using var request = new HttpRequestMessage(HttpMethod.Post, url);
-            request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-            request.Headers.Add("X-Client-ID", ClientId);
-            request.Content = content;
-
-            var response = await _httpClient.SendAsync(request);
-
-            if (!response.IsSuccessStatusCode)
-            {
-                string errorBody = await response.Content.ReadAsStringAsync();
-                Console.WriteLine($"API Error ({response.StatusCode}): {errorBody}");
+                _logger.LogWarning("ИИ вернул пустой ответ для структуры плана");
                 return null;
             }
 
-            string responseContent = await response.Content.ReadAsStringAsync();
-            return JsonConvert.DeserializeObject<ResponseMessage>(responseContent);
-        }
-
-        private static async Task<string> GetToken()
-        {
-            if (!string.IsNullOrEmpty(_cachedToken) && _tokenExpiry > DateTime.UtcNow.AddMinutes(1))
-                return _cachedToken;
-
-            string url = "https://ngw.devices.sberbank.ru:9443/api/v2/oauth";
-            string rqUid = Guid.NewGuid().ToString();
-
-            using var request = new HttpRequestMessage(HttpMethod.Post, url);
-            request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-            request.Headers.Authorization = new AuthenticationHeaderValue("Basic", AuthorizationKey);
-            request.Headers.Add("RqUID", rqUid);
-
-            var formData = new List<KeyValuePair<string, string>>
+            var json = ExtractJson(raw);
+            if (string.IsNullOrWhiteSpace(json))
             {
-                new KeyValuePair<string, string>("scope", "GIGACHAT_API_PERS")
-            };
-            request.Content = new FormUrlEncodedContent(formData);
+                _logger.LogWarning("Не удалось извлечь JSON из ответа ИИ");
+                return null;
+            }
 
-            var response = await _httpClient.SendAsync(request);
+            var dto = JsonConvert.DeserializeObject<MealPlanStructureDto>(
+                json,
+                new JsonSerializerSettings
+                {
+                    MissingMemberHandling = MissingMemberHandling.Ignore,
+                    NullValueHandling = NullValueHandling.Ignore
+                });
+
+            if (dto == null || dto.Days == null || dto.Days.Count == 0)
+            {
+                _logger.LogWarning("Десериализованная структура плана пуста или невалидна");
+                return null;
+            }
+
+            // Пост-обработка
+            dto.Name = string.IsNullOrWhiteSpace(dto.Name)
+                ? $"План питания {DateTime.Now:dd.MM.yyyy}"
+                : dto.Name.Trim();
+
+            foreach (var day in dto.Days)
+            {
+                day.Meals ??= new List<MealStructureDto>();
+                foreach (var meal in day.Meals)
+                {
+                    meal.Title = string.IsNullOrWhiteSpace(meal.Title) ? "Блюдо" : meal.Title.Trim();
+                    meal.MealType = NormalizeMealType(meal.MealType);
+
+                    // Валидация targetCalories
+                    if (meal.TargetCalories <= 0)
+                        meal.TargetCalories = targetCalories / 4; // fallback
+                }
+            }
+
+            _logger.LogInformation("Успешно получена структура плана: {Days} дней", dto.Days.Count);
+            return dto;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Ошибка при генерации структуры плана");
+            return null;
+        }
+    }
+
+    public async Task<GeneratedMealDto?> GenerateRecipeByTitleAsync(
+        string title,
+        int targetCalories,
+        bool isSnack,
+        string? mealType,
+        UserProfile? profile,
+        GoalType? goal)
+    {
+        var systemPrompt =
+            "Ты профессиональный шеф-повар и нутрициолог. " +
+            "Создаёшь один реалистичный рецепт с точными ингредиентами. " +
+            "Верни ТОЛЬКО валидный JSON без markdown и пояснений.";
+
+        var goalText = goal?.ToString() ?? "не задана";
+        var mealTypeText = string.IsNullOrWhiteSpace(mealType)
+            ? (isSnack ? "Snack" : "Main")
+            : mealType;
+
+        var userPrompt = $$"""
+Создай рецепт: "{{title}}".
+
+ТРЕБОВАНИЯ:
+1. ТОЛЬКО валидный JSON, без markdown.
+2. Ингредиенты реалистичные, с точными количествами.
+3. Общая калорийность ≈ {{targetCalories}} ккал (допуск ±3%).
+4. {{(isSnack ? "Перекус: простой, быстрый, до 200 ккал." : "Основной приём: сбалансированный, сытный.")}}
+5. Укажи КБЖУ на ВЕСЬ рецепт.
+6. Для каждого ингредиента: name, quantity, unit, category, calories/proteins/fats/carbs на 100г/1шт.
+7. Название оставь близким к "{{title}}", если логично.
+
+ДОПОЛНИТЕЛЬНО:
+- Тип: {{mealTypeText}}, Перекус: {{(isSnack ? "да" : "нет")}}, Цель: {{goalText}}
+
+ФОРМАТ JSON:
+{
+  "mealType": "Breakfast",
+  "title": "Овсянка с бананом",
+  "description": "Полезный завтрак",
+  "isSnack": false,
+  "calories": 420,
+  "proteins": 18,
+  "fats": 10,
+  "carbs": 58,
+  "ingredients": [
+    {
+      "name": "Овсянка",
+      "quantity": 80,
+      "unit": "г",
+      "category": "Бакалея",
+      "calories": 352,
+      "proteins": 11.9,
+      "fats": 5.8,
+      "carbs": 65.4
+    }
+  ],
+  "instructions": ["Шаг 1", "Шаг 2"]
+}
+""";
+
+        try
+        {
+            var raw = await SendPromptAsync(systemPrompt, userPrompt);
+            if (string.IsNullOrWhiteSpace(raw))
+            {
+                _logger.LogWarning("ИИ вернул пустой ответ для рецепта \"{Title}\"", title);
+                return null;
+            }
+
+            var json = ExtractJson(raw);
+            if (string.IsNullOrWhiteSpace(json))
+            {
+                _logger.LogWarning("Не удалось извлечь JSON для рецепта \"{Title}\"", title);
+                return null;
+            }
+
+            var dto = JsonConvert.DeserializeObject<GeneratedMealDto>(
+                json,
+                new JsonSerializerSettings
+                {
+                    MissingMemberHandling = MissingMemberHandling.Ignore,
+                    NullValueHandling = NullValueHandling.Ignore
+                });
+
+            if (dto == null)
+            {
+                _logger.LogWarning("Десериализация рецепта \"{Title}\" вернула null", title);
+                return null;
+            }
+
+            // Пост-обработка
+            dto.Title = string.IsNullOrWhiteSpace(dto.Title) ? title.Trim() : dto.Title.Trim();
+            dto.Description ??= string.Empty;
+            dto.Instructions ??= new List<string>();
+            dto.Ingredients ??= new List<GeneratedIngredientDto>();
+            dto.MealType = NormalizeMealType(dto.MealType);
+
+            if (dto.Calories <= 0)
+                dto.Calories = targetCalories;
+
+            _logger.LogDebug("Сгенерирован рецепт: {Title} ({Calories} ккал)", dto.Title, dto.Calories);
+            return dto;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Ошибка при генерации рецепта \"{Title}\"", title);
+            return null;
+        }
+    }
+
+    public async Task<string?> SendPromptAsync(string systemPrompt, string userPrompt)
+    {
+        try
+        {
+            var token = await GetTokenAsync();
+
+            var request = new
+            {
+                model = "GigaChat",
+                stream = false,
+                repetition_penalty = 1.1,
+                temperature = 0.35,
+                messages = new[]
+                {
+                    new { role = "system", content = systemPrompt },
+                    new { role = "user", content = userPrompt }
+                }
+            };
+
+            var json = JsonConvert.SerializeObject(request);
+
+            using var httpRequest = new HttpRequestMessage(
+                HttpMethod.Post,
+                "https://gigachat.devices.sberbank.ru/api/v1/chat/completions");
+
+            httpRequest.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+            httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+            httpRequest.Headers.Add("X-Client-ID", _options.ClientId);
+            httpRequest.Content = new StringContent(json, Encoding.UTF8, "application/json");
+
+            var response = await _httpClient.SendAsync(httpRequest);
+            var content = await response.Content.ReadAsStringAsync();
 
             if (!response.IsSuccessStatusCode)
             {
-                string error = await response.Content.ReadAsStringAsync();
-                throw new Exception($"Не удалось получить токен: {response.StatusCode}. {error}");
+                _logger.LogError("GigaChat API error {StatusCode}: {Content}",
+                    response.StatusCode, content);
+                return null;
             }
 
-            string responseString = await response.Content.ReadAsStringAsync();
-            var tokenData = JsonConvert.DeserializeObject<dynamic>(responseString);
+            var parsed = JsonConvert.DeserializeObject<ResponseMessage>(content);
+            return parsed?.choices?.FirstOrDefault()?.message?.content;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Ошибка при отправке запроса к GigaChat");
+            return null;
+        }
+    }
 
-            _cachedToken = tokenData.access_token;
-            long expiresAt = tokenData.expires_at;
-            _tokenExpiry = DateTimeOffset.FromUnixTimeMilliseconds(expiresAt).UtcDateTime;
-
+    private async Task<string> GetTokenAsync()
+    {
+        if (!string.IsNullOrWhiteSpace(_cachedToken) &&
+            _tokenExpiry > DateTime.UtcNow.AddMinutes(1))
+        {
             return _cachedToken;
         }
 
-        private static string CleanJson(string json)
+        await _tokenLock.WaitAsync();
+        try
         {
-            if (string.IsNullOrEmpty(json)) return "";
-            json = json.Replace("```json", "").Replace("```", "").Trim();
-
-            int firstBrace = json.IndexOf('{');
-            int lastBrace = json.LastIndexOf('}');
-
-            if (firstBrace >= 0 && lastBrace > firstBrace)
-                json = json.Substring(firstBrace, lastBrace - firstBrace + 1);
-
-            return json;
-        }
-
-        private static string CreateSingleDayPrompt(List<FridgeItem> items, int dayNumber)
-        {
-            var productNames = items
-                .Where(i => i.Product != null)
-                .Select(i => $"\"{i.Product!.Name}\"");
-            string ingredientsString = string.Join(", ", productNames);
-
-            return $@"
-Ты — профессиональный шеф-повар и нутрициолог. Составь меню на ДЕНЬ №{dayNumber}, используя предоставленные продукты.
-
-ПРОДУКТЫ В НАЛИЧИИ: {ingredientsString}
-
-ПРАВИЛА:
-1. Только валидный JSON, без Markdown и лишнего текста.
-2. 3 приёма пищи: Завтрак, Обед, Ужин.
-3. Используй продукты из списка выше.
-4. Каждый ингредиент должен иметь поле category.
-
-ФОРМАТ ОТВЕТА:
-{{
-  ""items"": [
-    {{
-      ""dayNumber"": {dayNumber},
-      ""mealType"": ""Завтрак"",
-      ""recipe"": {{
-        ""title"": ""Название блюда"",
-        ""description"": ""Краткое описание"",
-        ""calories"": 350,
-        ""prepTime"": 10,
-        ""cookTime"": 15,
-        ""instructions"": [""Шаг 1"", ""Шаг 2""],
-        ""ingredients"": [
-          {{
-            ""name"": ""Ингредиент"",
-            ""quantity"": 100,
-            ""unit"": ""г"",
-            ""category"": ""Категория""
-          }}
-        ]
-      }}
-    }}
-  ]
-}}";
-        }
-
-        public class GeneratedMenuDto
-        {
-            public string MenuName { get; set; } = "";
-            public List<GeneratedMenuItemDto> Items { get; set; } = new();
-        }
-
-        public class GeneratedMenuItemDto
-        {
-            public int DayNumber { get; set; }
-            public string MealType { get; set; } = "";
-            public GeneratedRecipeDto Recipe { get; set; } = new();
-        }
-
-        public class GeneratedRecipeDto
-        {
-            public string Title { get; set; } = "";
-            public string Description { get; set; } = "";
-            public List<string> Instructions { get; set; } = new();
-            public int Calories { get; set; }
-            public int PrepTime { get; set; }
-            public int CookTime { get; set; }
-            public List<GeneratedIngredientDto> Ingredients { get; set; } = new();
-        }
-
-        public class GeneratedIngredientDto
-        {
-            public string Name { get; set; } = "";
-            public decimal Quantity { get; set; }
-            public string Unit { get; set; } = "";
-            public string Category { get; set; } = "";
-        }
-
-        public class ResponseMessage
-        {
-            public List<Choice> choices { get; set; } = new();
-            public class Choice
+            if (!string.IsNullOrWhiteSpace(_cachedToken) &&
+                _tokenExpiry > DateTime.UtcNow.AddMinutes(1))
             {
-                public string finish_reason { get; set; } = "";
-                public int index { get; set; }
-                public Message message { get; set; } = new();
+                return _cachedToken;
             }
-        }
 
-        public class Message
+            using var request = new HttpRequestMessage(
+                HttpMethod.Post,
+                "https://ngw.devices.sberbank.ru:9443/api/v2/oauth");
+
+            request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+            request.Headers.Authorization = new AuthenticationHeaderValue("Basic", _options.AuthKey);
+            request.Headers.Add("RqUID", Guid.NewGuid().ToString());
+            request.Content = new FormUrlEncodedContent(new[]
+            {
+                new KeyValuePair<string, string>("scope", "GIGACHAT_API_PERS")
+            });
+
+            var response = await _httpClient.SendAsync(request);
+            var content = await response.Content.ReadAsStringAsync();
+
+            if (!response.IsSuccessStatusCode)
+                throw new InvalidOperationException($"Не удалось получить токен: {content}");
+
+            var tokenData = JsonConvert.DeserializeObject<TokenResponse>(content);
+            if (tokenData == null || string.IsNullOrWhiteSpace(tokenData.access_token))
+                throw new InvalidOperationException("Пустой access_token");
+
+            _cachedToken = tokenData.access_token;
+            _tokenExpiry = DateTimeOffset.FromUnixTimeMilliseconds(tokenData.expires_at).UtcDateTime;
+
+            _logger.LogDebug("Получен новый токен GigaChat, истекает: {Expiry}", _tokenExpiry);
+            return _cachedToken;
+        }
+        finally
         {
-            public string role { get; set; } = "";
-            public string content { get; set; } = "";
+            _tokenLock.Release();
         }
     }
+
+    private static int CalculateTargetCalories(UserProfile profile, GoalType goal)
+    {
+        var bmr = profile.Gender == Gender.Male
+            ? 10 * profile.Weight + 6.25 * profile.Height - 5 * profile.Age + 5
+            : 10 * profile.Weight + 6.25 * profile.Height - 5 * profile.Age - 161;
+
+        var activityMultiplier = profile.ActivityLevel switch
+        {
+            ActivityLevel.Low => 1.2,
+            ActivityLevel.Medium => 1.55,
+            ActivityLevel.High => 1.8,
+            _ => 1.2
+        };
+
+        var calories = bmr * activityMultiplier;
+
+        calories = goal switch
+        {
+            GoalType.LoseWeight => calories - 300,
+            GoalType.GainWeight => calories + 300,
+            _ => calories
+        };
+
+        return (int)Math.Round(calories);
+    }
+
+    private static string ExtractJson(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+            return string.Empty;
+
+        text = text.Replace("```json", "", StringComparison.OrdinalIgnoreCase)
+                   .Replace("```", "", StringComparison.OrdinalIgnoreCase)
+                   .Trim();
+
+        var start = text.IndexOf('{');
+        var end = text.LastIndexOf('}');
+
+        return (start >= 0 && end > start) ? text[start..(end + 1)] : text;
+    }
+
+    private static string NormalizeMealType(string? value)
+    {
+        var v = NormalizeText(value);
+
+        return v switch
+        {
+            var s when s.Contains("завтрак") || s.Contains("breakfast") => "Breakfast",
+            var s when s.Contains("обед") || s.Contains("lunch") => "Lunch",
+            var s when s.Contains("ужин") || s.Contains("dinner") => "Dinner",
+            var s when s.Contains("перекус") || s.Contains("snack") => "Snack",
+            _ => string.IsNullOrWhiteSpace(value) ? "Snack" : value.Trim()
+        };
+    }
+
+    private static List<string> LimitAndNormalize(IEnumerable<string>? items, int limit)
+    {
+        if (items == null)
+            return new List<string>();
+
+        return items
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Select(NormalizeText)
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Distinct()
+            .Take(limit)
+            .ToList();
+    }
+
+    private static string NormalizeText(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value)
+            ? string.Empty
+            : value.Trim().ToLowerInvariant().Replace("ё", "е");
+    }
+
+    // === DTO Classes ===
+    private sealed class TokenResponse
+    {
+        public string access_token { get; set; } = string.Empty;
+        public long expires_at { get; set; }
+    }
+
+    private sealed class ResponseMessage
+    {
+        public List<Choice> choices { get; set; } = new();
+        public sealed class Choice { public ChatMessage message { get; set; } = new(); }
+        public sealed class ChatMessage { public string role { get; set; } = ""; public string content { get; set; } = ""; }
+    }
+
+    public sealed class GeneratedMealDto
+    {
+        public string MealType { get; set; } = "";
+        public string Title { get; set; } = "";
+        public string Description { get; set; } = "";
+        public bool IsSnack { get; set; }
+        public int Calories { get; set; }
+        public int Proteins { get; set; }
+        public int Fats { get; set; }
+        public int Carbs { get; set; }
+        public List<string> Instructions { get; set; } = new();
+        public List<GeneratedIngredientDto> Ingredients { get; set; } = new();
+    }
+
+    public sealed class GeneratedIngredientDto
+    {
+        public string Name { get; set; } = "";
+        public decimal Quantity { get; set; }
+        public string Unit { get; set; } = "";
+        public string Category { get; set; } = "";
+        public double Calories { get; set; }
+        public double Proteins { get; set; }
+        public double Fats { get; set; }
+        public double Carbs { get; set; }
+    }
+}
+
+public sealed class GigaChatOptions
+{
+    public string ClientId { get; set; } = "";
+    public string AuthKey { get; set; } = "";
 }

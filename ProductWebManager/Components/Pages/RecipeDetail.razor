@@ -1,12 +1,13 @@
-﻿@page "/recipe/{id:int}"
+﻿@page "/recipe/{Id:int}"
 @rendermode InteractiveServer
 
-@inject NavigationManager Navigation
-@inject ProductWebManager.Data.ProductManagerContext DbContext
-@inject ProductWebManager.Services.AuthService AuthService
-
 @using Microsoft.EntityFrameworkCore
+@using ProductWebManager.Data
 @using ProductWebManager.Models
+
+@inject NavigationManager Navigation
+@inject ProductManagerContext DbContext
+@inject ProductWebManager.Services.AuthService AuthService
 
 <PageTitle>@recipe?.Title</PageTitle>
 
@@ -16,172 +17,98 @@
     {
         <div class="recipe-container">
 
-            <!-- HEADER -->
-
             <div class="recipe-header">
 
                 <div class="header-left">
-
-                    <button class="btn-back"
-                            @onclick="GoBack">
+                    <button class="btn-back" @onclick="GoBack">
                         ← Назад
                     </button>
 
                     <div>
-
-                        <h1 class="recipe-title">
-                            @recipe.Title
-                        </h1>
+                        <h1 class="recipe-title">@recipe.Title</h1>
 
                         <div class="recipe-subtitle">
                             Домашний рецепт • @TotalTime мин • @recipe.RecipeIngredients.Count ингредиентов
                         </div>
-
                     </div>
-
                 </div>
 
                 <div class="header-actions">
-
-                    <button class="btn-outline"
-                            @onclick="ToggleFavorite">
-
+                    <button class="btn-outline" @onclick="ToggleFavorite">
                         @(isFavorite ? "❤️ В избранном" : "🤍 В избранное")
-
                     </button>
 
-                    <button class="btn-primary"
-                            @onclick="CreateShoppingListFromMissing">
-
+                    <button class="btn-primary" @onclick="CreateShoppingListFromMissing">
                         🛒 Купить недостающие
-
                     </button>
-
                 </div>
 
             </div>
 
-            <!-- HERO -->
-
             <div class="recipe-hero">
-
                 @if (!string.IsNullOrWhiteSpace(recipe.ImageUrl))
                 {
-                    <img src="@recipe.ImageUrl"
-                         class="recipe-image"
-                         alt="@recipe.Title" />
+                    <img src="@recipe.ImageUrl" class="recipe-image" alt="@recipe.Title" />
                 }
                 else
                 {
                     <div class="recipe-placeholder">
-
                         <div class="placeholder-content">
-
-                            <div class="placeholder-icon">
-                                🍳
-                            </div>
-
-                            <div class="placeholder-title">
-                                Изображение рецепта
-                            </div>
-
-                            <div class="placeholder-subtitle">
-                                Позже здесь появится фото блюда
-                            </div>
-
+                            <div class="placeholder-icon">🍳</div>
+                            <div class="placeholder-title">Изображение рецепта</div>
+                            <div class="placeholder-subtitle">Пока здесь заглушка, позже появится фото блюда</div>
                         </div>
-
                     </div>
                 }
 
                 <div class="hero-overlay"></div>
 
                 <div class="hero-content">
-
-                    <div class="hero-badge">
-                        ⭐ Рецепт дня
-                    </div>
-
-                    <h2 class="hero-title">
-                        @recipe.Title
-                    </h2>
-
+                    <div class="hero-badge">⭐ Рецепт дня</div>
+                    <h2 class="hero-title">@recipe.Title</h2>
                     <p class="hero-description">
-                        @(recipe.Description ?? "Описание рецепта отсутствует")
+                        @(string.IsNullOrWhiteSpace(recipe.Description) ? "Описание рецепта отсутствует." : recipe.Description)
                     </p>
-
                 </div>
-
             </div>
 
             <div class="row g-4 mt-1">
 
-                <!-- LEFT -->
-
                 <div class="col-xl-8">
 
-                    <!-- INGREDIENTS -->
-
                     <div class="content-card">
-
                         <div class="card-top">
-
                             <div>
-
-                                <h3 class="section-title">
-                                    🧂 Ингредиенты
-                                </h3>
-
+                                <h3 class="section-title">🧂 Ингредиенты</h3>
                                 <div class="section-subtitle">
-                                    Нажмите на ингредиент для просмотра БЖУ
+                                    Нажмите на ингредиент, чтобы увидеть его БЖУ и калории
                                 </div>
-
                             </div>
 
                             <div class="availability-box">
-
-                                <div class="availability-value"
-                                     style="color:@GetAvailabilityColor()">
-
+                                <div class="availability-value" style="color:@GetAvailabilityColor()">
                                     @GetAvailableCount() / @recipe.RecipeIngredients.Count
-
                                 </div>
-
-                                <div class="availability-label">
-                                    есть дома
-                                </div>
-
+                                <div class="availability-label">Есть дома</div>
                             </div>
-
                         </div>
 
                         <div class="availability-progress">
-
                             <div class="availability-progress-fill"
                                  style="width:@GetAvailabilityPercent()%; background:@GetAvailabilityColor()">
                             </div>
-
                         </div>
 
                         <div class="ingredients-list">
-
                             @foreach (var ingredient in recipe.RecipeIngredients)
                             {
-                                var isAvailable =
-                                fridgeProductIds.Contains(ingredient.ProductId);
-
-                                var isExpanded =
-                                expandedIngredientId == ingredient.ProductId;
+                                var isAvailable = fridgeProductIds.Contains(ingredient.ProductId);
+                                var isExpanded = expandedIngredientId == ingredient.ProductId;
 
                                 <div class="ingredient-card @(isAvailable ? "available" : "missing")">
-
-                                    <div class="ingredient-main"
-                                         @onclick="() => ToggleIngredient(ingredient.ProductId)">
-
+                                    <div class="ingredient-main" @onclick="() => ToggleIngredient(ingredient.ProductId)">
                                         <div class="ingredient-left">
-
                                             <div class="ingredient-status">
-
                                                 @if (isAvailable)
                                                 {
                                                     <span>✅</span>
@@ -190,25 +117,17 @@
                                                 {
                                                     <span>🛒</span>
                                                 }
-
                                             </div>
 
                                             <div>
-
-                                                <div class="ingredient-name">
-                                                    @ingredient.Product?.Name
-                                                </div>
-
+                                                <div class="ingredient-name">@ingredient.Product?.Name</div>
                                                 <div class="ingredient-meta">
                                                     @ingredient.Quantity @(ingredient.Product?.Unit?.Name ?? "")
                                                 </div>
-
                                             </div>
-
                                         </div>
 
                                         <div class="ingredient-actions">
-
                                             @if (!isAvailable)
                                             {
                                                 <button class="btn-add-mini"
@@ -221,275 +140,141 @@
                                             <div class="expand-icon">
                                                 @(isExpanded ? "−" : "+")
                                             </div>
-
                                         </div>
-
                                     </div>
 
                                     @if (isExpanded)
                                     {
                                         <div class="ingredient-details">
-
                                             <div class="nutrition-mini-grid">
-
                                                 <div class="nutrition-mini-card">
-
-                                                    <div class="nutrition-mini-label">
-                                                        Калории
-                                                    </div>
-
-                                                    <div class="nutrition-mini-value">
-                                                        @(ingredient.Product?.Calories ?? 0)
-                                                    </div>
-
+                                                    <div class="nutrition-mini-label">Калории</div>
+                                                    <div class="nutrition-mini-value">@GetIngredientCalories(ingredient).ToString("0.#")</div>
                                                 </div>
 
                                                 <div class="nutrition-mini-card">
-
-                                                    <div class="nutrition-mini-label">
-                                                        Белки
-                                                    </div>
-
-                                                    <div class="nutrition-mini-value">
-                                                        @GetIngredientProteins(ingredient).ToString("0.#") г
-                                                    </div>
-
+                                                    <div class="nutrition-mini-label">Белки</div>
+                                                    <div class="nutrition-mini-value">@GetIngredientProteins(ingredient).ToString("0.#") г</div>
                                                 </div>
 
                                                 <div class="nutrition-mini-card">
-
-                                                    <div class="nutrition-mini-label">
-                                                        Жиры
-                                                    </div>
-
-                                                    <div class="nutrition-mini-value">
-                                                        @GetIngredientFats(ingredient).ToString("0.#") г
-                                                    </div>
-
+                                                    <div class="nutrition-mini-label">Жиры</div>
+                                                    <div class="nutrition-mini-value">@GetIngredientFats(ingredient).ToString("0.#") г</div>
                                                 </div>
 
                                                 <div class="nutrition-mini-card">
-
-                                                    <div class="nutrition-mini-label">
-                                                        Углеводы
-                                                    </div>
-
-                                                    <div class="nutrition-mini-value">
-                                                        @GetIngredientCarbs(ingredient).ToString("0.#") г
-                                                    </div>
-
+                                                    <div class="nutrition-mini-label">Углеводы</div>
+                                                    <div class="nutrition-mini-value">@GetIngredientCarbs(ingredient).ToString("0.#") г</div>
                                                 </div>
-
                                             </div>
-
                                         </div>
                                     }
-
                                 </div>
                             }
-
                         </div>
-
                     </div>
 
-                    <!-- STEPS -->
                     @if (!string.IsNullOrWhiteSpace(recipe.Instructions))
                     {
                         <div class="content-card mt-4">
-
-                            <h3 class="section-title mb-4">
-                                👨‍🍳 Приготовление
-                            </h3>
+                            <h3 class="section-title mb-4">👨‍🍳 Приготовление</h3>
 
                             <div class="steps-list">
-
                                 @{
                                     var steps = recipe.Instructions
-                                    .Split('\n',
-                                    StringSplitOptions.RemoveEmptyEntries);
+                                    .Split('\n', StringSplitOptions.RemoveEmptyEntries);
 
                                     for (int i = 0; i < steps.Length; i++)
                                     {
-                                        var cleaned =
-                                        steps[i]
-                                        .Replace($"{i + 1}.", "")
-                                        .Trim();
+                                        var cleanStep = CleanStepText(steps[i]);
 
                                         <div class="step-card">
-
-                                            <div class="step-number">
-                                                @(i + 1)
-                                            </div>
-
-                                            <div class="step-text">
-                                                @cleaned
-                                            </div>
-
+                                            <div class="step-number">@(i + 1)</div>
+                                            <div class="step-text">@cleanStep</div>
                                         </div>
                                     }
                                 }
-
                             </div>
-
                         </div>
                     }
 
                 </div>
 
-                <!-- RIGHT -->
-
                 <div class="col-xl-4">
 
-                    <!-- NUTRITION -->
-
                     <div class="side-card nutrition-card">
-
                         <div class="nutrition-header">
-
                             <div>
-
-                                <div class="nutrition-title">
-                                    📊 Пищевая ценность
-                                </div>
-
-                                <div class="nutrition-subtitle">
-                                    На весь рецепт
-                                </div>
-
+                                <div class="nutrition-title">📊 Пищевая ценность</div>
+                                <div class="nutrition-subtitle">На весь рецепт</div>
                             </div>
 
                             <div class="calories-circle">
-
-                                <div class="calories-value">
-                                    @(recipe.Calories ?? 0)
-                                </div>
-
-                                <div class="calories-label">
-                                    ккал
-                                </div>
-
+                                <div class="calories-value">@GetRecipeCalories().ToString("0.#")</div>
+                                <div class="calories-label">ккал</div>
                             </div>
-
                         </div>
 
                         <div class="nutrition-bars">
-
                             <div class="nutrition-row">
-
                                 <div class="nutrition-row-top">
-
                                     <span>Белки</span>
-
-                                    <strong>
-                                        @TotalProteins.ToString("0.#") г
-                                    </strong>
-
+                                    <strong>@GetRecipeProteins().ToString("0.#") г</strong>
                                 </div>
-
                                 <div class="nutrition-bar">
                                     <div class="nutrition-fill protein-fill"
-                                         style="width:@GetMacroPercent(TotalProteins)%">
-                                    </div>
+                                         style="width:@GetMacroPercent(GetRecipeProteins())%"></div>
                                 </div>
-
                             </div>
 
                             <div class="nutrition-row">
-
                                 <div class="nutrition-row-top">
-
                                     <span>Жиры</span>
-
-                                    <strong>
-                                        @TotalFats.ToString("0.#") г
-                                    </strong>
-
+                                    <strong>@GetRecipeFats().ToString("0.#") г</strong>
                                 </div>
-
                                 <div class="nutrition-bar">
                                     <div class="nutrition-fill fat-fill"
-                                         style="width:@GetMacroPercent(TotalFats)%">
-                                    </div>
+                                         style="width:@GetMacroPercent(GetRecipeFats())%"></div>
                                 </div>
-
                             </div>
 
                             <div class="nutrition-row">
-
                                 <div class="nutrition-row-top">
-
                                     <span>Углеводы</span>
-
-                                    <strong>
-                                        @TotalCarbs.ToString("0.#") г
-                                    </strong>
-
+                                    <strong>@GetRecipeCarbs().ToString("0.#") г</strong>
                                 </div>
-
                                 <div class="nutrition-bar">
                                     <div class="nutrition-fill carbs-fill"
-                                         style="width:@GetMacroPercent(TotalCarbs)%">
-                                    </div>
+                                         style="width:@GetMacroPercent(GetRecipeCarbs())%"></div>
                                 </div>
-
                             </div>
-
                         </div>
-
                     </div>
 
-                    <!-- INFO -->
-
                     <div class="side-card mt-4">
-
-                        <h3 class="side-title">
-                            ℹ️ Информация
-                        </h3>
+                        <h3 class="side-title">ℹ️ Информация</h3>
 
                         <div class="info-list">
-
                             <div class="info-item">
-
                                 <span>Подготовка</span>
-
-                                <strong>
-                                    @(recipe.PrepTime ?? 0) мин
-                                </strong>
-
+                                <strong>@(recipe.PrepTime ?? 0) мин</strong>
                             </div>
 
                             <div class="info-item">
-
                                 <span>Готовка</span>
-
-                                <strong>
-                                    @(recipe.CookTime ?? 0) мин
-                                </strong>
-
+                                <strong>@(recipe.CookTime ?? 0) мин</strong>
                             </div>
 
                             <div class="info-item">
-
                                 <span>Общее время</span>
-
-                                <strong>
-                                    @TotalTime мин
-                                </strong>
-
+                                <strong>@TotalTime мин</strong>
                             </div>
 
                             <div class="info-item">
-
                                 <span>Недостающих</span>
-
-                                <strong>
-                                    @GetMissingIngredientsCount()
-                                </strong>
-
+                                <strong>@GetMissingIngredientsCount()</strong>
                             </div>
-
                         </div>
-
                     </div>
 
                 </div>
@@ -501,29 +286,17 @@
     else
     {
         <div class="empty-state">
-
-            <div class="empty-icon">
-                🍳
-            </div>
-
-            <h3>
-                Рецепт не найден
-            </h3>
-
-            <button class="btn-primary mt-3"
-                    @onclick="GoBack">
-
+            <div class="empty-icon">🍳</div>
+            <h3>Рецепт не найден</h3>
+            <button class="btn-primary mt-3" @onclick="GoBack">
                 ← Назад
-
             </button>
-
         </div>
     }
 
 </div>
 
 <style>
-
     .recipe-page {
         min-height: 100vh;
         background: #f5f6fa;
@@ -548,6 +321,7 @@
         display: flex;
         align-items: flex-start;
         gap: 16px;
+        flex-wrap: wrap;
     }
 
     .recipe-title {
@@ -555,6 +329,7 @@
         font-size: 34px;
         font-weight: 800;
         color: #1b1f2a;
+        line-height: 1.1;
     }
 
     .recipe-subtitle {
@@ -566,6 +341,7 @@
     .header-actions {
         display: flex;
         gap: 12px;
+        flex-wrap: wrap;
     }
 
     .btn-back,
@@ -580,12 +356,22 @@
     .btn-back {
         border: 1px solid #e2e5ee;
         background: white;
+        color: #1b1f2a;
     }
+
+        .btn-back:hover {
+            background: #f8f9fc;
+        }
 
     .btn-outline {
         border: 1px solid #e2e5ee;
         background: white;
+        color: #1b1f2a;
     }
+
+        .btn-outline:hover {
+            background: #f8f9fc;
+        }
 
     .btn-primary {
         border: none;
@@ -624,6 +410,7 @@
     .placeholder-content {
         text-align: center;
         color: white;
+        padding: 20px;
     }
 
     .placeholder-icon {
@@ -644,7 +431,7 @@
     .hero-overlay {
         position: absolute;
         inset: 0;
-        background: linear-gradient(to top, rgba(0,0,0,0.55), rgba(0,0,0,0.05));
+        background: linear-gradient(to top, rgba(0,0,0,0.58), rgba(0,0,0,0.06));
     }
 
     .hero-content {
@@ -712,6 +499,7 @@
 
     .availability-box {
         text-align: right;
+        flex-shrink: 0;
     }
 
     .availability-value {
@@ -764,12 +552,14 @@
         align-items: center;
         padding: 18px;
         cursor: pointer;
+        gap: 16px;
     }
 
     .ingredient-left {
         display: flex;
         align-items: center;
         gap: 14px;
+        min-width: 0;
     }
 
     .ingredient-status {
@@ -781,12 +571,14 @@
         align-items: center;
         justify-content: center;
         font-size: 20px;
+        flex-shrink: 0;
     }
 
     .ingredient-name {
         font-size: 15px;
         font-weight: 800;
         color: #1b1f2a;
+        word-break: break-word;
     }
 
     .ingredient-meta {
@@ -799,6 +591,7 @@
         display: flex;
         align-items: center;
         gap: 12px;
+        flex-shrink: 0;
     }
 
     .expand-icon {
@@ -829,7 +622,7 @@
 
     .nutrition-mini-grid {
         display: grid;
-        grid-template-columns: repeat(4,1fr);
+        grid-template-columns: repeat(4, 1fr);
         gap: 12px;
     }
 
@@ -890,6 +683,7 @@
         display: flex;
         justify-content: space-between;
         align-items: center;
+        gap: 16px;
         margin-bottom: 28px;
     }
 
@@ -914,17 +708,20 @@
         flex-direction: column;
         justify-content: center;
         align-items: center;
+        flex-shrink: 0;
     }
 
     .calories-value {
         font-size: 24px;
         font-weight: 800;
         color: #111827;
+        line-height: 1;
     }
 
     .calories-label {
         font-size: 12px;
         color: #8b8f9f;
+        margin-top: 4px;
     }
 
     .nutrition-bars {
@@ -1002,7 +799,6 @@
     }
 
     @@media (max-width: 992px) {
-
         .recipe-page {
             padding: 14px;
         }
@@ -1028,7 +824,6 @@
         .ingredient-main {
             flex-direction: column;
             align-items: flex-start;
-            gap: 16px;
         }
 
         .ingredient-actions {
@@ -1037,14 +832,14 @@
         }
 
         .nutrition-mini-grid {
-            grid-template-columns: repeat(2,1fr);
+            grid-template-columns: repeat(2, 1fr);
         }
     }
 
 </style>
 
-@code {
-
+@code
+{
     [Parameter]
     public int Id { get; set; }
 
@@ -1057,8 +852,7 @@
     private int? expandedIngredientId;
 
     private int TotalTime =>
-        (recipe?.PrepTime ?? 0) +
-        (recipe?.CookTime ?? 0);
+        (recipe?.PrepTime ?? 0) + (recipe?.CookTime ?? 0);
 
     private double TotalProteins =>
         recipe?.RecipeIngredients?.Sum(GetIngredientProteins) ?? 0;
@@ -1077,35 +871,31 @@
     private async Task LoadRecipe()
     {
         recipe = await DbContext.Recipes
-
             .Include(r => r.RecipeIngredients)
                 .ThenInclude(ri => ri.Product)
                     .ThenInclude(p => p.Unit)
-
+            .Include(r => r.RecipeIngredients)
+                .ThenInclude(ri => ri.Product)
+                    .ThenInclude(p => p.Category)
             .FirstOrDefaultAsync(r => r.Id == Id);
 
         if (recipe != null)
         {
             fridgeProductIds = (await DbContext.FridgeItems
-
                 .Where(f =>
                     f.UserId == AuthService.CurrentUserId &&
-                    f.Quanity > 0)
-
+                    f.Quantity > 0)
                 .Select(f => f.ProductId)
-
                 .ToListAsync())
-
                 .ToHashSet();
         }
     }
 
     private void ToggleIngredient(int productId)
     {
-        if (expandedIngredientId == productId)
-            expandedIngredientId = null;
-        else
-            expandedIngredientId = productId;
+        expandedIngredientId = expandedIngredientId == productId
+            ? null
+            : productId;
     }
 
     private async Task CreateShoppingListFromMissing()
@@ -1114,10 +904,7 @@
             return;
 
         var missingIngredients = recipe.RecipeIngredients
-
-            .Where(i =>
-                !fridgeProductIds.Contains(i.ProductId))
-
+            .Where(i => !fridgeProductIds.Contains(i.ProductId))
             .ToList();
 
         if (!missingIngredients.Any())
@@ -1135,30 +922,24 @@
             };
 
         DbContext.ShoppingList.Add(shoppingList);
-
         await DbContext.SaveChangesAsync();
 
-        var items = missingIngredients.Select(i =>
-            new ShoppingListItem
-                {
-                    ShoppingListId = shoppingList.Id,
-                    ProductId = i.ProductId,
-                    Quantity = (decimal)i.Quantity,
-                    IsPurchased = false
-                });
+        var items = missingIngredients.Select(i => new ShoppingListItem
+            {
+                ShoppingListId = shoppingList.Id,
+                ProductId = i.ProductId,
+                Quantity = i.Quantity
+            });
 
         DbContext.ShoppingListItems.AddRange(items);
-
         await DbContext.SaveChangesAsync();
 
         Navigation.NavigateTo("/shopping-list");
     }
 
-    private async Task AddSingleIngredientToShoppingList(
-        RecipeIngredient ingredient)
+    private async Task AddSingleIngredientToShoppingList(RecipeIngredient ingredient)
     {
         var shoppingList = await DbContext.ShoppingList
-
             .FirstOrDefaultAsync(s =>
                 s.UserId == AuthService.CurrentUserId &&
                 !s.IsCompleted);
@@ -1169,56 +950,204 @@
                 {
                     UserId = AuthService.CurrentUserId,
                     Name = "Список покупок",
-                    CreatedAt = DateTime.UtcNow
+                    CreatedAt = DateTime.UtcNow,
+                    IsCompleted = false
                 };
 
             DbContext.ShoppingList.Add(shoppingList);
-
             await DbContext.SaveChangesAsync();
         }
 
-        DbContext.ShoppingListItems.Add(
-            new ShoppingListItem
+        var existingItem = await DbContext.ShoppingListItems
+            .FirstOrDefaultAsync(x =>
+                x.ShoppingListId == shoppingList.Id &&
+                x.ProductId == ingredient.ProductId);
+
+        if (existingItem != null)
+        {
+            existingItem.Quantity += ingredient.Quantity;
+        }
+        else
+        {
+            DbContext.ShoppingListItems.Add(new ShoppingListItem
                 {
                     ShoppingListId = shoppingList.Id,
                     ProductId = ingredient.ProductId,
-                    Quantity = (decimal)ingredient.Quantity
+                    Quantity = ingredient.Quantity
                 });
+        }
 
         await DbContext.SaveChangesAsync();
     }
 
-    private double GetIngredientProteins(
-        RecipeIngredient ingredient)
+    // =========================================
+    // НОВЫЙ БЛОК РАСЧЁТА КБЖУ
+    // =========================================
+
+    private bool IsPieceUnit(Product? product)
     {
-        return ((ingredient.Product?.Proteins ?? 0)
-            * ingredient.Quantity) / 100.0;
+        if (product?.Unit == null)
+            return false;
+
+        var unit = product.Unit.Name
+            .Trim()
+            .ToLower();
+
+        return unit == "шт"
+            || unit == "шт."
+            || unit == "piece"
+            || unit == "pieces";
     }
 
-    private double GetIngredientFats(
-        RecipeIngredient ingredient)
+    private double CalculateNutrition(
+        RecipeIngredient ingredient,
+        Func<Product, double> selector)
     {
-        return ((ingredient.Product?.Fats ?? 0)
-            * ingredient.Quantity) / 100.0;
+        if (ingredient.Product == null)
+            return 0;
+
+        var product = ingredient.Product;
+
+        var value = selector(product);
+
+        if (value <= 0)
+            return 0;
+
+        // Для штучных продуктов:
+        // 75 ккал × 4 яйца = 300
+        if (IsPieceUnit(product))
+        {
+            return value * ingredient.Quantity;
+        }
+
+        // Для граммов/мл:
+        // 120 ккал на 100г × 200г / 100
+        return (value * ingredient.Quantity) / 100.0;
     }
 
-    private double GetIngredientCarbs(
-        RecipeIngredient ingredient)
+    private double GetIngredientCalories(RecipeIngredient ingredient)
     {
-        return ((ingredient.Product?.Carbohydrates ?? 0)
-            * ingredient.Quantity) / 100.0;
+        return (double)NutritionCalculator.CalculateCalories(
+            ingredient.Product,
+            ingredient.Quantity
+        );
     }
+
+    private double GetIngredientProteins(RecipeIngredient ingredient)
+    {
+        return (double)NutritionCalculator.CalculateProteins(
+            ingredient.Product,
+            ingredient.Quantity
+        );
+    }
+
+    private double GetIngredientFats(RecipeIngredient ingredient)
+    {
+        return (double)NutritionCalculator.CalculateFats(
+            ingredient.Product,
+            ingredient.Quantity
+        );
+    }
+
+    private double GetIngredientCarbs(RecipeIngredient ingredient)
+    {
+        return (double)NutritionCalculator.CalculateCarbs(
+            ingredient.Product,
+            ingredient.Quantity
+        );
+    }
+
+    // =========================================
+    // ИТОГОВОЕ КБЖУ РЕЦЕПТА
+    // =========================================
 
     private int GetMissingIngredientsCount()
     {
         return recipe?.RecipeIngredients
             .Count(i =>
-                !fridgeProductIds.Contains(i.ProductId)) ?? 0;
+                !fridgeProductIds.Contains(i.ProductId))
+            ?? 0;
+    }
+
+    private double GetRecipeCalories()
+    {
+        if (recipe?.RecipeIngredients == null)
+            return 0;
+
+        return recipe.RecipeIngredients
+            .Sum(GetIngredientCalories);
+    }
+
+    private double GetRecipeProteins()
+    {
+        if (recipe?.RecipeIngredients == null)
+            return 0;
+
+        return recipe.RecipeIngredients
+            .Sum(GetIngredientProteins);
+    }
+
+    private double GetRecipeFats()
+    {
+        if (recipe?.RecipeIngredients == null)
+            return 0;
+
+        return recipe.RecipeIngredients
+            .Sum(GetIngredientFats);
+    }
+
+    private double GetRecipeCarbs()
+    {
+        if (recipe?.RecipeIngredients == null)
+            return 0;
+
+        return recipe.RecipeIngredients
+            .Sum(GetIngredientCarbs);
     }
 
     private double GetMacroPercent(double value)
     {
-        return Math.Min(value, 100);
+        var max = Math.Max(
+            GetRecipeProteins(),
+            Math.Max(
+                GetRecipeFats(),
+                GetRecipeCarbs()));
+
+        if (max <= 0)
+            return 0;
+
+        return Math.Min(100,
+            (value / max) * 100);
+    }
+
+    // =========================================
+    // UI HELPERS
+    // =========================================
+
+    private string CleanStepText(string step)
+    {
+        var text = step.Trim();
+
+        int index = 0;
+
+        while (index < text.Length &&
+               char.IsDigit(text[index]))
+        {
+            index++;
+        }
+
+        while (index < text.Length &&
+               (text[index] == '.'
+                || text[index] == ')'
+                || text[index] == '-'
+                || char.IsWhiteSpace(text[index])))
+        {
+            index++;
+        }
+
+        return index >= text.Length
+            ? text
+            : text.Substring(index).Trim();
     }
 
     private void GoBack()
@@ -1231,15 +1160,17 @@
         isFavorite = !isFavorite;
     }
 
-    private int GetAvailableCount() =>
-        recipe?.RecipeIngredients?
+    private int GetAvailableCount()
+    {
+        return recipe?.RecipeIngredients
             .Count(ri =>
-                fridgeProductIds.Contains(ri.ProductId)) ?? 0;
+                fridgeProductIds.Contains(ri.ProductId))
+            ?? 0;
+    }
 
     private double GetAvailabilityPercent()
     {
-        var total =
-            recipe?.RecipeIngredients?.Count ?? 0;
+        var total = recipe?.RecipeIngredients.Count ?? 0;
 
         return total > 0
             ? (double)GetAvailableCount() / total * 100
@@ -1258,5 +1189,4 @@
 
         return "#ef4444";
     }
-
 }
