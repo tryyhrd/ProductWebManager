@@ -199,6 +199,29 @@
             }
         </div>
     }
+
+    @if (showModal)
+    {
+        <div class="modal-overlay" @onclick="CloseModal">
+            <div class="modal-content" @onclick:stopPropagation="true">
+
+                <div class="modal-header @GetModalHeaderClass()">
+                    <h3>@modalTitle</h3>
+                    <button class="modal-close" @onclick="CloseModal" title="Закрыть">&times;</button>
+                </div>
+
+                <div class="modal-body">
+                    @modalMessage
+                </div>
+
+                <div class="modal-footer">
+                    <button class="modal-btn" @onclick="CloseModal">Закрыть</button>
+                </div>
+
+            </div>
+        </div>
+    }
+
 </div>
 
 <style>
@@ -532,6 +555,160 @@
         font-weight: 700;
     }
 
+    .modal-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.55);
+        backdrop-filter: blur(4px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+        padding: 16px;
+        animation: fadeIn 0.2s ease;
+    }
+
+    .modal-content {
+        width: 100%;
+        max-width: 480px;
+        background: white;
+        border-radius: 28px;
+        padding: 28px;
+        box-shadow: 0 30px 80px rgba(0, 0, 0, 0.2);
+        animation: slideUp 0.3s ease;
+    }
+
+    .modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 24px;
+        padding-bottom: 16px;
+        border-bottom: 1px solid #eee;
+    }
+
+        .modal-header.info {
+            background: #e3f2fd;
+            color: #1976d2;
+            border-radius: 16px 16px 0 0;
+            margin: -28px -28px 24px -28px;
+            padding: 20px 28px;
+            border-bottom: none;
+        }
+
+        .modal-header.warning {
+            background: #fff3e0;
+            color: #e65100;
+            border-radius: 16px 16px 0 0;
+            margin: -28px -28px 24px -28px;
+            padding: 20px 28px;
+            border-bottom: none;
+        }
+
+        .modal-header.error {
+            background: #ffebee;
+            color: #c62828;
+            border-radius: 16px 16px 0 0;
+            margin: -28px -28px 24px -28px;
+            padding: 20px 28px;
+            border-bottom: none;
+        }
+
+        .modal-header.success {
+            background: #e8f5e9;
+            color: #2e7d32;
+            border-radius: 16px 16px 0 0;
+            margin: -28px -28px 24px -28px;
+            padding: 20px 28px;
+            border-bottom: none;
+        }
+
+        .modal-header h3 {
+            margin: 0;
+            font-size: 20px;
+            font-weight: 700;
+        }
+
+    .modal-close {
+        border: none;
+        background: #f3f5fb;
+        width: 40px;
+        height: 40px;
+        border-radius: 12px;
+        font-size: 20px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #666;
+        transition: 0.2s;
+    }
+
+        .modal-close:hover {
+            background: #e4e8f1;
+            color: #333;
+        }
+
+    .modal-body {
+        color: #333;
+        line-height: 1.6;
+        white-space: pre-line;
+        font-size: 15px;
+    }
+
+    .modal-footer {
+        margin-top: 26px;
+        display: flex;
+        justify-content: flex-end;
+        gap: 12px;
+    }
+
+    .modal-btn {
+        border: none;
+        background: #6c5ce7;
+        color: white;
+        border-radius: 14px;
+        padding: 14px 28px;
+        font-weight: 700;
+        font-size: 14px;
+        cursor: pointer;
+        transition: 0.2s;
+    }
+
+        .modal-btn:hover {
+            background: #5f4fd1;
+            transform: translateY(-1px);
+        }
+
+    @@keyframes fadeIn {
+        from
+
+    {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+
+    }
+
+    @@keyframes slideUp {
+        from
+
+    {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+
+    }
+
+    /* === Адаптив === */
     @@media (max-width: 992px) {
         .mealplan-page {
             padding: 16px;
@@ -576,10 +753,9 @@
 {
     private static readonly CultureInfo RuCulture = CultureInfo.GetCultureInfo("ru-RU");
 
-    private const double DailyTolerance = 0.05; // 5% допуск для дневной суммы
+    private const double DailyTolerance = 0.05;
     private const int MinMealCalories = 150;
 
-    // Семафор для безопасного создания продуктов
     private static readonly SemaphoreSlim _productCreationLock = new(1, 1);
 
     private UserProfile profile = new();
@@ -587,6 +763,13 @@
     private bool useFridgeProducts = true;
     private int daysToGenerate = 7;
     private bool isGenerating = false;
+
+    private bool showModal = false;
+    private string modalTitle = "";
+    private string modalMessage = "";
+    private ModalType currentModalType = ModalType.Info;
+
+    private enum ModalType { Info, Warning, Error, Success }
 
     private int targetCalories;
     private int targetProteins;
@@ -709,10 +892,115 @@
         }
     }
 
+    private async Task AdjustRecipeForFridgeAsync(Recipe recipe, List<FridgeItem> fridgeItems)
+    {
+        if (fridgeItems == null || !fridgeItems.Any()) return;
+
+        var fridgeProducts = fridgeItems
+            .Where(f => f.Product != null && f.Quantity.HasValue)
+            .Select(f => new
+            {
+                ProductId = f.Product!.Id,
+                AvailableQty = f.Quantity.Value,
+                FridgeItem = f
+            })
+            .ToList();
+
+        foreach (var ingredient in recipe.RecipeIngredients)
+        {
+            var fridgeMatch = fridgeProducts.FirstOrDefault(f => f.ProductId == ingredient.ProductId);
+            if (fridgeMatch == null) continue;
+
+            double currentQty = ingredient.Quantity;
+            double availableQty = fridgeMatch.AvailableQty;
+
+            if (currentQty < availableQty && availableQty <= 500)
+            {
+                ingredient.Quantity = Math.Min(availableQty, currentQty * 1.5);
+                Logger.LogDebug("Скорректирован ингредиент {Name}: {Old} → {New} г (холодильник)",
+                    ingredient.Product?.Name, currentQty, ingredient.Quantity);
+            }
+        }
+
+        await Task.CompletedTask;
+    }
+
+    private bool IsFridgeValid(List<FridgeItem> fridgeItems, int daysCount)
+    {
+        if (!useFridgeProducts) return true;
+
+        if (fridgeItems == null || !fridgeItems.Any())
+            return false;
+
+        var uniqueProducts = fridgeItems
+            .Where(f => f.Product != null && f.Quantity > 0)
+            .Select(f => f.Product!.Id)
+            .Distinct()
+            .Count();
+
+        int requiredProducts = Math.Max(5, daysCount * 5);
+
+        return uniqueProducts >= requiredProducts;
+    }
+
+    /// <summary>
+    /// Проверка заполненности профиля пользователя
+    /// </summary>
+    private bool IsProfileValid(UserProfile p)
+    {
+        if (p == null) return false;
+
+        // Проверка числовых полей
+        if (p.Age is not (> 0 and < 120)) return false;
+        if (p.Height is not (> 50 and < 250)) return false;
+        if (p.Weight is not (> 20 and < 300)) return false;
+
+        // Проверка enum через IsDefined (надёжнее, чем != default)
+        if (!Enum.IsDefined(typeof(Gender), p.Gender)) return false;
+        if (!Enum.IsDefined(typeof(ActivityLevel), p.ActivityLevel)) return false;
+
+        return true;
+    }
+
     private async Task GenerateMealPlan()
     {
-        if (isGenerating)
+        if (isGenerating) return;
+
+        // 🔐 Валидация профиля
+        if (!IsProfileValid(profile))
+        {
+            ShowModal("Профиль не заполнен",
+                "Для генерации плана питания заполните профиль: возраст, вес, рост, пол и уровень активности.",
+                ModalType.Warning);
             return;
+        }
+
+        var fridgeItems = new List<FridgeItem>();
+        if (useFridgeProducts)
+        {
+            fridgeItems = await DbContext.FridgeItems
+                .Include(x => x.Product)
+                    .ThenInclude(x => x.Unit)
+                .Where(x => x.UserId == AuthService.CurrentUserId && x.Quantity > 0)
+                .ToListAsync();
+
+            if (!IsFridgeValid(fridgeItems, daysToGenerate))
+            {
+                int uniqueCount = fridgeItems
+                    .Where(f => f.Product != null && f.Quantity > 0)
+                    .Select(f => f.Product!.Id)
+                    .Distinct()
+                    .Count();
+                int required = Math.Max(5, daysToGenerate * 5);
+
+                ShowModal("Недостаточно продуктов",
+                    $"Для плана на {daysToGenerate} дн. нужно минимум {required} уникальных продуктов в холодильнике.\n" +
+                    $"Сейчас доступно: {uniqueCount}.\n\n" +
+                    "Добавьте продукты или отключите опцию «Использовать продукты из холодильника».",
+                    ModalType.Warning);
+                return;
+            }
+        }
 
         isGenerating = true;
         StateHasChanged();
@@ -737,16 +1025,6 @@
                 Logger.LogInformation("Удалено {Count} старых планов", oldPlans.Count);
             }
 
-            var fridgeItems = new List<FridgeItem>();
-            if (useFridgeProducts)
-            {
-                fridgeItems = await DbContext.FridgeItems
-                    .Include(x => x.Product)
-                        .ThenInclude(x => x.Unit)
-                    .Where(x => x.UserId == AuthService.CurrentUserId && x.Quantity > 0)
-                    .ToListAsync();
-            }
-
             var recipeTitles = await DbContext.Recipes
                 .Where(x => x.Title != null)
                 .Select(x => x.Title!)
@@ -760,21 +1038,15 @@
 
             Logger.LogInformation("Запрос структуры плана к ИИ...");
             var structure = await GigaChatHelper.GenerateMealPlanStructureAsync(
-                profile,
-                daysToGenerate,
-                selectedGoal,
-                targetCalories,
-                targetProteins,
-                targetFats,
-                targetCarbs,
-                useFridgeProducts,
-                "balanced",
-                recipeTitles,
-                fridgeProductNames);
+                profile, daysToGenerate, selectedGoal,
+                targetCalories, targetProteins, targetFats, targetCarbs,
+                useFridgeProducts, "balanced", recipeTitles, fridgeProductNames);
 
             if (structure?.Days == null || structure.Days.Count == 0)
             {
-                Logger.LogError("Не удалось получить структуру плана от ИИ");
+                ShowModal("Ошибка генерации",
+                    "Не удалось получить структуру плана от ИИ. Попробуйте позже.",
+                    ModalType.Error);
                 return;
             }
 
@@ -784,34 +1056,33 @@
                 {
                     UserId = AuthService.CurrentUserId,
                     Name = string.IsNullOrWhiteSpace(structure.Name)
-                            ? $"План питания {DateTime.Today:dd.MM.yyyy}"
-                            : structure.Name.Trim(),
+                        ? $"План питания {DateTime.Today:dd.MM.yyyy}"
+                        : structure.Name.Trim(),
                     CreatedAt = DateTime.UtcNow
                 };
 
             DbContext.MealPlans.Add(mealPlan);
             await DbContext.SaveChangesAsync();
 
-            // Обработка каждого дня ПОСЛЕДОВАТЕЛЬНО
             foreach (var generatedDay in structure.Days.OrderBy(x => x.DayNumber))
             {
                 var date = DateTime.Today.AddDays(Math.Max(0, generatedDay.DayNumber - 1));
-                var day = new MealPlanDay
-                    {
-                        Date = date,
-                        IsExpanded = date.Date == DateTime.Today
-                    };
-
-                await ProcessDayAIFirst(day, generatedDay.Meals, mealPlan, date);
+                var day = new MealPlanDay { Date = date, IsExpanded = date.Date == DateTime.Today };
+                await ProcessDayAIFirst(day, generatedDay.Meals, mealPlan, date, fridgeItems);
                 Logger.LogInformation("Обработан день {Date}: {MealsCount} приёмов пищи", date, day.Meals.Count);
             }
 
+            ShowModal("План готов!",
+                $"План питания на {daysToGenerate} дней успешно сгенерирован.",
+                ModalType.Success);
             Logger.LogInformation("Генерация плана завершена успешно");
         }
         catch (Exception ex)
         {
             Logger.LogError(ex, "Ошибка при генерации плана питания");
-            // Можно добавить уведомление пользователю
+            ShowModal("Ошибка",
+                $"Произошла ошибка: {ex.Message}\nПопробуйте ещё раз.",
+                ModalType.Error);
         }
         finally
         {
@@ -820,13 +1091,38 @@
         }
     }
 
-    private async Task ProcessDayAIFirst(MealPlanDay day, List<MealStructureDto> aiMeals,
-        Models.MealPlan mealPlan, DateTime date)
+    private void ShowModal(string title, string message, ModalType type = ModalType.Info)
     {
-        if (aiMeals == null || aiMeals.Count == 0)
-            return;
+        modalTitle = title;
+        modalMessage = message;
+        currentModalType = type;
+        showModal = true;
+        StateHasChanged();
+    }
 
-        // 1. Валидация распределения калорий от ИИ
+    private void CloseModal()
+    {
+        showModal = false;
+        StateHasChanged();
+    }
+
+    private string GetModalHeaderClass()
+    {
+        return currentModalType switch
+        {
+            ModalType.Info => "info",
+            ModalType.Warning => "warning",
+            ModalType.Error => "error",
+            ModalType.Success => "success",
+            _ => "info"
+        };
+    }
+
+    private async Task ProcessDayAIFirst(MealPlanDay day, List<MealStructureDto> aiMeals,
+        Models.MealPlan mealPlan, DateTime date, List<FridgeItem>? fridgeItems = null)
+    {
+        if (aiMeals == null || aiMeals.Count == 0) return;
+
         int aiTotalCalories = aiMeals.Sum(m => m.TargetCalories);
 
         if (aiTotalCalories <= 0 || Math.Abs(aiTotalCalories - targetCalories) > targetCalories * 0.3)
@@ -841,7 +1137,6 @@
             }
         }
 
-        // 2. Ограничение перекусов
         foreach (var meal in aiMeals)
         {
             if (meal.IsSnack || ParseMealType(meal.MealType) == MealType.Snack)
@@ -851,10 +1146,8 @@
             meal.TargetCalories = Math.Max(MinMealCalories, meal.TargetCalories);
         }
 
-        // 3. Нормализация суммы
         NormalizeMealTargets(aiMeals);
 
-        // 4. ПОСЛЕДОВАТЕЛЬНАЯ генерация рецептов (устраняет гонки)
         var createdMeals = new List<MealPlanMeal>();
 
         foreach (var meal in aiMeals)
@@ -862,7 +1155,7 @@
             try
             {
                 var recipeResult = await BuildRecipeAsync(
-                    meal.Title, meal.TargetCalories, meal.IsSnack, meal.MealType, profile, selectedGoal);
+                    meal.Title, meal.TargetCalories, meal.IsSnack, meal.MealType, profile, selectedGoal, fridgeItems);
 
                 if (recipeResult != null)
                 {
@@ -874,7 +1167,6 @@
             catch (Exception ex)
             {
                 Logger.LogError(ex, "Ошибка при создании рецепта \"{Title}\"", meal.Title);
-                // Пропускаем проблемный рецепт, продолжаем генерацию
             }
         }
 
@@ -884,7 +1176,6 @@
             return;
         }
 
-        // 5. Валидация дневной суммы калорий
         int actualTotal = createdMeals.Sum(m => m.Calories);
         double error = targetCalories > 0
             ? Math.Abs(actualTotal - targetCalories) / (double)targetCalories
@@ -898,7 +1189,6 @@
             Logger.LogWarning("Отклонение {Error}% превышает допуск {Tolerance}%, применяем коррекцию",
                 error * 100, DailyTolerance * 100);
 
-            // Пропорциональная коррекция
             double factor = Math.Clamp((double)targetCalories / actualTotal, 0.9, 1.1);
 
             foreach (var meal in createdMeals.Where(m => m.Recipe != null))
@@ -912,13 +1202,11 @@
                 meal.Carbs = (int)Math.Round(nutrition.Carbs);
             }
 
-            // Повторная проверка
             actualTotal = createdMeals.Sum(m => m.Calories);
             error = targetCalories > 0
                 ? Math.Abs(actualTotal - targetCalories) / (double)targetCalories
                 : 0;
 
-            // Точечная замена при необходимости
             if (error > DailyTolerance)
             {
                 Logger.LogWarning("После коррекции отклонение {Error}% всё ещё велико, заменяем один приём", error * 100);
@@ -950,7 +1238,6 @@
             }
         }
 
-        // 6. Сохранение в БД
         foreach (var meal in createdMeals.Where(m => m.Recipe != null))
         {
             DbContext.MealPlanItems.Add(new MealPlanItem
@@ -973,12 +1260,10 @@
 
     private void NormalizeMealTargets(List<MealStructureDto> meals)
     {
-        if (meals == null || meals.Count == 0)
-            return;
+        if (meals == null || meals.Count == 0) return;
 
         int total = meals.Sum(m => m.TargetCalories);
-        if (total == 0 || total == targetCalories)
-            return;
+        if (total == 0 || total == targetCalories) return;
 
         int diff = targetCalories - total;
         var sortedMeals = meals
@@ -988,8 +1273,7 @@
 
         foreach (var (meal, _) in sortedMeals)
         {
-            if (diff == 0)
-                break;
+            if (diff == 0) break;
 
             int sign = diff > 0 ? 1 : -1;
             int adjustment = sign * Math.Min(Math.Abs(diff), 50);
@@ -1029,32 +1313,20 @@
             };
     }
 
-    /// <summary>
-    /// Поиск существующего рецепта по названию (улучшенная нормализация)
-    /// </summary>
-    /// <summary>
-    /// Поиск существующего рецепта по названию.
-    /// ⚠️ Использует клиентскую фильтрацию, т.к. NormalizeForSearch не транслируется в SQL
-    /// </summary>
     private async Task<Recipe?> FindExistingRecipeAsync(string title)
     {
         var normalizedTitle = NormalizeForSearch(title);
 
-        // 1. Загружаем все рецепты с ингредиентами (клиентская фильтрация)
-        // Для продакшена можно добавить кэширование или полнотекстовый поиск
         var allRecipes = await DbContext.Recipes
             .Include(x => x.RecipeIngredients)
                 .ThenInclude(x => x.Product)
             .ToListAsync();
 
-        // 2. Точное совпадение после нормализации
         var exact = allRecipes
             .FirstOrDefault(x => NormalizeForSearch(x.Title) == normalizedTitle);
 
-        if (exact != null)
-            return exact;
+        if (exact != null) return exact;
 
-        // 3. Частичное совпадение по ключевым словам
         var keywords = normalizedTitle
             .Split(' ', StringSplitOptions.RemoveEmptyEntries)
             .Where(k => k.Length > 3)
@@ -1066,7 +1338,6 @@
             foreach (var candidate in allRecipes)
             {
                 var candidateNormalized = NormalizeForSearch(candidate.Title);
-                // Проверяем, содержит ли название все ключевые слова
                 if (keywords.All(k => candidateNormalized.Contains(k)))
                     return candidate;
             }
@@ -1076,14 +1347,14 @@
     }
 
     private async Task<CreatedRecipeResult?> BuildRecipeAsync(
-    string title,
-    int targetCalories,
-    bool isSnack,
-    string? mealType,
-    UserProfile? profile,
-    GoalType? goal)
+        string title,
+        int targetCalories,
+        bool isSnack,
+        string? mealType,
+        UserProfile? profile,
+        GoalType? goal,
+        List<FridgeItem>? fridgeItems = null)
     {
-        // 1. Проверяем существующий рецепт
         var existingRecipe = await FindExistingRecipeAsync(title);
         if (existingRecipe != null)
         {
@@ -1092,7 +1363,6 @@
             return new CreatedRecipeResult(existingRecipe, existingNutrition);
         }
 
-        // 2. Генерируем новый через ИИ
         var meal = await GigaChatHelper.GenerateRecipeByTitleAsync(
             title, targetCalories, isSnack, mealType, profile, goal);
 
@@ -1119,7 +1389,6 @@
             var normalizedUnit = NormalizeUnit(ingredient.Unit);
             var normalizedCategory = NormalizeForSearch(ingredient.Category);
 
-            // Поиск или создание единицы измерения
             var unit = await DbContext.Units
                 .FirstOrDefaultAsync(x => NormalizeUnit(x.Name) == normalizedUnit);
 
@@ -1133,7 +1402,6 @@
                 await DbContext.SaveChangesAsync();
             }
 
-            // Поиск или создание категории
             var category = await DbContext.Categories
                 .FirstOrDefaultAsync(x => NormalizeForSearch(x.Name) == normalizedCategory);
 
@@ -1147,18 +1415,10 @@
                 await DbContext.SaveChangesAsync();
             }
 
-            // ПОТОКОБЕЗОПАСНЫЙ поиск/создание продукта
             Product? product = null;
             await _productCreationLock.WaitAsync();
             try
             {
-                // ❌ НЕЛЬЗЯ: NormalizeForSearch не транслируется в SQL
-                // product = await DbContext.Products
-                //     .Include(x => x.Unit)
-                //     .Include(x => x.Category)
-                //     .FirstOrDefaultAsync(x => NormalizeForSearch(x.Name) == normalizedIngredientName);
-
-                // ✅ ПРАВИЛЬНО: сначала загружаем, потом фильтруем в памяти
                 var allProducts = await DbContext.Products
                     .Include(x => x.Unit)
                     .Include(x => x.Category)
@@ -1204,7 +1464,12 @@
 
         DbContext.Recipes.Add(recipe);
 
-        // 🔥 ИСПРАВЛЕНО: используем уникальное имя переменной
+        if (useFridgeProducts && fridgeItems?.Any() == true)
+        {
+            await AdjustRecipeForFridgeAsync(recipe, fridgeItems);
+        }
+
+        // 🔧 Если SmartBalanceRecipe отсутствует, используйте AdjustRecipeToTarget:
         var newRecipeNutrition = RecipeNutritionAdjuster.AdjustRecipeToTarget(recipe, targetCalories);
 
         await DbContext.SaveChangesAsync();
@@ -1274,13 +1539,9 @@
         };
     }
 
-    /// <summary>
-    /// Улучшенная нормализация для поиска: игнорирует порядок слов, спецсимволы, ё/е
-    /// </summary>
     private static string NormalizeForSearch(string? value)
     {
-        if (string.IsNullOrWhiteSpace(value))
-            return string.Empty;
+        if (string.IsNullOrWhiteSpace(value)) return string.Empty;
 
         return string.Join(" ",
             value
@@ -1292,7 +1553,7 @@
                 .Replace("(", " ")
                 .Replace(")", " ")
                 .Split(' ', StringSplitOptions.RemoveEmptyEntries)
-                .OrderBy(x => x) // сортировка для нечувствительности к порядку слов
+                .OrderBy(x => x)
         );
     }
 

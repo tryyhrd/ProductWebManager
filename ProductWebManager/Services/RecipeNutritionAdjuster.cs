@@ -133,6 +133,98 @@ public static class RecipeNutritionAdjuster
         return nutrition;
     }
 
+    /// <summary>
+    /// Умная балансировка: корректирует пропорции, а не только масштаб
+    /// </summary>
+    public static MealNutrition SmartBalanceRecipe(Recipe recipe, int targetCalories)
+    {
+        var current = CalculateNutrition(recipe);
+        if (current.Calories <= 0) return current;
+
+        // 1. Группируем ингредиенты по типу
+        var ingredients = recipe.RecipeIngredients
+            .Where(i => i.Product != null)
+            .ToList();
+
+        var mains = ingredients.Where(i => IsMainIngredient(i.Product!)).ToList();
+        var liquids = ingredients.Where(i => IsLiquidIngredient(i.Product!)).ToList();
+        var extras = ingredients.Where(i => !mains.Contains(i) && !liquids.Contains(i)).ToList();
+
+        // 2. Рассчитываем целевые доли (пример: 50% основы, 30% жидкости, 20% добавки)
+        double targetMainCalories = targetCalories * 0.50;
+        double targetLiquidCalories = targetCalories * 0.30;
+        double targetExtraCalories = targetCalories * 0.20;
+
+        // 3. Корректируем основные ингредиенты
+        if (mains.Any())
+        {
+            double currentMainCals = mains.Sum(i => NutritionCalculator.CalculateCalories(i.Product!, i.Quantity));
+            double mainFactor = currentMainCals > 0 ? targetMainCalories / currentMainCals : 1.0;
+            mainFactor = Math.Clamp(mainFactor, 0.5, 2.0);
+
+            foreach (var ing in mains)
+            {
+                double newQty = ing.Quantity * mainFactor;
+                double maxQty = ing.Product!.IsPieceBased ? MaxPieceItems : MaxGrams;
+                ing.Quantity = Math.Round(Math.Clamp(newQty, 10, maxQty), 1);
+            }
+        }
+
+        // 4. Корректируем жидкости (ограничиваем разумными пределами)
+        foreach (var ing in liquids)
+        {
+            double calPerUnit = NutritionCalculator.CalculateCalories(ing.Product!, 1);
+            if (calPerUnit <= 0) continue;
+
+            // Жидкости: не более 250-300 мл для напитков, 100-150 для соусов
+            double maxLiquidQty = ing.Product!.Name.ToLower().Contains("молоко") ||
+                                  ing.Product!.Name.ToLower().Contains("кефир") ? 250 : 100;
+
+            double targetQty = Math.Min(maxLiquidQty,
+                (targetLiquidCalories / liquids.Count) / calPerUnit);
+
+            ing.Quantity = Math.Round(Math.Clamp(targetQty, 30, maxLiquidQty), 1);
+        }
+
+        // 5. Оставшиеся калории распределяем на добавки
+        double usedCalories = CalculateNutrition(recipe).Calories;
+        double remainingCalories = targetCalories - usedCalories;
+
+        if (Math.Abs(remainingCalories) > 10 && extras.Any()) // если отклонение >10 ккал
+        {
+            var biggestExtra = extras.OrderByDescending(e =>
+                NutritionCalculator.CalculateCalories(e.Product!, e.Quantity)).First();
+
+            double calPerUnit = NutritionCalculator.CalculateCalories(biggestExtra.Product!, 1);
+            if (calPerUnit > 0)
+            {
+                double adjustQty = remainingCalories / calPerUnit;
+                double newQty = biggestExtra.Quantity + adjustQty;
+                double maxQty = biggestExtra.Product!.IsPieceBased ? MaxPieceItems : MaxGrams;
+                biggestExtra.Quantity = Math.Round(Math.Clamp(newQty, 5, maxQty), 1);
+            }
+        }
+
+        return CalculateNutrition(recipe);
+    }
+
+    private static bool IsMainIngredient(Product p)
+    {
+        var name = p.Name.ToLower();
+        return name.Contains("греч") || name.Contains("рис") || name.Contains("макарон") ||
+               name.Contains("куриц") || name.Contains("говядин") || name.Contains("рыб") ||
+               name.Contains("яйц") || name.Contains("творог") || name.Contains("овсян");
+    }
+
+    private static bool IsLiquidIngredient(Product p)
+    {
+        var name = p.Name.ToLower();
+        var unit = p.Unit?.Name?.ToLower() ?? "";
+        return name.Contains("молоко") || name.Contains("кефир") || name.Contains("йогурт") ||
+               name.Contains("вода") || name.Contains("сок") || name.Contains("масло") ||
+               unit == "мл" || unit == "л";
+    }
+
     public static MealNutrition NormalizeRecipe(Recipe recipe, int targetCalories)
     {
         return AdjustRecipeToTarget(recipe, targetCalories);
