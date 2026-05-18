@@ -5,7 +5,7 @@
 @using ProductWebManager.Models
 
 @inject NavigationManager Navigation
-@inject ProductWebManager.Data.ProductManagerContext DbContext
+@inject IDbContextFactory<ProductWebManager.Data.ProductManagerContext> DbContextFactory
 @inject ProductWebManager.Services.AuthService AuthService
 
 <PageTitle>Список покупок</PageTitle>
@@ -26,6 +26,11 @@
                 <strong>@shoppingItems.Count(x => !x.IsPurchased)</strong>
                 из
                 <strong>@shoppingItems.Count</strong>
+
+                @if (isMealPlanList)
+                {
+                    <span class="meal-plan-badge">Из плана питания</span>
+                }
             </div>
         </div>
 
@@ -58,6 +63,11 @@
             {
                 <button class="list-tab @(currentListId == list.Id ? "active" : "")"
                         @onclick="() => SwitchList(list.Id)">
+
+                    @if (IsMealPlanList(list))
+                    {
+                        <span>📋</span>
+                    }
 
                     @list.Name
 
@@ -155,12 +165,15 @@
 
                     </div>
 
-                    <button class="btn-delete"
-                            @onclick="() => RemoveItem(item)">
+                    <div class="item-actions">
 
-                        Удалить
+                        <button class="btn-delete"
+                                @onclick="() => RemoveItem(item)">
 
-                    </button>
+                            ×
+
+                        </button>
+                    </div>
 
                 </div>
             }
@@ -333,6 +346,10 @@
                         <div>
 
                             <div class="manager-title">
+                                @if (IsMealPlanList(list))
+                                {
+                                    <span>📋</span>
+                                }
                                 @list.Name
                             </div>
 
@@ -340,6 +357,11 @@
 
                                 @(list.Items?.Count ?? 0)
                                 товаров
+
+                                @if (IsMealPlanList(list))
+                                {
+                                    <span class="meal-plan-badge">Из плана питания</span>
+                                }
 
                             </div>
 
@@ -694,6 +716,29 @@
         gap: 10px;
     }
 
+    .meal-plan-badge {
+        display: inline-block;
+        margin-left: 8px;
+        padding: 2px 8px;
+        background: #f0e6ff;
+        color: #6c5ce7;
+        border-radius: 12px;
+        font-size: 12px;
+        font-weight: 600;
+    }
+
+    .auto-generated-badge {
+        margin-right: 8px;
+        font-size: 16px;
+        cursor: help;
+    }
+
+    .item-actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
     @@media (max-width: 768px) {
 
         .shopping-page {
@@ -752,17 +797,37 @@
 
     private string newListName = string.Empty;
 
+    private bool isMealPlanList;
+
     protected override async Task OnInitializedAsync()
     {
         await LoadLists();
         await LoadProducts();
+
+        // Проверяем параметр listId в URL
+        var uri = new Uri(Navigation.Uri);
+        var queryParams = System.Web.HttpUtility.ParseQueryString(uri.Query);
+        var listIdParam = queryParams["listId"];
+
+        if (int.TryParse(listIdParam, out int listId))
+        {
+            currentListId = listId;
+            await LoadCurrentList();
+        }
+    }
+
+    private bool IsMealPlanList(Models.ShoppingList list)
+    {
+        return list.Name.Contains("План питания");
     }
 
     private async Task LoadLists()
     {
+        await using var context = await DbContextFactory.CreateDbContextAsync();
+
         var userId = AuthService.CurrentUserId;
 
-        shoppingLists = await DbContext.ShoppingList
+        shoppingLists = await context.ShoppingList
 
             .Include(sl => sl.Items)
                 .ThenInclude(i => i.Product)
@@ -786,9 +851,9 @@
                     IsCompleted = false
                 };
 
-            DbContext.ShoppingList.Add(defaultList);
+            context.ShoppingList.Add(defaultList);
 
-            await DbContext.SaveChangesAsync();
+            await context.SaveChangesAsync();
 
             shoppingLists.Add(defaultList);
         }
@@ -800,7 +865,9 @@
 
     private async Task LoadCurrentList()
     {
-        var list = await DbContext.ShoppingList
+        await using var context = await DbContextFactory.CreateDbContextAsync();
+
+        var list = await context.ShoppingList
 
             .Include(sl => sl.Items)
                 .ThenInclude(i => i.Product)
@@ -812,12 +879,19 @@
         shoppingItems = list?.Items?.ToList()
             ?? new List<ShoppingListItem>();
 
+        if (list != null)
+        {
+            isMealPlanList = IsMealPlanList(list);
+        }
+
         UpdateTotal();
     }
 
     private async Task LoadProducts()
     {
-        availableProducts = await DbContext.Products
+        await using var context = await DbContextFactory.CreateDbContextAsync();
+
+        availableProducts = await context.Products
 
             .Include(p => p.Unit)
 
@@ -828,7 +902,9 @@
 
     private async Task DeleteList(int listId)
     {
-        var list = await DbContext.ShoppingList
+        await using var context = await DbContextFactory.CreateDbContextAsync();
+
+        var list = await context.ShoppingList
 
             .Include(sl => sl.Items)
 
@@ -838,12 +914,12 @@
         if (list == null)
             return;
 
-        DbContext.ShoppingListItems
+        context.ShoppingListItems
             .RemoveRange(list.Items);
 
-        DbContext.ShoppingList.Remove(list);
+        context.ShoppingList.Remove(list);
 
-        await DbContext.SaveChangesAsync();
+        await context.SaveChangesAsync();
 
         await LoadLists();
 
@@ -876,10 +952,16 @@
     private async Task TogglePurchased(
         ShoppingListItem item)
     {
+        await using var context = await DbContextFactory.CreateDbContextAsync();
+
+        var dbItem = await context.ShoppingListItems.FindAsync(item.Id);
+        if (dbItem != null)
+        {
+            dbItem.IsPurchased = !dbItem.IsPurchased;
+            await context.SaveChangesAsync();
+        }
+
         item.IsPurchased = !item.IsPurchased;
-
-        await DbContext.SaveChangesAsync();
-
         UpdateTotal();
     }
 
@@ -911,6 +993,8 @@
         if (string.IsNullOrWhiteSpace(newListName))
             return;
 
+        await using var context = await DbContextFactory.CreateDbContextAsync();
+
         var list = new Models.ShoppingList
             {
                 UserId = AuthService.CurrentUserId,
@@ -919,9 +1003,9 @@
                 IsCompleted = false
             };
 
-        DbContext.ShoppingList.Add(list);
+        context.ShoppingList.Add(list);
 
-        await DbContext.SaveChangesAsync();
+        await context.SaveChangesAsync();
 
         await LoadLists();
 
@@ -933,7 +1017,9 @@
         if (selectedProductId == 0)
             return;
 
-        var list = await DbContext.ShoppingList
+        await using var context = await DbContextFactory.CreateDbContextAsync();
+
+        var list = await context.ShoppingList
 
             .Include(sl => sl.Items)
 
@@ -961,7 +1047,7 @@
                 });
         }
 
-        await DbContext.SaveChangesAsync();
+        await context.SaveChangesAsync();
 
         await LoadCurrentList();
 
@@ -971,35 +1057,47 @@
     private async Task RemoveItem(
         ShoppingListItem item)
     {
-        DbContext.ShoppingListItems.Remove(item);
+        await using var context = await DbContextFactory.CreateDbContextAsync();
 
-        await DbContext.SaveChangesAsync();
+        var dbItem = await context.ShoppingListItems.FindAsync(item.Id);
+        if (dbItem != null)
+        {
+            context.ShoppingListItems.Remove(dbItem);
+            await context.SaveChangesAsync();
+        }
 
         await LoadCurrentList();
     }
 
     private async Task ClearPurchased()
     {
-        var purchased = shoppingItems
-            .Where(i => i.IsPurchased)
-            .ToList();
+        await using var context = await DbContextFactory.CreateDbContextAsync();
 
-        DbContext.ShoppingListItems
+        var purchased = await context.ShoppingListItems
+            .Where(i => i.ShoppingListId == currentListId && i.IsPurchased)
+            .ToListAsync();
+
+        context.ShoppingListItems
             .RemoveRange(purchased);
 
-        await DbContext.SaveChangesAsync();
+        await context.SaveChangesAsync();
 
         await LoadCurrentList();
     }
 
     private async Task ClearAll()
     {
-        DbContext.ShoppingListItems
-            .RemoveRange(shoppingItems);
+        await using var context = await DbContextFactory.CreateDbContextAsync();
 
-        await DbContext.SaveChangesAsync();
+        var items = await context.ShoppingListItems
+            .Where(i => i.ShoppingListId == currentListId)
+            .ToListAsync();
+
+        context.ShoppingListItems
+            .RemoveRange(items);
+
+        await context.SaveChangesAsync();
 
         await LoadCurrentList();
     }
-
 }

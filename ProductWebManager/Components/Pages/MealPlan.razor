@@ -11,7 +11,7 @@
 @using ProductWebManager.Services
 
 @inject NavigationManager Navigation
-@inject ProductManagerContext DbContext
+@inject IDbContextFactory<ProductManagerContext> DbContextFactory
 @inject AuthService AuthService
 @inject GigaChatHelper GigaChatHelper
 @inject ILogger<MealPlan> Logger
@@ -28,18 +28,29 @@
             </div>
         </div>
 
-        <button class="generate-btn"
-                disabled="@isGenerating"
-                @onclick="GenerateMealPlan">
-            @if (isGenerating)
+        <div class="header-buttons">
+            @if (mealPlanDays.Any())
             {
-                <span>Генерация...</span>
+                <button class="shopping-list-btn"
+                        @onclick="CreateShoppingListAsync">
+                    <span>🛒</span>
+                    <span>Создать список покупок</span>
+                </button>
             }
-            else
-            {
-                <span>Сгенерировать план</span>
-            }
-        </button>
+
+            <button class="generate-btn"
+                    disabled="@isGenerating"
+                    @onclick="GenerateMealPlanAsync">
+                @if (isGenerating)
+                {
+                    <span>Генерация...</span>
+                }
+                else
+                {
+                    <span>Сгенерировать план</span>
+                }
+            </button>
+        </div>
     </div>
 
     <div class="settings-card">
@@ -202,12 +213,12 @@
 
     @if (showModal)
     {
-        <div class="modal-overlay" @onclick="CloseModal">
+        <div class="modal-overlay" @onclick="CloseModalHandler">
             <div class="modal-content" @onclick:stopPropagation="true">
 
                 <div class="modal-header @GetModalHeaderClass()">
                     <h3>@modalTitle</h3>
-                    <button class="modal-close" @onclick="CloseModal" title="Закрыть">&times;</button>
+                    <button class="modal-close" @onclick="CloseModalHandler" title="Закрыть">&times;</button>
                 </div>
 
                 <div class="modal-body">
@@ -215,7 +226,7 @@
                 </div>
 
                 <div class="modal-footer">
-                    <button class="modal-btn" @onclick="CloseModal">Закрыть</button>
+                    <button class="modal-btn" @onclick="CloseModalHandler">Закрыть</button>
                 </div>
 
             </div>
@@ -252,6 +263,33 @@
         color: #8d93b0;
         font-size: 14px;
     }
+
+    .header-buttons {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+    }
+
+    .shopping-list-btn {
+        border: 2px solid #6c5ce7;
+        background: white;
+        color: #6c5ce7;
+        padding: 12px 20px;
+        border-radius: 18px;
+        font-weight: 700;
+        font-size: 14px;
+        transition: .2s;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+        .shopping-list-btn:hover {
+            background: #f5f3ff;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(108,92,231,0.2);
+        }
 
     .generate-btn {
         border: none;
@@ -681,34 +719,27 @@
         }
 
     @@keyframes fadeIn {
-        from
+        from {
+            opacity: 0;
+        }
 
-    {
-        opacity: 0;
-    }
-
-    to {
-        opacity: 1;
-    }
-
+        to {
+            opacity: 1;
+        }
     }
 
     @@keyframes slideUp {
-        from
+        from {
+            opacity: 0;
+            transform: translateY(20px);
+        }
 
-    {
-        opacity: 0;
-        transform: translateY(20px);
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
     }
 
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-
-    }
-
-    /* === Адаптив === */
     @@media (max-width: 992px) {
         .mealplan-page {
             padding: 16px;
@@ -768,6 +799,7 @@
     private string modalTitle = "";
     private string modalMessage = "";
     private ModalType currentModalType = ModalType.Info;
+    private int? _lastCreatedShoppingListId;
 
     private enum ModalType { Info, Warning, Error, Success }
 
@@ -803,7 +835,9 @@
 
     protected override async Task OnInitializedAsync()
     {
-        var user = await DbContext.Users
+        await using var context = await DbContextFactory.CreateDbContextAsync();
+
+        var user = await context.Users
             .Include(x => x.Profile)
             .FirstOrDefaultAsync(x => x.Id == AuthService.CurrentUserId);
 
@@ -850,9 +884,11 @@
 
     private async Task LoadExistingPlan()
     {
+        await using var context = await DbContextFactory.CreateDbContextAsync();
+
         mealPlanDays.Clear();
 
-        var latestPlan = await DbContext.MealPlans
+        var latestPlan = await context.MealPlans
             .AsNoTracking()
             .Include(x => x.Items)
                 .ThenInclude(x => x.Recipe)
@@ -872,20 +908,20 @@
                     Date = group.Key,
                     IsExpanded = group.Key == DateTime.Today,
                     Meals = group
-                            .OrderBy(x => GetMealSortOrder(x.MealType))
-                            .Select(x => new MealPlanMeal
-                            {
-                                MealType = x.MealType,
-                                Recipe = x.Recipe,
-                                Title = x.Recipe?.Title ?? string.Empty,
-                                Description = x.Recipe?.Description ?? string.Empty,
-                                IsSnack = x.MealType == MealType.Snack,
-                                Calories = x.Calories,
-                                Proteins = x.Proteins,
-                                Fats = x.Fats,
-                                Carbs = x.Carbs
-                            })
-                            .ToList()
+                                .OrderBy(x => GetMealSortOrder(x.MealType))
+                                .Select(x => new MealPlanMeal
+                                {
+                                    MealType = x.MealType,
+                                    Recipe = x.Recipe,
+                                    Title = x.Recipe?.Title ?? string.Empty,
+                                    Description = x.Recipe?.Description ?? string.Empty,
+                                    IsSnack = x.MealType == MealType.Snack,
+                                    Calories = x.Calories,
+                                    Proteins = x.Proteins,
+                                    Fats = x.Fats,
+                                    Carbs = x.Carbs
+                                })
+                                .ToList()
                 };
 
             mealPlanDays.Add(day);
@@ -943,30 +979,24 @@
         return uniqueProducts >= requiredProducts;
     }
 
-    /// <summary>
-    /// Проверка заполненности профиля пользователя
-    /// </summary>
     private bool IsProfileValid(UserProfile p)
     {
         if (p == null) return false;
 
-        // Проверка числовых полей
         if (p.Age is not (> 0 and < 120)) return false;
         if (p.Height is not (> 50 and < 250)) return false;
         if (p.Weight is not (> 20 and < 300)) return false;
 
-        // Проверка enum через IsDefined (надёжнее, чем != default)
         if (!Enum.IsDefined(typeof(Gender), p.Gender)) return false;
         if (!Enum.IsDefined(typeof(ActivityLevel), p.ActivityLevel)) return false;
 
         return true;
     }
 
-    private async Task GenerateMealPlan()
+    private async Task GenerateMealPlanAsync()
     {
         if (isGenerating) return;
 
-        // 🔐 Валидация профиля
         if (!IsProfileValid(profile))
         {
             ShowModal("Профиль не заполнен",
@@ -978,7 +1008,9 @@
         var fridgeItems = new List<FridgeItem>();
         if (useFridgeProducts)
         {
-            fridgeItems = await DbContext.FridgeItems
+            await using var context = await DbContextFactory.CreateDbContextAsync();
+
+            fridgeItems = await context.FridgeItems
                 .Include(x => x.Product)
                     .ThenInclude(x => x.Unit)
                 .Where(x => x.UserId == AuthService.CurrentUserId && x.Quantity > 0)
@@ -1012,20 +1044,22 @@
             CalculateTargets();
             mealPlanDays.Clear();
 
-            var oldPlans = await DbContext.MealPlans
+            await using var context = await DbContextFactory.CreateDbContextAsync();
+
+            var oldPlans = await context.MealPlans
                 .Include(x => x.Items)
                 .Where(x => x.UserId == AuthService.CurrentUserId)
                 .ToListAsync();
 
             if (oldPlans.Any())
             {
-                DbContext.MealPlanItems.RemoveRange(oldPlans.SelectMany(x => x.Items));
-                DbContext.MealPlans.RemoveRange(oldPlans);
-                await DbContext.SaveChangesAsync();
+                context.MealPlanItems.RemoveRange(oldPlans.SelectMany(x => x.Items));
+                context.MealPlans.RemoveRange(oldPlans);
+                await context.SaveChangesAsync();
                 Logger.LogInformation("Удалено {Count} старых планов", oldPlans.Count);
             }
 
-            var recipeTitles = await DbContext.Recipes
+            var recipeTitles = await context.Recipes
                 .Where(x => x.Title != null)
                 .Select(x => x.Title!)
                 .ToListAsync();
@@ -1056,13 +1090,13 @@
                 {
                     UserId = AuthService.CurrentUserId,
                     Name = string.IsNullOrWhiteSpace(structure.Name)
-                        ? $"План питания {DateTime.Today:dd.MM.yyyy}"
-                        : structure.Name.Trim(),
+                                ? $"План питания {DateTime.Today:dd.MM.yyyy}"
+                                : structure.Name.Trim(),
                     CreatedAt = DateTime.UtcNow
                 };
 
-            DbContext.MealPlans.Add(mealPlan);
-            await DbContext.SaveChangesAsync();
+            context.MealPlans.Add(mealPlan);
+            await context.SaveChangesAsync();
 
             foreach (var generatedDay in structure.Days.OrderBy(x => x.DayNumber))
             {
@@ -1100,9 +1134,19 @@
         StateHasChanged();
     }
 
-    private void CloseModal()
+    private void CloseModalHandler()
     {
+        var shouldNavigate = showModal && _lastCreatedShoppingListId.HasValue && currentModalType == ModalType.Success;
+
         showModal = false;
+
+        if (shouldNavigate)
+        {
+            var listId = _lastCreatedShoppingListId;
+            _lastCreatedShoppingListId = null;
+            Navigation.NavigateTo($"/shopping-list?listId={listId}");
+        }
+
         StateHasChanged();
     }
 
@@ -1238,9 +1282,11 @@
             }
         }
 
+        await using var context = await DbContextFactory.CreateDbContextAsync();
+
         foreach (var meal in createdMeals.Where(m => m.Recipe != null))
         {
-            DbContext.MealPlanItems.Add(new MealPlanItem
+            context.MealPlanItems.Add(new MealPlanItem
                 {
                     MealPlanId = mealPlan.Id,
                     RecipeId = meal.Recipe!.Id,
@@ -1255,7 +1301,7 @@
 
         day.Meals.AddRange(createdMeals.OrderBy(m => GetMealSortOrder(m.MealType)));
         mealPlanDays.Add(day);
-        await DbContext.SaveChangesAsync();
+        await context.SaveChangesAsync();
     }
 
     private void NormalizeMealTargets(List<MealStructureDto> meals)
@@ -1315,9 +1361,11 @@
 
     private async Task<Recipe?> FindExistingRecipeAsync(string title)
     {
+        await using var context = await DbContextFactory.CreateDbContextAsync();
+
         var normalizedTitle = NormalizeForSearch(title);
 
-        var allRecipes = await DbContext.Recipes
+        var allRecipes = await context.Recipes
             .Include(x => x.RecipeIngredients)
                 .ThenInclude(x => x.Product)
             .ToListAsync();
@@ -1383,13 +1431,15 @@
                 RecipeIngredients = new List<RecipeIngredient>()
             };
 
+        await using var context = await DbContextFactory.CreateDbContextAsync();
+
         foreach (var ingredient in meal.Ingredients ?? new List<GigaChatHelper.GeneratedIngredientDto>())
         {
             var normalizedIngredientName = NormalizeForSearch(ingredient.Name);
             var normalizedUnit = NormalizeUnit(ingredient.Unit);
             var normalizedCategory = NormalizeForSearch(ingredient.Category);
 
-            var unit = await DbContext.Units
+            var unit = await context.Units
                 .FirstOrDefaultAsync(x => NormalizeUnit(x.Name) == normalizedUnit);
 
             if (unit == null)
@@ -1398,11 +1448,11 @@
                     {
                         Name = string.IsNullOrWhiteSpace(ingredient.Unit) ? "г" : ingredient.Unit.Trim()
                     };
-                DbContext.Units.Add(unit);
-                await DbContext.SaveChangesAsync();
+                context.Units.Add(unit);
+                await context.SaveChangesAsync();
             }
 
-            var category = await DbContext.Categories
+            var category = await context.Categories
                 .FirstOrDefaultAsync(x => NormalizeForSearch(x.Name) == normalizedCategory);
 
             if (category == null)
@@ -1411,15 +1461,15 @@
                     {
                         Name = string.IsNullOrWhiteSpace(ingredient.Category) ? "Другое" : ingredient.Category.Trim()
                     };
-                DbContext.Categories.Add(category);
-                await DbContext.SaveChangesAsync();
+                context.Categories.Add(category);
+                await context.SaveChangesAsync();
             }
 
             Product? product = null;
             await _productCreationLock.WaitAsync();
             try
             {
-                var allProducts = await DbContext.Products
+                var allProducts = await context.Products
                     .Include(x => x.Unit)
                     .Include(x => x.Category)
                     .ToListAsync();
@@ -1444,8 +1494,8 @@
                             Carbohydrates = (int)Math.Round(ingredient.Carbs)
                         };
 
-                    DbContext.Products.Add(product);
-                    await DbContext.SaveChangesAsync();
+                    context.Products.Add(product);
+                    await context.SaveChangesAsync();
                     Logger.LogDebug("Создан новый продукт: {Name}", product.Name);
                 }
             }
@@ -1462,17 +1512,16 @@
                 });
         }
 
-        DbContext.Recipes.Add(recipe);
+        context.Recipes.Add(recipe);
 
         if (useFridgeProducts && fridgeItems?.Any() == true)
         {
             await AdjustRecipeForFridgeAsync(recipe, fridgeItems);
         }
 
-        // 🔧 Если SmartBalanceRecipe отсутствует, используйте AdjustRecipeToTarget:
         var newRecipeNutrition = RecipeNutritionAdjuster.AdjustRecipeToTarget(recipe, targetCalories);
 
-        await DbContext.SaveChangesAsync();
+        await context.SaveChangesAsync();
 
         Logger.LogDebug("Создан рецепт: {Title} ({Calories} ккал)", recipe.Title, newRecipeNutrition.Calories);
         return new CreatedRecipeResult(recipe, newRecipeNutrition);
@@ -1569,6 +1618,135 @@
             var s when s.Contains("л") || s.Contains("литр") => "л",
             _ => unit
         };
+    }
+
+    private async Task CreateShoppingListAsync()
+    {
+        if (!mealPlanDays.Any())
+        {
+            ShowModal("Нет плана", "Сначала сгенерируйте план питания.", ModalType.Warning);
+            return;
+        }
+
+        try
+        {
+            await using var context = await DbContextFactory.CreateDbContextAsync();
+
+            // Создаем новый список покупок
+            var shoppingList = new Models.ShoppingList
+                {
+                    UserId = AuthService.CurrentUserId,
+                    Name = $"План питания {DateTime.Today:dd.MM.yyyy}",
+                    CreatedAt = DateTime.UtcNow,
+                    IsCompleted = false
+                };
+
+            context.ShoppingList.Add(shoppingList);
+            await context.SaveChangesAsync();
+
+            // Собираем все ID рецептов из плана
+            var recipeIds = mealPlanDays
+                .SelectMany(d => d.Meals)
+                .Where(m => m.Recipe != null)
+                .Select(m => m.Recipe!.Id)
+                .Distinct()
+                .ToList();
+
+            // Загружаем рецепты с ингредиентами из БД
+            var recipesWithIngredients = await context.Recipes
+                .Include(r => r.RecipeIngredients)
+                    .ThenInclude(ri => ri.Product)
+                        .ThenInclude(p => p.Unit)
+                .Where(r => recipeIds.Contains(r.Id))
+                .ToDictionaryAsync(r => r.Id);
+
+            // Собираем все ингредиенты из плана
+            var ingredientGroups = new Dictionary<int, (string ProductName, double TotalQuantity, string UnitName)>();
+
+            foreach (var day in mealPlanDays)
+            {
+                foreach (var meal in day.Meals)
+                {
+                    if (meal.Recipe == null) continue;
+
+                    // Получаем рецепт с ингредиентами из загруженных данных
+                    if (!recipesWithIngredients.TryGetValue(meal.Recipe.Id, out var recipeWithIngredients))
+                        continue;
+
+                    if (recipeWithIngredients.RecipeIngredients == null)
+                        continue;
+
+                    foreach (var ingredient in recipeWithIngredients.RecipeIngredients)
+                    {
+                        if (ingredient.Product == null) continue;
+
+                        var productId = ingredient.ProductId;
+                        var quantity = ingredient.Quantity;
+
+                        if (ingredientGroups.ContainsKey(productId))
+                        {
+                            var existing = ingredientGroups[productId];
+                            ingredientGroups[productId] = (
+                                existing.ProductName,
+                                existing.TotalQuantity + quantity,
+                                existing.UnitName
+                            );
+                        }
+                        else
+                        {
+                            ingredientGroups[productId] = (
+                                ingredient.Product.Name,
+                                quantity,
+                                ingredient.Product.Unit?.Name ?? "шт."
+                            );
+                        }
+                    }
+                }
+            }
+
+            if (!ingredientGroups.Any())
+            {
+                ShowModal("Нет ингредиентов",
+                    "В плане питания не найдено ингредиентов для создания списка покупок.",
+                    ModalType.Warning);
+                return;
+            }
+
+            // Добавляем ингредиенты в список покупок
+            foreach (var group in ingredientGroups)
+            {
+                var shoppingItem = new ShoppingListItem
+                    {
+                        ShoppingListId = shoppingList.Id,
+                        ProductId = group.Key,
+                        Quantity = Math.Round(group.Value.TotalQuantity, 1),
+                        IsPurchased = false
+                    };
+
+                context.ShoppingListItems.Add(shoppingItem);
+            }
+
+            await context.SaveChangesAsync();
+
+            Logger.LogInformation("Создан список покупок из {MealsCount} приемов пищи, {ProductsCount} продуктов",
+                mealPlanDays.Sum(d => d.Meals.Count), ingredientGroups.Count);
+
+            ShowModal("Список покупок создан!",
+                $"Создан список покупок \"{shoppingList.Name}\"\n" +
+                $"Содержит {ingredientGroups.Count} продуктов.\n\n" +
+                "Перейти к списку покупок?",
+                ModalType.Success);
+
+            // Сохраняем ID списка для возможного перехода
+            _lastCreatedShoppingListId = shoppingList.Id;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Ошибка при создании списка покупок из плана питания");
+            ShowModal("Ошибка",
+                $"Не удалось создать список покупок: {ex.Message}",
+                ModalType.Error);
+        }
     }
 
     public void Dispose()

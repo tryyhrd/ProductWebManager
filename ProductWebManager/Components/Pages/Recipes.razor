@@ -1,7 +1,8 @@
 ﻿@page "/recipes"
 @rendermode InteractiveServer
+
 @inject NavigationManager Navigation
-@inject ProductWebManager.Data.ProductManagerContext DbContext
+@inject IDbContextFactory<ProductWebManager.Data.ProductManagerContext> DbContextFactory
 @inject ProductWebManager.Services.AuthService AuthService
 @using Microsoft.EntityFrameworkCore
 @using ProductWebManager.Models
@@ -25,18 +26,6 @@
                        @bind:event="oninput"
                        @bind:after="RefreshFilters" />
             </div>
-            @* <div class="col-md-3">
-                <select class="form-control filter-input" @bind="filterCategory" @bind:after="RefreshFilters">
-                    <option value="">🗂️ Все категории</option>
-                    <option value="breakfast">🌅 Завтрак</option>
-                    <option value="lunch">🌞 Обед</option>
-                    <option value="dinner">🌙 Ужин</option>
-                    <option value="dessert">🍰 Десерт</option>
-                    <option value="snack">🥨 Перекус</option>
-                    <option value="salad">🥗 Салат</option>
-                    <option value="soup">🍜 Суп</option>
-                </select>
-            </div> *@
             <div class="col-md-2">
                 <select class="form-control filter-input" @bind="filterTime" @bind:after="RefreshFilters">
                     <option value="0">⏱️ Время</option>
@@ -120,12 +109,6 @@
                                     </div>
                                 </div>
                             }
-                            @* <div class="recipe-stats">
-                                @if (recipe.Calories.HasValue)
-                                {
-                                    <div class="stat-item">🔥 @recipe.Calories ккал</div>
-                                }
-                            </div> *@
                             <div class="d-flex gap-2 mt-3">
                                 <button class="btn-recipe-view flex-grow-1" @onclick="() => ViewRecipe(recipe.Id)">Смотреть</button>
                             </div>
@@ -427,27 +410,39 @@
 
     private async Task LoadData()
     {
-        recipes = await DbContext.Recipes
-            .Include(r => r.RecipeIngredients)
-            .ToListAsync();
+        try
+        {
+            await using var context = await DbContextFactory.CreateDbContextAsync();
 
-        fridgeProductIds = (await DbContext.FridgeItems
-            .Where(f => f.UserId == AuthService.CurrentUserId)
-            .Select(f => f.ProductId)
-            .ToListAsync())
-            .Where(id => id > 0)
-            .ToHashSet();
+            recipes = await context.Recipes
+                .Include(r => r.RecipeIngredients)
+                .ToListAsync();
 
-        favoriteIds = (await DbContext.FavoriteRecipes
-            .Where(f => f.UserId == AuthService.CurrentUserId)
-            .Select(f => f.RecipeId)
-            .ToListAsync())
-            .ToHashSet();
+            fridgeProductIds = (await context.FridgeItems
+                .Where(f => f.UserId == AuthService.CurrentUserId)
+                .Select(f => f.ProductId)
+                .ToListAsync())
+                .Where(id => id > 0)
+                .ToHashSet();
 
-        RefreshFilters();
+            favoriteIds = (await context.FavoriteRecipes
+                .Where(f => f.UserId == AuthService.CurrentUserId)
+                .Select(f => f.RecipeId)
+                .ToListAsync())
+                .ToHashSet();
+
+            RefreshFilters();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Ошибка загрузки данных: {ex.Message}");
+        }
     }
 
-    private async Task ForceReload() => await LoadData();
+    private async Task ForceReload()
+    {
+        await LoadData();
+    }
 
     private void RefreshFilters()
     {
@@ -504,12 +499,14 @@
     {
         try
         {
-            var existing = await DbContext.FavoriteRecipes
+            await using var context = await DbContextFactory.CreateDbContextAsync();
+
+            var existing = await context.FavoriteRecipes
                 .FirstOrDefaultAsync(f => f.RecipeId == recipeId && f.UserId == AuthService.CurrentUserId);
 
             if (existing != null)
             {
-                DbContext.FavoriteRecipes.Remove(existing);
+                context.FavoriteRecipes.Remove(existing);
                 favoriteIds.Remove(recipeId);
             }
             else
@@ -519,11 +516,11 @@
                         RecipeId = recipeId,
                         UserId = AuthService.CurrentUserId
                     };
-                DbContext.FavoriteRecipes.Add(favorite);
+                context.FavoriteRecipes.Add(favorite);
                 favoriteIds.Add(recipeId);
             }
 
-            await DbContext.SaveChangesAsync();
+            await context.SaveChangesAsync();
 
             // Если активен фильтр "Избранное" — обновляем список
             if (activeFilter == "favorites")
@@ -537,20 +534,28 @@
         }
     }
 
-    private bool IsFavorite(int recipeId) => favoriteIds.Contains(recipeId);
-
-    private void ViewRecipe(int recipeId) => Navigation.NavigateTo($"/recipe/{recipeId}");
-    private void GoToMenu() => Navigation.NavigateTo("/menu");
-
-    private string GetRecipeGradient(int id) => (id % 8) switch
+    private void ViewRecipe(int recipeId)
     {
-        0 => "linear-gradient(135deg, #ff6b6b, #ff8e8e)",
-        1 => "linear-gradient(135deg, #ffa502, #ffbe76)",
-        2 => "linear-gradient(135deg, #a29bfe, #6c5ce7)",
-        3 => "linear-gradient(135deg, #fd79a8, #e84393)",
-        4 => "linear-gradient(135deg, #00b894, #55efc4)",
-        5 => "linear-gradient(135deg, #fdcb6e, #ffeaa7)",
-        6 => "linear-gradient(135deg, #74b9ff, #0984e3)",
-        _ => "linear-gradient(135deg, #e17055, #d63031)"
-    };
+        Navigation.NavigateTo($"/recipe/{recipeId}");
+    }
+
+    private void GoToMenu()
+    {
+        Navigation.NavigateTo("/menu");
+    }
+
+    private string GetRecipeGradient(int id)
+    {
+        return (id % 8) switch
+        {
+            0 => "linear-gradient(135deg, #ff6b6b, #ff8e8e)",
+            1 => "linear-gradient(135deg, #ffa502, #ffbe76)",
+            2 => "linear-gradient(135deg, #a29bfe, #6c5ce7)",
+            3 => "linear-gradient(135deg, #fd79a8, #e84393)",
+            4 => "linear-gradient(135deg, #00b894, #55efc4)",
+            5 => "linear-gradient(135deg, #fdcb6e, #ffeaa7)",
+            6 => "linear-gradient(135deg, #74b9ff, #0984e3)",
+            _ => "linear-gradient(135deg, #e17055, #d63031)"
+        };
+    }
 }
