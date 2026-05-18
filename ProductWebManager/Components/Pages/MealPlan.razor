@@ -39,11 +39,15 @@
             }
 
             <button class="generate-btn"
-                    disabled="@isGenerating"
+                    disabled="@(isGenerating || isReplacing)"
                     @onclick="GenerateMealPlanAsync">
                 @if (isGenerating)
                 {
                     <span>Генерация...</span>
+                }
+                else if (isReplacing)
+                {
+                    <span>Замена...</span>
                 }
                 else
                 {
@@ -161,10 +165,8 @@
                         <div class="meals-list">
                             @foreach (var meal in day.Meals)
                             {
-                                <div class="meal-card @(meal.Recipe != null && !meal.IsSnack ? "clickable" : "")"
-                                     @onclick="() => OpenMeal(meal)">
-
-                                    <div class="meal-left">
+                                <div class="meal-card @(meal.Recipe != null && !meal.IsSnack ? "clickable" : "")">
+                                    <div class="meal-left" @onclick="() => OpenMeal(meal)">
                                         <div class="meal-icon">
                                             @GetMealIcon(meal.MealType)
                                         </div>
@@ -195,12 +197,17 @@
                                             @meal.Calories ккал
                                         </div>
 
-                                        @if (meal.Recipe != null && !meal.IsSnack)
-                                        {
-                                            <div class="meal-open">
-                                                Открыть →
-                                            </div>
-                                        }
+                                        <div class="meal-actions">
+                                            @if (meal.Recipe != null && !meal.IsSnack)
+                                            {
+                                                <button class="btn-replace"
+                                                        @onclick="() => ReplaceMeal(day, meal)"
+                                                        @onclick:stopPropagation="true"
+                                                        title="Заменить блюдо">
+                                                    Замена
+                                                </button>
+                                            }
+                                        </div>
                                     </div>
                                 </div>
                             }
@@ -236,6 +243,54 @@
 </div>
 
 <style>
+    .meal-actions {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-top: 8px;
+    }
+
+    .btn-replace {
+        border: 2px solid #f59e0b;
+        background: white;
+        color: #f59e0b;
+        border-radius: 50%;
+        width: 36px;
+        height: 36px;
+        font-size: 16px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: 0.2s;
+        padding: 0;
+    }
+
+        .btn-replace:hover {
+            background: #fef3c7;
+            transform: scale(1.1);
+            border-color: #d97706;
+            color: #d97706;
+        }
+
+        .btn-replace:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-replace.replacing {
+            animation: spin 1s linear infinite;
+        }
+
+    @@keyframes spin {
+        from {
+            transform: rotate(0deg);
+        }
+
+        to {
+            transform: rotate(360deg);
+        }
+    }
     .mealplan-page {
         min-height: 100vh;
         background: #f4f6fb;
@@ -1395,13 +1450,13 @@
     }
 
     private async Task<CreatedRecipeResult?> BuildRecipeAsync(
-        string title,
-        int targetCalories,
-        bool isSnack,
-        string? mealType,
-        UserProfile? profile,
-        GoalType? goal,
-        List<FridgeItem>? fridgeItems = null)
+    string title,
+    int targetCalories,
+    bool isSnack,
+    string? mealType,
+    UserProfile? profile,
+    GoalType? goal,
+    List<FridgeItem>? fridgeItems = null)
     {
         var existingRecipe = await FindExistingRecipeAsync(title);
         if (existingRecipe != null)
@@ -1433,14 +1488,22 @@
 
         await using var context = await DbContextFactory.CreateDbContextAsync();
 
+        // Загружаем все данные в память перед фильтрацией
+        var allUnits = await context.Units.ToListAsync();
+        var allCategories = await context.Categories.ToListAsync();
+        var allProducts = await context.Products
+            .Include(x => x.Unit)
+            .Include(x => x.Category)
+            .ToListAsync();
+
         foreach (var ingredient in meal.Ingredients ?? new List<GigaChatHelper.GeneratedIngredientDto>())
         {
             var normalizedIngredientName = NormalizeForSearch(ingredient.Name);
             var normalizedUnit = NormalizeUnit(ingredient.Unit);
             var normalizedCategory = NormalizeForSearch(ingredient.Category);
 
-            var unit = await context.Units
-                .FirstOrDefaultAsync(x => NormalizeUnit(x.Name) == normalizedUnit);
+            // Ищем unit в памяти
+            var unit = allUnits.FirstOrDefault(x => NormalizeUnit(x.Name) == normalizedUnit);
 
             if (unit == null)
             {
@@ -1450,10 +1513,11 @@
                     };
                 context.Units.Add(unit);
                 await context.SaveChangesAsync();
+                allUnits.Add(unit);
             }
 
-            var category = await context.Categories
-                .FirstOrDefaultAsync(x => NormalizeForSearch(x.Name) == normalizedCategory);
+            // Ищем category в памяти
+            var category = allCategories.FirstOrDefault(x => NormalizeForSearch(x.Name) == normalizedCategory);
 
             if (category == null)
             {
@@ -1463,17 +1527,14 @@
                     };
                 context.Categories.Add(category);
                 await context.SaveChangesAsync();
+                allCategories.Add(category);
             }
 
             Product? product = null;
             await _productCreationLock.WaitAsync();
             try
             {
-                var allProducts = await context.Products
-                    .Include(x => x.Unit)
-                    .Include(x => x.Category)
-                    .ToListAsync();
-
+                // Ищем продукт в памяти
                 product = allProducts
                     .FirstOrDefault(x => NormalizeForSearch(x.Name) == normalizedIngredientName);
 
@@ -1496,6 +1557,7 @@
 
                     context.Products.Add(product);
                     await context.SaveChangesAsync();
+                    allProducts.Add(product);
                     Logger.LogDebug("Создан новый продукт: {Name}", product.Name);
                 }
             }
@@ -1658,7 +1720,9 @@
                     .ThenInclude(ri => ri.Product)
                         .ThenInclude(p => p.Unit)
                 .Where(r => recipeIds.Contains(r.Id))
-                .ToDictionaryAsync(r => r.Id);
+                .ToListAsync();  // Сначала получаем данные
+
+            var recipeDict = recipesWithIngredients.ToDictionary(r => r.Id);  // Потом создаем словарь
 
             // Собираем все ингредиенты из плана
             var ingredientGroups = new Dictionary<int, (string ProductName, double TotalQuantity, string UnitName)>();
@@ -1670,7 +1734,7 @@
                     if (meal.Recipe == null) continue;
 
                     // Получаем рецепт с ингредиентами из загруженных данных
-                    if (!recipesWithIngredients.TryGetValue(meal.Recipe.Id, out var recipeWithIngredients))
+                    if (!recipeDict.TryGetValue(meal.Recipe.Id, out var recipeWithIngredients))
                         continue;
 
                     if (recipeWithIngredients.RecipeIngredients == null)
@@ -1746,6 +1810,115 @@
             ShowModal("Ошибка",
                 $"Не удалось создать список покупок: {ex.Message}",
                 ModalType.Error);
+        }
+    }
+
+    private bool isReplacing = false;
+
+    private async Task ReplaceMeal(MealPlanDay day, MealPlanMeal mealToReplace)
+    {
+        if (isReplacing) return;
+
+        try
+        {
+            isReplacing = true;
+            StateHasChanged();
+
+            Logger.LogInformation("Замена рецепта: {Title} в день {Date}", mealToReplace.Title, day.Date);
+
+            // Получаем список существующих названий для избежания повторов
+            var existingTitles = mealPlanDays
+                .SelectMany(d => d.Meals)
+                .Where(m => m != mealToReplace) // исключаем заменяемое блюдо
+                .Select(m => m.Title)
+                .Distinct()
+                .ToList();
+
+            // Получаем продукты из холодильника (если нужно)
+            List<string>? fridgeProductNames = null;
+            if (useFridgeProducts)
+            {
+                await using var context = await DbContextFactory.CreateDbContextAsync();
+                fridgeProductNames = await context.FridgeItems
+                    .Include(f => f.Product)
+                    .Where(f => f.UserId == AuthService.CurrentUserId && f.Quantity > 0)
+                    .Select(f => f.Product!.Name)
+                    .Distinct()
+                    .ToListAsync();
+            }
+
+            // Ищем замену через ИИ
+            var replacement = await GigaChatHelper.FindReplacementRecipeAsync(
+                mealToReplace.Title,
+                mealToReplace.MealType,
+                mealToReplace.TargetCalories,
+                mealToReplace.IsSnack,
+                profile,
+                selectedGoal,
+                existingTitles,
+                fridgeProductNames);
+
+            if (replacement == null)
+            {
+                ShowModal("Не удалось найти замену",
+                    "Попробуйте ещё раз или выберите другое блюдо для замены.",
+                    ModalType.Warning);
+                return;
+            }
+
+            // Создаем новый рецепт
+            var recipeResult = await BuildRecipeAsync(
+                replacement.Title,
+                mealToReplace.TargetCalories,
+                replacement.IsSnack,
+                replacement.MealType,
+                profile,
+                selectedGoal);
+
+            if (recipeResult == null)
+            {
+                ShowModal("Ошибка создания рецепта",
+                    "Не удалось создать рецепт для замены.",
+                    ModalType.Error);
+                return;
+            }
+
+            // Заменяем блюдо в плане
+            var index = day.Meals.IndexOf(mealToReplace);
+            if (index >= 0)
+            {
+                day.Meals[index] = CreateMealPlanMeal(
+                    new MealStructureDto
+                        {
+                            MealType = replacement.MealType,
+                            Title = replacement.Title,
+                            IsSnack = replacement.IsSnack,
+                            TargetCalories = mealToReplace.TargetCalories
+                        },
+                    recipeResult,
+                    mealToReplace.TargetCalories);
+
+                Logger.LogInformation("Рецепт заменён: {OldTitle} → {NewTitle}",
+                    mealToReplace.Title, replacement.Title);
+
+                ShowModal("Рецепт заменён!",
+                    $"Блюдо \"{mealToReplace.Title}\" заменено на \"{replacement.Title}\"",
+                    ModalType.Success);
+            }
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Ошибка при замене рецепта \"{Title}\"", mealToReplace.Title);
+            ShowModal("Ошибка",
+                $"Не удалось заменить рецепт: {ex.Message}",
+                ModalType.Error);
+        }
+        finally
+        {
+            isReplacing = false;
+            StateHasChanged();
         }
     }
 

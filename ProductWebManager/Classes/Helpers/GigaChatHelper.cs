@@ -454,7 +454,119 @@ public sealed class GigaChatHelper
             : value.Trim().ToLowerInvariant().Replace("ё", "е");
     }
 
-    // === DTO Classes ===
+    // В класс GigaChatHelper добавьте новый метод:
+
+    public async Task<GeneratedMealDto?> FindReplacementRecipeAsync(
+        string originalTitle,
+        MealType mealType,
+        int targetCalories,
+        bool isSnack,
+        UserProfile? profile,
+        GoalType? goal,
+        IEnumerable<string>? existingRecipeTitles = null,
+        IEnumerable<string>? fridgeProductNames = null)
+    {
+        var existingTitles = LimitAndNormalize(existingRecipeTitles, 30);
+        var fridgeProducts = LimitAndNormalize(fridgeProductNames, 20);
+
+        var systemPrompt =
+            "Ты профессиональный шеф-повар и нутрициолог. " +
+            "Находишь альтернативную замену блюду. " +
+            "Верни ТОЛЬКО валидный JSON без markdown и пояснений.";
+
+        var userPrompt = $$"""
+Найди ЗАМЕНУ для блюда "{{originalTitle}}".
+
+ТРЕБОВАНИЯ:
+1. ТОЛЬКО валидный JSON, без markdown.
+2. НЕ повторяй оригинальное блюдо.
+3. Другое название, другие основные ингредиенты.
+4. Общая калорийность ≈ {{targetCalories}} ккал (допуск ±3%).
+5. Тип приёма: {{mealType}}, Перекус: {{(isSnack ? "да" : "нет")}}.
+6. Укажи КБЖУ на ВЕСЬ рецепт.
+7. Для каждого ингредиента: name, quantity, unit, category, calories/proteins/fats/carbs на 100г/1шт.
+
+{{(existingTitles.Count > 0 ? "НЕ ИСПОЛЬЗУЙ эти названия: " + string.Join(", ", existingTitles.Take(20)) : "")}}
+{{(fridgeProducts.Count > 0 ? "Используй эти продукты: " + string.Join(", ", fridgeProducts) : "")}}
+{{(goal.HasValue ? "Цель: " + goal.Value.ToString() : "")}}
+
+ФОРМАТ JSON:
+{
+  "mealType": "{{mealType}}",
+  "title": "Название замены",
+  "description": "Краткое описание",
+  "isSnack": {{(isSnack ? "true" : "false")}},
+  "calories": {{targetCalories}},
+  "proteins": 20,
+  "fats": 15,
+  "carbs": 50,
+  "ingredients": [
+    {
+      "name": "Ингредиент",
+      "quantity": 100,
+      "unit": "г",
+      "category": "Категория",
+      "calories": 100,
+      "proteins": 10,
+      "fats": 5,
+      "carbs": 20
+    }
+  ],
+  "instructions": ["Шаг 1", "Шаг 2"]
+}
+""";
+
+        try
+        {
+            var raw = await SendPromptAsync(systemPrompt, userPrompt);
+            if (string.IsNullOrWhiteSpace(raw))
+            {
+                _logger.LogWarning("ИИ вернул пустой ответ для замены \"{Title}\"", originalTitle);
+                return null;
+            }
+
+            var json = ExtractJson(raw);
+            if (string.IsNullOrWhiteSpace(json))
+            {
+                _logger.LogWarning("Не удалось извлечь JSON для замены \"{Title}\"", originalTitle);
+                return null;
+            }
+
+            var dto = JsonConvert.DeserializeObject<GeneratedMealDto>(
+                json,
+                new JsonSerializerSettings
+                {
+                    MissingMemberHandling = MissingMemberHandling.Ignore,
+                    NullValueHandling = NullValueHandling.Ignore
+                });
+
+            if (dto == null)
+            {
+                _logger.LogWarning("Десериализация замены \"{Title}\" вернула null", originalTitle);
+                return null;
+            }
+
+            // Пост-обработка
+            dto.Title = string.IsNullOrWhiteSpace(dto.Title) ? $"Альтернатива {originalTitle}" : dto.Title.Trim();
+            dto.Description ??= string.Empty;
+            dto.Instructions ??= new List<string>();
+            dto.Ingredients ??= new List<GeneratedIngredientDto>();
+            dto.MealType = NormalizeMealType(dto.MealType);
+
+            if (dto.Calories <= 0)
+                dto.Calories = targetCalories;
+
+            _logger.LogDebug("Найдена замена: {Title} ({Calories} ккал) вместо {Original}",
+                dto.Title, dto.Calories, originalTitle);
+            return dto;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Ошибка при поиске замены для \"{Title}\"", originalTitle);
+            return null;
+        }
+    }
+
     private sealed class TokenResponse
     {
         public string access_token { get; set; } = string.Empty;
