@@ -1,56 +1,22 @@
-﻿@namespace ProductWebManager.Components.Layout
-
-<div class="sidebar-container">
-    <div class="sidebar-header navbar navbar-light">
-        <div class="container-fluid d-flex justify-content-between align-items-center w-100">
-            <a class="navbar-brand-custom" href="fridge">
-                Продуктовый менеджер
-            </a>
-        </div>
-    </div>
-
-    <div class="sidebar-menu-wrapper @(collapseNavMenu ? "sidebar-collapsed" : "")">
-        <nav class="sidebar-nav-list">
-            <div class="sidebar-nav-item">
-                <NavLink class="nav-menu-link" href="fridge">
-                    <span class="nav-text">Холодильник</span>
-                </NavLink>
-            </div>
-            <div class="sidebar-nav-item">
-                <NavLink class="nav-menu-link" href="recipes">
-                    <span class="nav-text">Рецепты</span>
-                </NavLink>
-            </div>
-            <div class="sidebar-nav-item">
-                <NavLink class="nav-menu-link" href="meal-plan">
-                   <span class="nav-text">Меню</span>
-                </NavLink>
-            </div>
-            <div class="sidebar-nav-item">
-                <NavLink class="nav-menu-link" href="shopping-list">
-                   <span class="nav-text">Список покупок</span>
-                </NavLink>
-            </div>
-            @* <div class="sidebar-nav-item">
-                <NavLink class="nav-menu-link" href="favorites">
-                    <span class="nav-text">Избранное</span>
-                </NavLink>
-            </div> *@
-            <div class="sidebar-nav-item">
-                <NavLink class="nav-menu-link" href="profile">
-                   <span class="nav-text">Профиль</span>
-                </NavLink>
-            </div>
-        </nav>
-    </div>
+﻿<div class="nav-links-horizontal">
+    <NavLink class="nav-item-premium" href="fridge" Match="NavLinkMatch.All">
+        <i class="fas fa-box-open"></i>
+        <span>Холодильник</span>
+    </NavLink>
+    <NavLink class="nav-item-premium" href="recipes">
+        <i class="fas fa-book-open"></i>
+        <span>Рецепты</span>
+    </NavLink>
+    <NavLink class="nav-item-premium" href="meal-plan">
+        <i class="fas fa-calendar-alt"></i>
+        <span>Меню</span>
+    </NavLink>
+    <NavLink class="nav-item-premium" href="shopping-list">
+        <i class="fas fa-shopping-cart"></i>
+        <span>Покупки</span>
+    </NavLink>
+    <NavLink class="nav-item-premium" href="profile">
+        <i class="fas fa-user-circle"></i>
+        <span>Профиль</span>
+    </NavLink>
 </div>
-
-@code {
-    // По умолчанию меню открыто на больших экранах
-    private bool collapseNavMenu = false;
-
-    private void ToggleNavMenu()
-    {
-        collapseNavMenu = !collapseNavMenu;
-    }
-}

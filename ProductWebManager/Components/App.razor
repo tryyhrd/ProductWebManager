@@ -6,9 +6,61 @@
     <base href="/" />
     <link rel="stylesheet" href="bootstrap/bootstrap.min.css" />
 
-    @* Добавляем ?v=1 для принудительного обновления кэша в браузере *@
     <link rel="stylesheet" href="app.css?v=1.0.1" />
     <link rel="stylesheet" href="ProductWebManager.styles.css?v=1.0.1" />
+    <!-- Шрифты -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Конфигурация Tailwind (чтобы работали кастомные закругления и шрифты) -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'ui-sans-serif', 'system-ui'],
+                        mono: ['JetBrains Mono', 'ui-monospace'],
+                    },
+                    borderRadius: {
+                        '3xl': '2rem',
+                        '4xl': '2.5rem',
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style type="text/tailwindcss">
+        @@layer utilities {
+            .glass
+
+        {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .bento-card {
+            background-color: white;
+            border-radius: 2rem;
+            border: 1px solid #e2e8f0; 
+            box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+            .bento-card:hover {
+                box-shadow: 0 8px 30px rgba(0,0,0,0.04);
+                border-color: #cbd5e1; 
+                transform: translateY(-2px);
+            }
+
+        }
+    </style>
     <HeadOutlet />
 </head>
 

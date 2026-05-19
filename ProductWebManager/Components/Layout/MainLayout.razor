@@ -1,61 +1,47 @@
-﻿@namespace ProductWebManager.Components.Layout
-@inherits LayoutComponentBase
-@rendermode InteractiveServer
-@using Microsoft.AspNetCore.Components.Authorization
+﻿@inherits LayoutComponentBase
+@inject AuthService AuthService
+@inject NavigationManager Navigation
 
-<div class="page">
-    <AuthorizeView>
-        <Authorized>
-            @* Боковое меню видят только вошедшие пользователи *@
-            <div class="sidebar">
-                <NavMenu />
-            </div>
-        </Authorized>
-    </AuthorizeView>
+<AuthorizeView>
+    <Authorized>
+        <div class="premium-app-wrapper">
+            <header class="main-header">
+                <div class="header-container">
+                    <div class="logo-section">
+                        <div class="logo-icon">S</div>
+                        <span class="logo-text">SmartPlate</span>
+                    </div>
 
-    <main>
-        <AuthorizeView>
-            <Authorized>
-                <div class="top-row px-4">
-                    <div class="d-flex align-items-center gap-3">
-                        <span style="color: #888; font-size: 14px;">@context.User.Identity?.Name</span>
-                        <button class="btn-logout" @onclick="HandleLogout">
-                            Выйти
-                        </button>
+                    <nav class="top-navigation">
+                        <NavMenu />
+                    </nav>
+
+                    <div class="user-section">
+                        <div class="user-info-chip">
+                            <span class="u-name">@context.User.Identity?.Name</span>
+                            <button class="btn-exit" @onclick="HandleLogout" title="Выйти">
+                                <i class="fas fa-sign-out-alt"></i>
+                            </button>
+                        </div>
                     </div>
                 </div>
-            </Authorized>
-        </AuthorizeView>
+            </header>
 
-        <article class="content px-4">
+            <main class="main-viewport">
+                <section class="page-content">
+                    @Body
+                </section>
+            </main>
+        </div>
+    </Authorized>
+    <NotAuthorized>
+        <div class="auth-container">
             @Body
-        </article>
-    </main>
-</div>
-
-<style>
-    .btn-logout {
-        padding: 6px 16px;
-        border: 1px solid #e0e0e4;
-        border-radius: 8px;
-        background: #f8f8fa;
-        color: #666;
-        font-size: 13px;
-        cursor: pointer;
-        transition: all 0.2s;
-    }
-
-        .btn-logout:hover {
-            background: #f0edff;
-            border-color: #d5ccff;
-            color: #6c5ce7;
-        }
-</style>
+        </div>
+    </NotAuthorized>
+</AuthorizeView>
 
 @code {
-    [Inject] private ProductWebManager.Services.AuthService AuthService { get; set; } = default!;
-    [Inject] private NavigationManager Navigation { get; set; } = default!;
-
     private async Task HandleLogout()
     {
         await AuthService.Logout();

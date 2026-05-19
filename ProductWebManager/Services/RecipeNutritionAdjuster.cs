@@ -4,7 +4,6 @@ namespace ProductWebManager.Services;
 
 public static class RecipeNutritionAdjuster
 {
-    // 🔥 КЛЮЧЕВОЕ ИЗМЕНЕНИЕ: 3% допуск для рецептов, чтобы день укладывался в 5%
     private const double Tolerance = 0.03;
 
     private const double MinScale = 0.5;
@@ -113,6 +112,43 @@ public static class RecipeNutritionAdjuster
         double maxQuantity = mainIngredient.Product.IsPieceBased ? MaxPieceItems : MaxGrams;
 
         mainIngredient.Quantity = Math.Round(Math.Clamp(newQuantity, 0.1, maxQuantity), 1);
+
+        return CalculateNutrition(recipe);
+    }
+
+    // В RecipeNutritionAdjuster.cs
+    public static MealNutrition SmartNormalize(Recipe recipe, int targetCalories)
+    {
+        var current = CalculateNutrition(recipe);
+        double diff = targetCalories - current.Calories;
+        if (Math.Abs(diff) < targetCalories * 0.03) 
+            return current;
+
+        var candidates = recipe.RecipeIngredients
+            .Where(i => i.Product != null)
+            .Where(i => i.Product!.Carbohydrates > 30 || i.Product!.Fats > 30)
+            .OrderByDescending(i => NutritionCalculator.CalculateCalories(i.Product!, i.Quantity))
+            .ToList();
+
+        if (!candidates.Any())
+            candidates = recipe.RecipeIngredients
+                .Where(i => i.Product != null)
+                .OrderByDescending(i => NutritionCalculator.CalculateCalories(i.Product!, i.Quantity))
+                .ToList();
+
+        var target = candidates.FirstOrDefault();
+        if (target?.Product == null) return current;
+
+        double calPerUnit = NutritionCalculator.CalculateCalories(target.Product, 1);
+        if (calPerUnit <= 0) return current;
+
+        double adjust = diff / calPerUnit;
+        double maxAdjust = target.Quantity * 0.3; // Не более 30% изменения
+        adjust = Math.Clamp(adjust, -maxAdjust, maxAdjust);
+
+        double newQty = target.Quantity + adjust;
+        double maxAllowed = target.Product.IsPieceBased ? 8 : 500;
+        target.Quantity = Math.Round(Math.Clamp(newQty, 1, maxAllowed), 1);
 
         return CalculateNutrition(recipe);
     }

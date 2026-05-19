@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
 using ProductWebManager.Models;
+using ProductWebManager.Services;
 
 namespace ProductWebManager.Classes.AI;
 
@@ -64,50 +65,34 @@ public sealed class GigaChatHelper
             "Ты создаёшь реалистичную структуру плана питания. " +
             "Верни ТОЛЬКО валидный JSON без пояснений.";
 
-        var userPrompt = $$"""
-Составь структуру плана питания на {{days}} дней.
+        var targets = NutritionService.CalculateTargets(profile);
 
-ДАННЫЕ ПОЛЬЗОВАТЕЛЯ:
-- Возраст: {{profile.Age}}, Рост: {{profile.Height}} см, Вес: {{profile.Weight}} кг
-- Пол: {{profile.Gender}}, Активность: {{profile.ActivityLevel}}, Цель: {{goal}}
+        var userPrompt = $@"
+Составь план питания на {days} дней.
+ЦЕЛЕВЫЕ ПОКАЗАТЕЛИ В СУТКИ: {targets.Calories} ккал (Б:{targets.Proteins}г, Ж:{targets.Fats}г, У:{targets.Carbs}г).
 
-ЦЕЛЕВЫЕ КБЖУ НА СУТКИ:
-- Калории: {{targetCalories}} ккал
-- Белки: {{targetProteins}} г, Жиры: {{targetFats}} г, Углеводы: {{targetCarbs}} г
+ПРАВИЛА БАЛАНСИРОВКИ:
+1. Сумма калорий 4 приемов (Breakfast, Lunch, Dinner, Snack) должна строго равняться {targets.Calories}.
+2. РАСПРЕДЕЛЕНИЕ: Завтрак ~25%, Обед ~35%, Ужин ~25%, Перекус ~15%.
+3. ХОЛОДИЛЬНИК: Если переданы продукты ({string.Join(", ", fridgeProducts)}), они ОБЯЗАТЕЛЬНО должны быть основными ингредиентами минимум в 2 приемах пищи в день.
+4. КУЛИНАРНАЯ ЛОГИКА: Не предлагай '120г яблока', если можно предложить '1 среднее яблоко (150г)'. Подгоняй КБЖУ за счет круп и масел.
 
-РЕЖИМ: {{generationMode}}
-ИСПОЛЬЗОВАТЬ ПРОДУКТЫ ИЗ ХОЛОДИЛЬНИКА: {{(useFridgeProducts ? "да" : "нет")}}
-{{(fridgeProducts.Count > 0 ? "Продукты: " + string.Join(", ", fridgeProducts) : "")}}
-{{(recipeTitles.Count > 0 ? "Уже есть рецепты: " + string.Join(", ", recipeTitles.Take(20)) : "")}}
-
-ПРАВИЛА:
-1. Верни ТОЛЬКО валидный JSON.
-2. Для каждого дня ровно 4 приёма: Breakfast, Lunch, Dinner, Snack.
-3. Перекус (Snack) не более 20% от дневных калорий.
-4. Завтрак легче обеда, ужин легче обеда.
-5. Не повторяй блюда чаще 2 раз за план.
-6. Названия блюд реалистичные, на русском.
-7. Сумма targetCalories всех приёмов = {{targetCalories}}.
-
-ФОРМАТ JSON:
-{
-  "name": "План питания",
-  "totalDailyCalories": {{targetCalories}},
-  "days": [
-    {
-      "dayNumber": 1,
-      "meals": [
-        {
-          "mealType": "Breakfast",
-          "title": "Овсянка с бананом",
-          "isSnack": false,
-          "targetCalories": 450
-        }
+ВЕРНИ JSON:
+{{
+  ""days"": [
+    {{
+      ""day"": 1,
+      ""meals"": [
+        {{
+          ""type"": ""Lunch"",
+          ""title"": ""Название"",
+          ""calories"": 0,
+          ""ingredients"": [{{ ""name"": ""..."", ""quantity"": 0, ""unit"": ""г"" }}]
+        }}
       ]
-    }
+    }}
   ]
-}
-""";
+}}";
 
         try
         {
