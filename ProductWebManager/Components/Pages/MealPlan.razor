@@ -3,38 +3,64 @@
 @using System.Globalization
 @using Microsoft.EntityFrameworkCore
 @using ProductWebManager.Models
+@using ProductWebManager.Services
+@using ProductWebManager.Classes.AI
 @inject AuthService AuthService
 @inject NavigationManager Navigation
-@inject IDbContextFactory<ProductManagerContext> DbContextFactory
+@inject IDbContextFactory<ProductWebManager.Data.ProductManagerContext> DbContextFactory
+@inject GigaChatHelper GigaChatAI
 
 <PageTitle>SmartPlate AI — План питания</PageTitle>
 
 <div class="max-w-[1440px] mx-auto p-6 lg:p-10 font-sans">
-    <!-- HEADER -->
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="mb-6 p-4 bg-red-50 border-l-4 border-red-500 rounded-xl text-red-700 flex justify-between items-center shadow-sm animate-fade-in">
+            <div class="flex items-center gap-3">
+                <i class="fas fa-exclamation-circle text-lg"></i>
+                <span class="font-medium">@errorMessage</span>
+            </div>
+            <button @onclick="() => errorMessage = string.Empty" class="text-red-400 hover:text-red-600 transition-colors">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+    }
+
     <header class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-10">
         <div>
             <h1 class="text-4xl font-black text-slate-900 tracking-tighter">Мой Рацион</h1>
-            <p class="text-slate-500 font-medium mt-1">Персональный план на неделю на основе AI</p>
+            <p class="text-slate-500 font-medium mt-1">Персональный План на неделю на основе AI</p>
         </div>
 
-        <button @onclick="GenerateMealPlanAsync" disabled="@isGenerating"
-                class="flex items-center gap-3 bg-slate-900 hover:bg-indigo-600 text-white px-8 py-4 rounded-2xl font-bold transition-all transform hover:-translate-y-1 shadow-xl disabled:opacity-50 disabled:cursor-not-allowed">
-            @if (isGenerating)
+        <div class="flex flex-wrap gap-3 w-full md:w-auto">
+            @if (mealPlanDays.Any())
             {
-                <div class="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                <span>Генерация...</span>
+                <button @onclick="OpenShoppingListPreview"
+                        class="flex items-center gap-3 bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 text-indigo-700 px-6 py-4 rounded-2xl font-bold transition-all shadow-sm">
+                    <i class="fas fa-shopping-basket"></i>
+                    <span>Список покупок</span>
+                </button>
             }
-            else
-            {
-                <i class="fas fa-bolt"></i>
-                <span>Обновить меню</span>
-            }
-        </button>
+
+            <button @onclick="GenerateMealPlanAsync" disabled="@(isGenerating || isReplacing)"
+                    class="flex items-center gap-3 bg-slate-900 hover:bg-indigo-600 text-white px-8 py-4 rounded-2xl font-bold transition-all transform hover:-translate-y-1 shadow-xl disabled:opacity-50 disabled:cursor-not-allowed">
+                @if (isGenerating)
+                {
+                    <div class="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                    <span>Формирование меню...</span>
+                }
+                else
+                {
+                    <i class="fas fa-bolt"></i>
+                    <span>Обновить меню</span>
+                }
+            </button>
+        </div>
     </header>
 
     <div class="grid grid-cols-1 lg:grid-cols-[380px_1fr] gap-8 items-start">
         <aside class="space-y-6">
-            <div class="bento-card p-8">
+            <div class="bento-card p-8 bg-white border border-slate-100 rounded-3xl shadow-sm">
                 <div class="flex justify-between items-center mb-6">
                     <span class="text-xs font-black uppercase tracking-widest text-slate-400">Дневная цель</span>
                     <div class="w-10 h-10 bg-orange-50 text-orange-500 rounded-full flex items-center justify-center shadow-sm">
@@ -80,32 +106,68 @@
                 </div>
             </div>
 
-            <div class="bento-card p-8">
-                <h3 class="text-lg font-black text-slate-800 mb-6">Параметры</h3>
-                <div class="grid grid-cols-2 gap-4 mb-6">
+            <div class="bento-card p-8 bg-white border border-slate-100 rounded-3xl shadow-sm space-y-4">
+                <h3 class="text-lg font-black text-slate-800">Параметры</h3>
+
+                <div class="grid grid-cols-2 gap-4">
                     <div class="space-y-2">
                         <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Вес (кг)</label>
-                        <input type="number" @bind-value="profile.Weight" @bind-value:event="oninput" @onchange="CalculateTargets"
+                        <input type="number" min="30" max="250"
+                               @bind-value="profile.Weight"
+                               @bind-value:after="OnParametersChangedAsync"
                                class="w-full bg-slate-50 border-2 border-transparent focus:border-indigo-500 focus:bg-white rounded-xl p-3 font-bold outline-none transition-all" />
                     </div>
                     <div class="space-y-2">
                         <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Рост (см)</label>
-                        <input type="number" @bind-value="profile.Height" @bind-value:event="oninput" @onchange="CalculateTargets"
+                        <input type="number" min="100" max="250"
+                               @bind-value="profile.Height"
+                               @bind-value:after="OnParametersChangedAsync"
                                class="w-full bg-slate-50 border-2 border-transparent focus:border-indigo-500 focus:bg-white rounded-xl p-3 font-bold outline-none transition-all" />
                     </div>
                 </div>
 
-                <div class="flex bg-slate-100 p-1 rounded-xl">
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="space-y-2">
+                        <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Пол</label>
+                        <select @bind="profile.Gender" @bind:after="OnParametersChangedAsync"
+                                class="w-full bg-slate-50 border-2 border-transparent focus:border-indigo-500 focus:bg-white rounded-xl p-3 font-bold text-xs outline-none transition-all">
+                            <option value="@Gender.Male">Мужской</option>
+                            <option value="@Gender.Female">Женский</option>
+                        </select>
+                    </div>
+                    <div class="space-y-2">
+                        <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Активность</label>
+                        <select @bind="profile.ActivityLevel" @bind:after="OnParametersChangedAsync"
+                                class="w-full bg-slate-50 border-2 border-transparent focus:border-indigo-500 focus:bg-white rounded-xl p-3 font-bold text-xs outline-none transition-all">
+                            <option value="@ActivityLevel.Low">Низкая</option>
+                            <option value="@ActivityLevel.Medium">Средняя</option>
+                            <option value="@ActivityLevel.High">Высокая</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="space-y-2">
+                    <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Период плана</label>
+                    <select @bind="generationDays"
+                            class="w-full bg-slate-50 border-2 border-transparent focus:border-indigo-500 focus:bg-white rounded-xl p-3 font-bold text-sm outline-none transition-all">
+                        <option value="1">1 день</option>
+                        <option value="3">3 дня</option>
+                        <option value="5">5 дней</option>
+                        <option value="7">7 дней</option>
+                    </select>
+                </div>
+
+                <div class="flex bg-slate-100 p-1 rounded-xl pt-2">
                     <button class="flex-1 py-2 rounded-lg text-xs font-bold transition-all @(selectedGoal == GoalType.LoseWeight ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500")"
-                            @onclick="() => SetGoal(GoalType.LoseWeight)">
+                            @onclick="() => SetGoalAsync(GoalType.LoseWeight)">
                         Сброс
                     </button>
                     <button class="flex-1 py-2 rounded-lg text-xs font-bold transition-all @(selectedGoal == GoalType.Maintain ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500")"
-                            @onclick="() => SetGoal(GoalType.Maintain)">
+                            @onclick="() => SetGoalAsync(GoalType.Maintain)">
                         Баланс
                     </button>
                     <button class="flex-1 py-2 rounded-lg text-xs font-bold transition-all @(selectedGoal == GoalType.GainWeight ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500")"
-                            @onclick="() => SetGoal(GoalType.GainWeight)">
+                            @onclick="() => SetGoalAsync(GoalType.GainWeight)">
                         Набор
                     </button>
                 </div>
@@ -119,10 +181,8 @@
                     @foreach (var day in mealPlanDays)
                     {
                         <div class="bg-white rounded-[2.5rem] border border-slate-200 shadow-sm overflow-hidden transition-all duration-300 @(day.IsExpanded ? "ring-2 ring-indigo-500/20 shadow-md" : "")">
-
                             <button @onclick="() => ToggleDay(day)"
                                     class="w-full p-8 flex justify-between items-center transition-all outline-none text-left @(day.IsExpanded ? "bg-slate-50/50" : "hover:bg-slate-50/20")">
-
                                 <div class="flex items-center gap-6">
                                     <div class="w-14 h-14 rounded-2xl flex items-center justify-center font-black text-xl transition-all shadow-inner @(day.IsExpanded ? "bg-indigo-600 text-white" : "bg-white text-slate-300 border border-slate-100")">
                                         @day.Date.Day
@@ -148,13 +208,13 @@
                                 </div>
                             </button>
 
-                            <div class="transition-all duration-500 ease-in-out overflow-hidden @(day.IsExpanded ? "max-h-[3000px] opacity-100 border-t border-slate-100" : "max-h-0 opacity-0 pointer-events-none")">
+                            <div class="transition-all duration-500 ease-in-out overflow-hidden @(day.IsExpanded ? "max-h-[4000px] opacity-100 border-t border-slate-100" : "max-h-0 opacity-0 pointer-events-none")">
                                 <div class="p-8 grid grid-cols-1 md:grid-cols-2 gap-4 bg-white">
                                     @foreach (var meal in day.Meals)
                                     {
-                                        <div class="bg-slate-50/50 rounded-[2rem] p-8 border border-slate-100/50 hover:bg-white hover:shadow-2xl hover:shadow-indigo-500/5 transition-all duration-500 group flex flex-col justify-between">
+                                        <div class="bg-slate-50/50 rounded-[2rem] p-8 border border-slate-100/50 hover:bg-white hover:shadow-2xl hover:shadow-indigo-500/5 transition-all duration-500 group flex flex-col justify-between relative">
                                             <div>
-                                                <div class="flex justify-between items-start mb-6">
+                                                <div class="flex justify-between items-start mb-4">
                                                     <div>
                                                         <span class="text-[10px] font-black uppercase tracking-wider text-indigo-500 mb-1 block">
                                                             @TranslateMealType(meal.MealType)
@@ -169,6 +229,13 @@
                                                     </div>
                                                 </div>
 
+                                                <div class="mb-4">
+                                                    <button type="button" @onclick="() => ReplaceMealAsync(meal)" disabled="@(isGenerating || isReplacing)"
+                                                            class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 text-xs font-bold rounded-xl border border-amber-200 transition-colors disabled:opacity-50">
+                                                        <i class="fas fa-redo-alt text-[10px]"></i> Заменить блюдо
+                                                    </button>
+                                                </div>
+
                                                 @{
                                                     double totalMacros = meal.Proteins + meal.Fats + meal.Carbs;
                                                     string pWidth = totalMacros > 0 ? $"{(meal.Proteins * 100 / totalMacros).ToString("0.0", CultureInfo.InvariantCulture)}%" : "33.3%";
@@ -176,24 +243,24 @@
                                                     string cWidth = totalMacros > 0 ? $"{(meal.Carbs * 100 / totalMacros).ToString("0.0", CultureInfo.InvariantCulture)}%" : "33.3%";
                                                 }
 
-                                                <div class="flex gap-1 h-1.5 rounded-full overflow-hidden bg-slate-200 mb-6">
+                                                <div class="flex gap-1 h-1.5 rounded-full overflow-hidden bg-slate-200 mb-4">
                                                     <div class="h-full bg-indigo-400 transition-all" style="width: @pWidth" title="Белки"></div>
                                                     <div class="h-full bg-amber-400 transition-all" style="width: @fWidth" title="Жиры"></div>
                                                     <div class="h-full bg-emerald-400 transition-all" style="width: @cWidth" title="Углеводы"></div>
                                                 </div>
 
                                                 <div class="grid grid-cols-3 gap-2 @(meal.Ingredients.Any() ? "mb-6" : "mb-2")">
-                                                    <div>
-                                                        <div class="text-[9px] font-black uppercase text-slate-400 mb-0.5">Белки</div>
-                                                        <div class="text-xs font-bold text-slate-800">@meal.Proteins г</div>
+                                                    <div class="p-2 bg-indigo-50/70 border border-indigo-100/40 rounded-xl text-center shadow-sm">
+                                                        <div class="text-[9px] font-black uppercase text-indigo-500 mb-0.5">Белки</div>
+                                                        <div class="text-xs font-black text-indigo-700">@meal.Proteins г</div>
                                                     </div>
-                                                    <div>
-                                                        <div class="text-[9px] font-black uppercase text-slate-400 mb-0.5">Жиры</div>
-                                                        <div class="text-xs font-bold text-slate-800">@meal.Fats г</div>
+                                                    <div class="p-2 bg-amber-50/70 border border-amber-100/40 rounded-xl text-center shadow-sm">
+                                                        <div class="text-[9px] font-black uppercase text-amber-500 mb-0.5">Жиры</div>
+                                                        <div class="text-xs font-black text-amber-700">@meal.Fats г</div>
                                                     </div>
-                                                    <div>
-                                                        <div class="text-[9px] font-black uppercase text-slate-400 mb-0.5">Углев.</div>
-                                                        <div class="text-xs font-bold text-slate-800">@meal.Carbs г</div>
+                                                    <div class="p-2 bg-emerald-50/70 border border-emerald-100/40 rounded-xl text-center shadow-sm">
+                                                        <div class="text-[9px] font-black uppercase text-emerald-500 mb-0.5">Углев.</div>
+                                                        <div class="text-xs font-black text-emerald-700">@meal.Carbs г</div>
                                                     </div>
                                                 </div>
                                             </div>
@@ -214,7 +281,6 @@
                                     }
                                 </div>
                             </div>
-
                         </div>
                     }
                 </div>
@@ -222,8 +288,7 @@
             else
             {
                 <div class="flex flex-col items-center justify-center p-20 bg-white border-2 border-dashed border-slate-200 rounded-[3rem] text-center">
-                    <div class="text-6xl mb-6">🥗</div>
-                    <h3 class="text-2xl font-black text-slate-800 mb-2">Ваш план готов к созданию</h3>
+                    <h3 class="text-2xl font-black text-slate-800 mb-2">Ваш План готов к созданию</h3>
                     <p class="text-slate-400 font-medium max-w-xs">Настройте параметры слева и нажмите кнопку генерации для получения меню.</p>
                 </div>
             }
@@ -231,43 +296,178 @@
     </div>
 </div>
 
+@if (showShoppingList)
+{
+    <div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
+        <div class="bg-white rounded-[2rem] max-w-xl w-full max-h-[80vh] flex flex-col shadow-2xl overflow-hidden border border-slate-100">
+            <div class="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                <div class="flex items-center gap-3">
+                    <span class="text-2xl">🛒</span>
+                    <h2 class="text-xl font-black text-slate-800">Выбор продуктов для покупки</h2>
+                </div>
+                <button @onclick="() => showShoppingList = false" class="w-8 h-8 rounded-full bg-slate-200 hover:bg-slate-300 text-slate-600 flex items-center justify-center transition-colors">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <div class="p-6 overflow-y-auto flex-1 space-y-2">
+                @if (!shoppingList.Any())
+                {
+                    <p class="text-slate-400 text-center py-8">Вы удалили все продукты из списка.</p>
+                }
+                else
+                {
+                    @foreach (var item in shoppingList)
+                    {
+                        <div class="flex items-center justify-between p-3 hover:bg-slate-50 rounded-xl transition-colors border border-transparent hover:border-slate-100 group select-none">
+                            <label class="flex items-center gap-3 flex-1 cursor-pointer">
+                                <input type="checkbox" @bind="item.IsChecked" class="w-5 h-5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 transition-all" />
+                                <span class="font-bold text-sm @(item.IsChecked ? "line-through text-slate-400 font-medium" : "text-slate-700")">@item.Name</span>
+                            </label>
+                            <div class="flex items-center gap-4">
+                                <span class="text-xs font-black px-3 py-1 bg-slate-100 rounded-lg text-slate-600 @(item.IsChecked ? "bg-slate-50 text-slate-400" : "")">
+                                    @item.Quantity.ToString("G", RuCulture) @item.Unit
+                                </span>
+                                <button @onclick="() => RemoveFromShoppingList(item)" class="text-slate-300 hover:text-red-500 transition-colors p-1" title="Исключить из списка">
+                                    <i class="fas fa-trash-alt text-sm"></i>
+                                </button>
+                            </div>
+                        </div>
+                    }
+                }
+            </div>
+
+            <div class="p-6 border-t border-slate-100 bg-slate-50 flex justify-between gap-3">
+                <button @onclick="() => showShoppingList = false" class="bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold px-6 py-3 rounded-xl text-sm transition-colors shadow-sm">
+                    Отмена
+                </button>
+                <button @onclick="CreateShoppingListAsync" disabled="@(!shoppingList.Any() || isSavingList)" class="bg-slate-900 hover:bg-slate-800 text-white font-bold px-6 py-3 rounded-xl text-sm transition-colors shadow-sm disabled:opacity-50">
+                    @if (isSavingList)
+                    {
+                        <span>Сохранение...</span>
+                    }
+                    else
+                    {
+                        <span>Сохранить список покупок</span>
+                    }
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@if (isModalVisible)
+{
+    <div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-fade-in">
+        <div class="bg-white rounded-[2rem] max-w-md w-full p-8 shadow-2xl overflow-hidden border border-slate-100 flex flex-col items-center text-center relative transform transition-all scale-100">
+            <div class="@(modalTitle.Contains("Ошибка") || modalTitle.Contains("Нет") || modalTitle.Contains("некорректно") ? "bg-red-50 text-red-500" : "bg-emerald-50 text-emerald-500") w-16 h-16 rounded-2xl flex items-center justify-center text-2xl mb-4 shadow-inner">
+                @if (modalTitle.Contains("Ошибка") || modalTitle.Contains("Нет") || modalTitle.Contains("некорректно"))
+                {
+                    <i class="fas fa-exclamation-triangle"></i>
+                }
+                else
+                {
+                    <i class="fas fa-check-circle"></i>
+                }
+            </div>
+            <h3 class="text-xl font-black text-slate-800 mb-2 tracking-tight">@modalTitle</h3>
+            <p class="text-slate-500 font-medium text-sm leading-relaxed mb-6 whitespace-pre-line">@modalMessage</p>
+            <button @onclick="CloseModal"
+                    class="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-3.5 px-6 rounded-xl text-sm transition-colors shadow-sm focus:outline-none">
+                Понятно
+            </button>
+        </div>
+    </div>
+}
+
 @code {
     private static readonly CultureInfo RuCulture = CultureInfo.GetCultureInfo("ru-RU");
     private bool isGenerating = false;
+    private bool isReplacing = false;
+    private bool isSavingList = false; // Блокиратор для кнопки сохранения
+    private string errorMessage = string.Empty;
     private UserProfile profile = new() { Weight = 75, Height = 180, Age = 30, Gender = Gender.Male, ActivityLevel = ActivityLevel.Medium };
     private GoalType selectedGoal = GoalType.Maintain;
     private int targetCalories, targetProteins, targetFats, targetCarbs;
+    private int generationDays = 7;
     private List<MealPlanDay> mealPlanDays = new();
+    private List<ShoppingItemDto> shoppingList = new();
+    private bool showShoppingList = false;
+    private int _lastCreatedShoppingListId;
+    private bool isModalVisible = false;
+    private string modalTitle = string.Empty;
+    private string modalMessage = string.Empty;
 
     protected override async Task OnInitializedAsync()
     {
-        await using var context = await DbContextFactory.CreateDbContextAsync();
-        var user = await context.Users.Include(x => x.Profile).FirstOrDefaultAsync(x => x.Id == AuthService.CurrentUserId);
-        if (user?.Profile != null) { profile = user.Profile; selectedGoal = profile.Goal; }
-        CalculateTargets();
-        await LoadExistingPlan();
+        try
+        {
+            await using var context = await DbContextFactory.CreateDbContextAsync();
+            var user = await context.Users.Include(x => x.Profile).FirstOrDefaultAsync(x => x.Id == AuthService.CurrentUserId);
+            if (user?.Profile != null)
+            {
+                profile = user.Profile;
+                selectedGoal = profile.Goal;
+            }
+            CalculateTargets();
+            await LoadExistingPlan();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Ошибка загрузки профиля: {ex.Message}";
+        }
     }
 
     private void CalculateTargets()
     {
-        double baseMetabolism = (10 * profile.Weight) + (6.25 * profile.Height) - (5 * profile.Age);
-        baseMetabolism = profile.Gender == Gender.Male ? baseMetabolism + 5 : baseMetabolism - 161;
-        double multiplier = profile.ActivityLevel switch { ActivityLevel.Low => 1.2, ActivityLevel.Medium => 1.55, ActivityLevel.High => 1.725, _ => 1.2 };
-        double calories = baseMetabolism * multiplier;
-        calories = selectedGoal switch { GoalType.LoseWeight => calories * 0.85, GoalType.GainWeight => calories * 1.15, _ => calories };
-        targetCalories = (int)calories;
-        targetProteins = (int)(calories * 0.30 / 4);
-        targetFats = (int)(calories * 0.25 / 9);
-        targetCarbs = (int)(calories * 0.45 / 4);
+        var targets = NutritionService.CalculateTargets(profile);
+        targetCalories = targets.Calories;
+        targetProteins = targets.Proteins;
+        targetFats = targets.Fats;
+        targetCarbs = targets.Carbs;
         StateHasChanged();
     }
 
-    private void SetGoal(GoalType goal) { selectedGoal = goal; profile.Goal = goal; CalculateTargets(); }
+    private async Task OnParametersChangedAsync()
+    {
+        if (profile.Weight < 30 || profile.Height < 100) return;
+        CalculateTargets();
+        await SaveProfileToDbAsync();
+    }
+
+    private async Task SetGoalAsync(GoalType goal)
+    {
+        selectedGoal = goal;
+        profile.Goal = goal;
+        CalculateTargets();
+        await SaveProfileToDbAsync();
+    }
+
+    private async Task SaveProfileToDbAsync()
+    {
+        try
+        {
+            await using var context = await DbContextFactory.CreateDbContextAsync();
+            var dbUser = await context.Users.Include(x => x.Profile).FirstOrDefaultAsync(x => x.Id == AuthService.CurrentUserId);
+            if (dbUser?.Profile != null)
+            {
+                dbUser.Profile.Weight = profile.Weight;
+                dbUser.Profile.Height = profile.Height;
+                dbUser.Profile.Goal = selectedGoal;
+                dbUser.Profile.Gender = profile.Gender;
+                dbUser.Profile.ActivityLevel = profile.ActivityLevel;
+                await context.SaveChangesAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Не удалось сохранить параметры: {ex.Message}";
+        }
+    }
 
     private async Task LoadExistingPlan()
     {
         await using var context = await DbContextFactory.CreateDbContextAsync();
-
         var latestPlan = await context.MealPlans
             .Include(x => x.Items)
                 .ThenInclude(x => x.Recipe)
@@ -277,12 +477,12 @@
                 .ThenInclude(x => x.Recipe)
                     .ThenInclude(r => r.RecipeIngredients)
                         .ThenInclude(ri => ri.Unit)
+            .AsSplitQuery() // <-- КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Предотвращает размножение и дубликаты из-за декартова произведения
             .Where(x => x.UserId == AuthService.CurrentUserId)
             .OrderByDescending(x => x.CreatedAt)
             .FirstOrDefaultAsync();
 
         if (latestPlan == null) return;
-
         mealPlanDays = latestPlan.Items
             .GroupBy(x => x.Date.Date)
             .OrderBy(x => x.Key)
@@ -290,49 +490,403 @@
                 {
                     Date = g.Key,
                     IsExpanded = g.Key == DateTime.Today,
-                    Meals = g.Select(m => new MealPlanMeal
-                    {
-                        Title = m.Recipe?.Title ?? "Полезный перекус",
-                        MealType = m.MealType.ToString(),
-                        Calories = m.Calories,
-                        Proteins = m.Proteins,
-                        Fats = m.Fats,
-                        Carbs = m.Carbs,
-                        Ingredients = m.Recipe?.RecipeIngredients.Select(ri => new MealIngredientDto
-                        {
-                        // Предполагается, что в классе Product есть свойство Name или Title. Подставьте нужное:
-                            Name = ri.Product?.Name ?? "Ингредиент",
-                            Quantity = ri.Quantity,
-                        // Предполагается, что в классе Unit есть свойство Name или Сокращение (например, "г", "шт")
-                            Unit = ri.Unit?.Name ?? "г"
-                        }).ToList() ?? new List<MealIngredientDto>()
-                    }).ToList()
+                    Meals = g.Select(m =>
+                {
+                            int p = m.Proteins != 0 ? m.Proteins : (int)(m.Recipe?.RecipeIngredients.Sum(ri => (ri.Product?.Proteins ?? 0) * ((ri.Quantity == 0 ? 100 : ri.Quantity) / 100.0)) ?? 0);
+                            int f = m.Fats != 0 ? m.Fats : (int)(m.Recipe?.RecipeIngredients.Sum(ri => (ri.Product?.Fats ?? 0) * ((ri.Quantity == 0 ? 100 : ri.Quantity) / 100.0)) ?? 0);
+                            int c = m.Carbs != 0 ? m.Carbs : (int)(m.Recipe?.RecipeIngredients.Sum(ri => (ri.Product?.Carbohydrates ?? 0) * ((ri.Quantity == 0 ? 100 : ri.Quantity) / 100.0)) ?? 0);
+                            int cal = m.Calories != 0 ? m.Calories : (int)(m.Recipe?.RecipeIngredients.Sum(ri => (ri.Product?.Calories ?? 0) * ((ri.Quantity == 0 ? 100 : ri.Quantity) / 100.0)) ?? 0);
+
+                            return new MealPlanMeal
+                            {
+                                MealPlanItemId = m.Id,
+                                Title = m.Recipe?.Title ?? "Полезный перекус",
+                                MealType = m.MealType.ToString(),
+                                Calories = cal,
+                                Proteins = p,
+                                Fats = f,
+                                Carbs = c,
+                                Recipe = m.Recipe,
+                                Ingredients = m.Recipe?.RecipeIngredients.Select(ri => new MealIngredientDto
+                                {
+                                    Name = ri.Product?.Name ?? "Ингредиент",
+                                    Quantity = (double)ri.Quantity,
+                                    Unit = ri.Unit?.Name ?? "г"
+                                }).ToList() ?? new List<MealIngredientDto>()
+                            };
+                        }).ToList()
                 }).ToList();
     }
 
-    private async Task GenerateMealPlanAsync() { isGenerating = true; await Task.Delay(2000); await LoadExistingPlan(); isGenerating = false; }
-
-    private void ToggleDay(MealPlanDay day)
+    private async Task GenerateMealPlanAsync()
     {
-        if (day.IsExpanded)
+        if (profile.Weight < 30 || profile.Height < 100)
         {
-            day.IsExpanded = false;
+            errorMessage = "Укажите корректные параметры веса и роста перед генерацией.";
+            return;
         }
-        else
+
+        isGenerating = true;
+        errorMessage = string.Empty;
+        StateHasChanged();
+        try
         {
-            foreach (var d in mealPlanDays)
+            await SaveProfileToDbAsync();
+            var planStructure = await GigaChatAI.GenerateMealPlanStructureAsync(profile, generationDays, selectedGoal);
+
+            if (planStructure == null || planStructure.Days == null || !planStructure.Days.Any())
             {
-                d.IsExpanded = false;
+                errorMessage = "Нейросеть вернула пустой ответ. Попробуйте еще раз.";
+                return;
             }
-            day.IsExpanded = true;
+
+            await using var context = await DbContextFactory.CreateDbContextAsync();
+            var planName = $"План питания от {DateTime.Today:dd.MM.yyyy}";
+
+            // УДАЛЕНИЕ СТАРОГО ПЛАНА за тот же день (чтобы база не копила 10 одинаковых планов)
+            var oldPlans = await context.MealPlans.Where(p => p.UserId == AuthService.CurrentUserId && p.Name == planName).ToListAsync();
+            if (oldPlans.Any())
+            {
+                context.MealPlans.RemoveRange(oldPlans);
+            }
+
+            var newPlan = new Models.MealPlan
+                {
+                    UserId = AuthService.CurrentUserId,
+                    CreatedAt = DateTime.UtcNow,
+                    Name = planName,
+                    Items = new List<MealPlanItem>()
+                };
+            var categoryCache = new Dictionary<string, Category>();
+            var unitCache = new Dictionary<string, Unit>();
+
+            DateTime startingDate = DateTime.Today;
+            for (int dayIndex = 0; dayIndex < generationDays; dayIndex++)
+            {
+                if (dayIndex >= planStructure.Days.Count) break;
+                var currentAiDay = planStructure.Days[dayIndex];
+                if (currentAiDay?.Meals == null) continue;
+
+                var targetDate = startingDate.AddDays(dayIndex);
+                foreach (var aiMeal in currentAiDay.Meals)
+                {
+                    var recipe = new Recipe
+                        {
+                            Title = aiMeal.Title,
+                            Description = aiMeal.Description ?? "",
+                            Instructions = aiMeal.Instructions != null ? string.Join("\n", aiMeal.Instructions) : "Приготовьте согласно рецепту.",
+                            RecipeIngredients = new List<RecipeIngredient>()
+                        };
+                    foreach (var aiIng in aiMeal.Ingredients)
+                    {
+                        var catKey = (aiIng.Category ?? "Разное").Trim().ToLower();
+                        if (!categoryCache.TryGetValue(catKey, out var dbCategory))
+                        {
+                            dbCategory = await context.Set<Category>().FirstOrDefaultAsync(c => c.Name.ToLower() == catKey) ?? new Category { Name = aiIng.Category ?? "Разное" };
+                            categoryCache[catKey] = dbCategory;
+                        }
+
+                        var unitKey = (aiIng.Unit ?? "г").Trim().ToLower();
+                        if (!unitCache.TryGetValue(unitKey, out var dbUnit))
+                        {
+                            dbUnit = await context.Set<Unit>().FirstOrDefaultAsync(u => u.Name.ToLower() == unitKey) ?? new Unit { Name = aiIng.Unit ?? "г" };
+                            unitCache[unitKey] = dbUnit;
+                        }
+
+                        var prodKey = aiIng.Name.Trim().ToLower();
+                        var dbProduct = await context.Products.FirstOrDefaultAsync(p => p.Name.ToLower() == prodKey);
+                        if (dbProduct == null)
+                        {
+                            dbProduct = new Product
+                                {
+                                    Name = aiIng.Name,
+                                    Category = dbCategory,
+                                    Unit = dbUnit,
+                                    Proteins = aiIng.Proteins,
+                                    Fats = aiIng.Fats,
+                                    Carbohydrates = aiIng.Carbs,
+                                    Calories = aiIng.Calories,
+                                    IsPieceBased = false
+                                };
+                            context.Products.Add(dbProduct);
+                        }
+
+                        recipe.RecipeIngredients.Add(new RecipeIngredient { Product = dbProduct, Quantity = (double)aiIng.Quantity, Unit = dbUnit });
+                    }
+
+                    int mealProteins = aiMeal.Proteins != 0 ? aiMeal.Proteins : (int)aiMeal.Ingredients.Sum(i => i.Proteins);
+                    int mealFats = aiMeal.Fats != 0 ? aiMeal.Fats : (int)aiMeal.Ingredients.Sum(i => i.Fats);
+                    int mealCarbs = aiMeal.Carbs != 0 ? aiMeal.Carbs : (int)aiMeal.Ingredients.Sum(i => i.Carbs);
+                    int mealCalories = aiMeal.Calories != 0 ? aiMeal.Calories : (int)aiMeal.Ingredients.Sum(i => i.Calories);
+
+                    var planItem = new Models.MealPlanItem
+                        {
+                            Date = targetDate,
+                            Calories = mealCalories,
+                            Proteins = mealProteins,
+                            Fats = mealFats,
+                            Carbs = mealCarbs,
+                            Recipe = recipe,
+                            MealType = Enum.TryParse<MealType>(aiMeal.MealType, true, out var parsedEnum) ? parsedEnum : MealType.Snack
+                        };
+                    newPlan.Items.Add(planItem);
+                }
+            }
+
+            context.MealPlans.Add(newPlan);
+            await context.SaveChangesAsync();
+            await LoadExistingPlan();
+            ShowModal("Успех!", "Новое меню успешно сформировано.");
+        }
+        catch (Newtonsoft.Json.JsonReaderException)
+        {
+            ShowModal("Ошибка формата AI", "Нейросеть передала некорректно оформленный ответ из-за перегрузки. Рекомендуем выбрать меньший период (1-3 дня) и повторить попытку.");
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Критическая ошибка генерации: {ex.Message}";
+        }
+        finally
+        {
+            isGenerating = false;
+            StateHasChanged();
         }
     }
 
-    public class MealPlanDay
+    private void OpenShoppingListPreview()
     {
-        public DateTime Date { get; set; }
-        public bool IsExpanded { get; set; }
-        public List<MealPlanMeal> Meals { get; set; } = new();
+        if (!mealPlanDays.Any())
+        {
+            ShowModal("Нет плана", "Сначала сгенерируйте план питания.");
+            return;
+        }
+        GenerateShoppingList();
+    }
+
+    private void GenerateShoppingList()
+    {
+        shoppingList = mealPlanDays
+            .SelectMany(d => d.Meals)
+            .SelectMany(m => m.Ingredients)
+            .GroupBy(i => new { Name = i.Name.Trim(), Unit = i.Unit.Trim().ToLower() })
+            .Select(g => new ShoppingItemDto
+                {
+                    Name = CultureInfo.CurrentCulture.TextInfo.ToTitleCase(g.Key.Name.ToLower()),
+                    Unit = g.First().Unit,
+                    Quantity = g.Sum(x => x.Quantity),
+                    IsChecked = false
+                })
+            .OrderBy(x => x.Name)
+            .ToList();
+        showShoppingList = true;
+    }
+
+    private void RemoveFromShoppingList(ShoppingItemDto item)
+    {
+        shoppingList.Remove(item);
+    }
+
+    private async Task CreateShoppingListAsync()
+    {
+        if (!shoppingList.Any() || isSavingList) return;
+
+        isSavingList = true; // Блокируем кнопку от спама кликами
+        StateHasChanged();
+
+        try
+        {
+            await using var context = await DbContextFactory.CreateDbContextAsync();
+            var listName = $"План питания от {DateTime.Today:dd.MM.yyyy}";
+
+            // УДАЛЕНИЕ ДУБЛИКАТОВ: если пользователь уже сохранял список с таким именем, стираем его
+            var existingLists = await context.Set<Models.ShoppingList>()
+                .Where(sl => sl.UserId == AuthService.CurrentUserId && sl.Name == listName)
+                .ToListAsync();
+
+            if (existingLists.Any())
+            {
+                context.Set<Models.ShoppingList>().RemoveRange(existingLists);
+                await context.SaveChangesAsync(); // Применяем удаление перед созданием нового
+            }
+
+            var shoppingListModel = new Models.ShoppingList
+                {
+                    UserId = AuthService.CurrentUserId,
+                    Name = listName,
+                    CreatedAt = DateTime.UtcNow,
+                    IsCompleted = false
+                };
+
+            context.Set<Models.ShoppingList>().Add(shoppingListModel);
+            await context.SaveChangesAsync();
+
+            foreach (var item in shoppingList)
+            {
+                var nameLower = item.Name.Trim().ToLower();
+                var dbProduct = await context.Products.FirstOrDefaultAsync(p => p.Name.ToLower() == nameLower);
+                if (dbProduct == null)
+                {
+                    var dbUnit = await context.Set<Unit>().FirstOrDefaultAsync(u => u.Name.ToLower() == item.Unit.ToLower()) ?? new Unit { Name = item.Unit };
+                    var dbCategory = await context.Set<Category>().FirstOrDefaultAsync(c => c.Name.ToLower() == "разное") ?? new Category { Name = "Разное" };
+
+                    dbProduct = new Product
+                        {
+                            Name = item.Name,
+                            Category = dbCategory,
+                            Unit = dbUnit,
+                            IsPieceBased = false
+                        };
+                    context.Products.Add(dbProduct);
+                    await context.SaveChangesAsync();
+                }
+
+                var shoppingItem = new ShoppingListItem
+                    {
+                        ShoppingListId = shoppingListModel.Id,
+                        ProductId = dbProduct.Id,
+                        Quantity = Math.Round(item.Quantity, 1),
+                        IsPurchased = item.IsChecked
+                    };
+                context.Set<ShoppingListItem>().Add(shoppingItem);
+            }
+
+            await context.SaveChangesAsync();
+            _lastCreatedShoppingListId = shoppingListModel.Id;
+            showShoppingList = false;
+
+            ShowModal("Успешно сохранено!", $"Ваш настроенный список покупок перезаписан в базу данных. Позиций: {shoppingList.Count}.");
+        }
+        catch (Exception ex)
+        {
+            ShowModal("Ошибка сохранения", $"Не удалось сохранить: {ex.Message}");
+        }
+        finally
+        {
+            isSavingList = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task ReplaceMealAsync(MealPlanMeal meal)
+    {
+        if (isGenerating || isReplacing) return;
+        isReplacing = true;
+        errorMessage = string.Empty;
+        StateHasChanged();
+
+        try
+        {
+            var singleDayPlan = await GigaChatAI.GenerateMealPlanStructureAsync(profile, 1, selectedGoal);
+            if (singleDayPlan?.Days == null || !singleDayPlan.Days.Any())
+            {
+                errorMessage = "Нейросеть не смогла сгенерировать замену.";
+                return;
+            }
+
+            var matchingAiMeal = singleDayPlan.Days[0].Meals
+                .FirstOrDefault(m => m.MealType.Equals(meal.MealType, StringComparison.OrdinalIgnoreCase))
+                ?? singleDayPlan.Days[0].Meals.FirstOrDefault();
+
+            if (matchingAiMeal == null)
+            {
+                errorMessage = "Подходящее блюдо для замены не найдено.";
+                return;
+            }
+
+            await using var context = await DbContextFactory.CreateDbContextAsync();
+            var dbItem = await context.Set<MealPlanItem>().Include(i => i.Recipe).FirstOrDefaultAsync(i => i.Id == meal.MealPlanItemId);
+
+            if (dbItem == null)
+            {
+                errorMessage = "Элемент рациона не найден в базе данных.";
+                return;
+            }
+
+            var newRecipe = new Recipe
+                {
+                    Title = matchingAiMeal.Title,
+                    Description = matchingAiMeal.Description ?? "",
+                    Instructions = matchingAiMeal.Instructions != null ? string.Join("\n", matchingAiMeal.Instructions) : "Приготовьте по рецепту.",
+                    RecipeIngredients = new List<RecipeIngredient>()
+                };
+
+            var categoryCache = new Dictionary<string, Category>();
+            var unitCache = new Dictionary<string, Unit>();
+            foreach (var aiIng in matchingAiMeal.Ingredients)
+            {
+                var catKey = (aiIng.Category ?? "Разное").Trim().ToLower();
+                if (!categoryCache.TryGetValue(catKey, out var dbCategory))
+                {
+                    dbCategory = await context.Set<Category>().FirstOrDefaultAsync(c => c.Name.ToLower() == catKey) ?? new Category { Name = aiIng.Category ?? "Разное" };
+                    categoryCache[catKey] = dbCategory;
+                }
+
+                var unitKey = (aiIng.Unit ?? "г").Trim().ToLower();
+                if (!unitCache.TryGetValue(unitKey, out var dbUnit))
+                {
+                    dbUnit = await context.Set<Unit>().FirstOrDefaultAsync(u => u.Name.ToLower() == unitKey) ?? new Unit { Name = aiIng.Unit ?? "г" };
+                    unitCache[unitKey] = dbUnit;
+                }
+
+                var prodKey = aiIng.Name.Trim().ToLower();
+                var dbProduct = await context.Products.FirstOrDefaultAsync(p => p.Name.ToLower() == prodKey);
+                if (dbProduct == null)
+                {
+                    dbProduct = new Product
+                        {
+                            Name = aiIng.Name,
+                            Category = dbCategory,
+                            Unit = dbUnit,
+                            Proteins = aiIng.Proteins,
+                            Fats = aiIng.Fats,
+                            Carbohydrates = aiIng.Carbs,
+                            Calories = aiIng.Calories,
+                            IsPieceBased = false
+                        };
+                    context.Products.Add(dbProduct);
+                }
+
+                newRecipe.RecipeIngredients.Add(new RecipeIngredient { Product = dbProduct, Quantity = (double)aiIng.Quantity, Unit = dbUnit });
+            }
+
+            int mealProteins = matchingAiMeal.Proteins != 0 ? matchingAiMeal.Proteins : (int)matchingAiMeal.Ingredients.Sum(i => i.Proteins);
+            int mealFats = matchingAiMeal.Fats != 0 ? matchingAiMeal.Fats : (int)matchingAiMeal.Ingredients.Sum(i => i.Fats);
+            int mealCarbs = matchingAiMeal.Carbs != 0 ? matchingAiMeal.Carbs : (int)matchingAiMeal.Ingredients.Sum(i => i.Carbs);
+            int mealCalories = matchingAiMeal.Calories != 0 ? matchingAiMeal.Calories : (int)matchingAiMeal.Ingredients.Sum(i => i.Calories);
+
+            dbItem.Calories = mealCalories;
+            dbItem.Proteins = mealProteins;
+            dbItem.Fats = mealFats;
+            dbItem.Carbs = mealCarbs;
+            dbItem.Recipe = newRecipe;
+
+            await context.SaveChangesAsync();
+            await LoadExistingPlan();
+            ShowModal("Блюдо заменено", $"Новое блюдо: {matchingAiMeal.Title}");
+        }
+        catch (Newtonsoft.Json.JsonReaderException)
+        {
+            ShowModal("Ошибка AI", "Нейросеть сгенерировала некорректный синтаксический пакет. Пожалуйста, нажмите кнопку замены еще раз.");
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Ошибка при замене: {ex.Message}";
+        }
+        finally
+        {
+            isReplacing = false;
+            StateHasChanged();
+        }
+    }
+
+    private void ToggleDay(MealPlanDay day)
+    {
+        if (day.IsExpanded) day.IsExpanded = false;
+        else
+        {
+            foreach (var d in mealPlanDays) { d.IsExpanded = false; }
+            day.IsExpanded = true;
+        }
     }
 
     private string TranslateMealType(string type) => type.ToLower() switch
@@ -344,8 +898,32 @@
         _ => type
     };
 
+    private void ShowModal(string title, string message)
+    {
+        modalTitle = title;
+        modalMessage = message;
+        isModalVisible = true;
+        StateHasChanged();
+    }
+
+    private void CloseModal()
+    {
+        isModalVisible = false;
+        modalTitle = string.Empty;
+        modalMessage = string.Empty;
+        StateHasChanged();
+    }
+
+    public class MealPlanDay
+    {
+        public DateTime Date { get; set; }
+        public bool IsExpanded { get; set; }
+        public List<MealPlanMeal> Meals { get; set; } = new();
+    }
+
     public class MealPlanMeal
     {
+        public int MealPlanItemId { get; set; }
         public string Title { get; set; } = "";
         public string MealType { get; set; } = "";
         public int Calories { get; set; }
@@ -353,6 +931,7 @@
         public int Fats { get; set; }
         public int Carbs { get; set; }
         public List<MealIngredientDto> Ingredients { get; set; } = new();
+        public Recipe? Recipe { get; set; }
     }
 
     public class MealIngredientDto
@@ -360,5 +939,13 @@
         public string Name { get; set; } = "";
         public double Quantity { get; set; }
         public string Unit { get; set; } = "";
+    }
+
+    public class ShoppingItemDto
+    {
+        public string Name { get; set; } = "";
+        public double Quantity { get; set; }
+        public string Unit { get; set; } = "";
+        public bool IsChecked { get; set; }
     }
 }

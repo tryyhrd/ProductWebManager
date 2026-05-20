@@ -1,4 +1,6 @@
-﻿namespace ProductWebManager.Classes.AI;
+﻿using static ProductWebManager.Classes.AI.GigaChatHelper;
+
+namespace ProductWebManager.Classes.AI;
 
 public class MealPlanStructureDto
 {
@@ -19,4 +21,11 @@ public class MealStructureDto
     public bool IsSnack { get; set; }
 
     public int TargetCalories { get; set; }
+    public int Calories { get; set; }
+    public int Proteins { get; set; }
+    public int Fats { get; set; }
+    public int Carbs { get; set; }
+    public string Description { get; set; } = "";
+    public List<string> Instructions { get; set; } = [];
+    public List<GeneratedIngredientDto> Ingredients { get; set; } = [];
 }

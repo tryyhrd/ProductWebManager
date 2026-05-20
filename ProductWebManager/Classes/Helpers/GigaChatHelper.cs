@@ -124,7 +124,6 @@ public sealed class GigaChatHelper
                 return null;
             }
 
-            // Пост-обработка
             dto.Name = string.IsNullOrWhiteSpace(dto.Name)
                 ? $"План питания {DateTime.Now:dd.MM.yyyy}"
                 : dto.Name.Trim();
@@ -137,9 +136,8 @@ public sealed class GigaChatHelper
                     meal.Title = string.IsNullOrWhiteSpace(meal.Title) ? "Блюдо" : meal.Title.Trim();
                     meal.MealType = NormalizeMealType(meal.MealType);
 
-                    // Валидация targetCalories
                     if (meal.TargetCalories <= 0)
-                        meal.TargetCalories = targetCalories / 4; // fallback
+                        meal.TargetCalories = targetCalories / 4;
                 }
             }
 
