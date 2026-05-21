@@ -7,401 +7,137 @@
 @using Microsoft.EntityFrameworkCore
 @using ProductWebManager.Models
 
-<PageTitle>Рецепты</PageTitle>
+<PageTitle>SmartPlate AI — Рецепты</PageTitle>
 
-<div class="container-fluid p-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
+<div class="max-w-[1440px] mx-auto p-6 lg:p-10 font-sans">
+
+    <header class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-10">
         <div>
-            <h2 class="fw-bold m-0" style="color: #1a1a2e;">Рецепты</h2>
-            <small style="color: #888;">Найдите идеальное блюдо</small>
+            <h1 class="text-4xl font-black text-slate-900 tracking-tighter">Рецепты</h1>
+            <p class="text-slate-500 font-medium mt-1">Найдите идеальное блюдо для вашего рациона</p>
         </div>
-    </div>
+        <button @onclick="GoToMenu" class="flex items-center gap-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 px-6 py-3.5 rounded-2xl font-bold transition-all shadow-sm">
+            <i class="fas fa-chevron-left text-slate-400 text-xs"></i>
+            <span>Назад в меню</span>
+        </button>
+    </header>
 
-    <div class="filter-bar">
-        <div class="row g-3">
-            <div class="col-md-5">
-                <input type="text" class="form-control filter-input"
-                       placeholder="🔍 Поиск рецептов..."
+    <div class="bg-white border border-slate-100 rounded-[2.5rem] shadow-sm p-6 lg:p-8 mb-10 space-y-6">
+
+        <div class="flex flex-wrap gap-2 border-b border-slate-100 pb-4">
+            <button @onclick='() => SetFilterType("all")'
+                    class="px-5 py-2.5 rounded-xl text-sm font-bold transition-all @(activeFilter == "all" ? "bg-slate-900 text-white shadow-md" : "bg-slate-50 text-slate-600 hover:bg-slate-100")">
+                ✨ Все рецепты
+            </button>
+            <button @onclick='() => SetFilterType("favorites")'
+                    class="px-5 py-2.5 rounded-xl text-sm font-bold transition-all @(activeFilter == "favorites" ? "bg-red-50 text-red-600 border border-red-100" : "bg-slate-50 text-slate-600 hover:bg-slate-100")">
+                ❤️ Избранное (@favoriteIds.Count)
+            </button>
+            <button @onclick='() => SetFilterType("byIngredients")'
+                    class="px-5 py-2.5 rounded-xl text-sm font-bold transition-all @(activeFilter == "byIngredients" ? "bg-indigo-50 text-indigo-600 border border-indigo-100" : "bg-slate-50 text-slate-600 hover:bg-slate-100")">
+                🥑 По наличию продуктов
+            </button>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-12 gap-4">
+            <div class="md:col-span-7 relative">
+                <i class="fas fa-search absolute left-4 top-4 text-slate-400"></i>
+                <input type="text" class="w-full bg-slate-50 border-2 border-transparent focus:border-indigo-500 focus:bg-white rounded-xl pl-11 pr-4 py-3.5 font-bold text-sm outline-none transition-all placeholder-slate-400"
+                       placeholder="Поиск рецептов по названию..."
                        @bind="searchQuery"
                        @bind:event="oninput"
                        @bind:after="RefreshFilters" />
             </div>
-            <div class="col-md-2">
-                <select class="form-control filter-input" @bind="filterTime" @bind:after="RefreshFilters">
-                    <option value="0">⏱️ Время</option>
+
+            <div class="md:col-span-5">
+                <select class="w-full bg-slate-50 border-2 border-transparent focus:border-indigo-500 focus:bg-white rounded-xl px-4 py-3.5 font-bold text-sm outline-none transition-all text-slate-700"
+                        @bind="filterTime" @bind:after="RefreshFilters">
+                    <option value="0">⏱️ Любое время готовки</option>
                     <option value="15">До 15 мин</option>
                     <option value="30">До 30 мин</option>
+                    <option value="45">До 45 мин</option>
                     <option value="60">До 1 часа</option>
-                    <option value="120">До 2 часов</option>
                 </select>
             </div>
-            <div class="col-md-2">
-                <select class="form-control filter-input" @bind="filterDifficulty" @bind:after="RefreshFilters">
-                    <option value="">📊 Сложность</option>
-                    <option value="easy">Легко</option>
-                    <option value="medium">Средне</option>
-                    <option value="hard">Сложно</option>
-                </select>
-            </div>
-        </div>
-
-        <div class="d-flex gap-2 mt-3 flex-wrap">
-            <button class="btn-filter @(activeFilter == "all" ? "active" : "")" @onclick="ShowAll">Все</button>
-            <button class="btn-filter @(activeFilter == "available" ? "active" : "")" @onclick="ShowAvailable">Можно приготовить</button>
-            <button class="btn-filter @(activeFilter == "favorites" ? "active" : "")" @onclick="ShowFavorites">Избранное</button>
         </div>
     </div>
 
-    @if (filteredRecipes.Any())
+    @if (!filteredRecipes.Any())
     {
-        <div class="row">
-            @foreach (var recipe in filteredRecipes)
-            {
-                var availableCount = recipe.RecipeIngredients?.Count(ri => fridgeProductIds.Contains(ri.ProductId)) ?? 0;
-                var totalCount = recipe.RecipeIngredients?.Count ?? 0;
-                var availabilityPercent = totalCount > 0 ? (double)availableCount / totalCount * 100 : 0;
-                var availabilityColor = availabilityPercent >= 80 ? "#27ae60" : availabilityPercent >= 50 ? "#f39c12" : "#e74c3c";
-                var prepTime = (recipe.PrepTime ?? 0) + (recipe.CookTime ?? 0);
-                var isFav = favoriteIds.Contains(recipe.Id);
-
-                <div class="col-md-6 col-lg-4 col-xl-3 mb-3">
-                    <div class="recipe-card">
-                        <div class="recipe-image" style="background: @GetRecipeGradient(recipe.Id);">
-                            <div class="recipe-image-overlay">
-                                <button class="btn-favorite @(isFav ? "active" : "")"
-                                        @onclick="() => ToggleFavorite(recipe.Id)">
-                                    <span class="heart-icon">@(isFav ? "❤️" : "🤍")</span>
-                                </button>
-                                @if (prepTime > 0)
-                                {
-                                    <span class="recipe-time-badge">⏱️ @prepTime мин</span>
-                                }
-                            </div>
-                        </div>
-
-                        <div class="recipe-info">
-                            <div class="d-flex justify-content-between align-items-start mb-2">
-                                <div>
-                                    <h6 class="recipe-name">@(recipe.Title ?? "Без названия")</h6>
-                                </div>
-                                @if (prepTime <= 30 && prepTime > 0)
-                                {
-                                    <span class="difficulty-badge easy">Легко</span>
-                                }
-                                else if (prepTime <= 60)
-                                {
-                                    <span class="difficulty-badge medium">Средне</span>
-                                }
-                                else if (prepTime > 0)
-                                {
-                                    <span class="difficulty-badge hard">Сложно</span>
-                                }
-                            </div>
-                            <p class="recipe-desc">@(recipe.Description ?? "Описание отсутствует")</p>
-                            @if (totalCount > 0)
-                            {
-                                <div class="ingredients-availability mb-2">
-                                    <div class="d-flex align-items-center gap-2">
-                                        <div class="availability-bar">
-                                            <div class="availability-fill" style="width: @availabilityPercent%; background: @availabilityColor;"></div>
-                                        </div>
-                                        <span class="availability-text" style="color: @availabilityColor;">@availableCount/@totalCount есть</span>
-                                    </div>
-                                </div>
-                            }
-                            <div class="d-flex gap-2 mt-3">
-                                <button class="btn-recipe-view flex-grow-1" @onclick="() => ViewRecipe(recipe.Id)">Смотреть</button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            }
+        <div class="bg-white border border-slate-100 rounded-[2.5rem] shadow-sm p-20 text-center">
+            <div class="w-16 h-16 bg-slate-50 text-slate-400 rounded-2xl flex items-center justify-center text-2xl mx-auto mb-4 shadow-inner">
+                <i class="fas fa-cookie-bite"></i>
+            </div>
+            <h3 class="text-xl font-black text-slate-800">Ничего не найдено</h3>
+            <p class="text-slate-400 font-medium max-w-xs mx-auto mt-1">Попробуйте изменить параметры фильтров или поисковый запрос.</p>
         </div>
     }
     else
     {
-        <div class="empty-state">
-            <div class="empty-icon">📖</div>
-            <h4 style="color: #555; margin-top: 16px;">Рецепты не найдены</h4>
-            <p style="color: #999; margin-bottom: 16px;">Попробуйте изменить фильтры</p>
-            <button class="btn btn-add" @onclick="ForceReload">Обновить</button>
+        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+            @foreach (var recipe in filteredRecipes)
+            {
+                var isFav = favoriteIds.Contains(recipe.Id);
+                var totalTime = (recipe.PrepTime ?? 0) + (recipe.CookTime ?? 0);
+
+                <div @onclick="() => ViewRecipe(recipe.Id)"
+                     class="group bg-white border border-slate-100 rounded-3xl overflow-hidden shadow-sm hover:shadow-xl hover:shadow-slate-200/40 hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between relative cursor-pointer select-none">
+
+                    <button @onclick="() => ToggleFavorite(recipe.Id)" @onclick:stopPropagation="true"
+                            class="absolute top-3 right-3 z-10 w-9 h-9 rounded-full backdrop-blur-md flex items-center justify-center transition-all shadow-sm @(isFav ? "bg-red-500 text-white scale-110" : "bg-white/80 text-slate-400 hover:text-red-500 hover:bg-white")">
+                        <i class="fas fa-heart text-xs @(isFav ? "scale-105" : "")"></i>
+                    </button>
+
+                    <div>
+                        <div class="h-36 w-full overflow-hidden bg-slate-100 relative flex items-center justify-center transition-transform duration-500 group-hover:scale-[1.02]">
+                            @if (!string.IsNullOrWhiteSpace(recipe.ImageUrl))
+                            {
+                                <img src="@recipe.ImageUrl" alt="@recipe.Title" class="w-full h-full object-cover" />
+                            }
+                            else
+                            {
+                                <div class="w-full h-full opacity-85 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white/40 group-hover:text-white/60"
+                                     style="background: @GetRecipeGradient(recipe.Id)">
+                                    <i class="fas fa-utensils text-3xl transition-transform group-hover:scale-110 duration-300"></i>
+                                </div>
+                            }
+                        </div>
+
+                        <div class="p-4">
+                            <div class="flex items-center gap-1.5 text-xs font-bold text-slate-400 mb-1.5">
+                                <i class="far fa-clock"></i>
+                                <span>@totalTime мин</span>
+                            </div>
+
+                            <h3 class="font-black text-base text-slate-800 line-clamp-2 leading-tight group-hover:text-indigo-600 transition-colors mb-2" title="@recipe.Title">
+                                @recipe.Title
+                            </h3>
+
+                            <p class="text-xs text-slate-400 line-clamp-2 font-medium leading-relaxed">
+                                @(string.IsNullOrWhiteSpace(recipe.Description) ? "Рецепт содержит подробные пошаговые инструкции приготовления." : recipe.Description)
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="p-4 pt-0 flex justify-end items-center text-xs font-bold text-slate-300 group-hover:text-indigo-500 transition-colors">
+                        <span class="mr-1 opacity-0 group-hover:opacity-100 group-hover:translate-x-0 -translate-x-1 transition-all">Открыть</span>
+                        <i class="fas fa-chevron-right text-[10px]"></i>
+                    </div>
+
+                </div>
+            }
         </div>
     }
 </div>
 
-<style>
-    .btn-add {
-        padding: 8px 18px;
-        border: none;
-        border-radius: 8px;
-        background: #6c5ce7;
-        color: white;
-        font-weight: 500;
-        font-size: 13px;
-        cursor: pointer;
-        box-shadow: 0 2px 6px rgba(108, 92, 231, 0.3);
-        transition: all 0.2s;
-    }
-
-        .btn-add:hover {
-            background: #5a4bd1;
-        }
-
-    .btn-menu {
-        padding: 8px 18px;
-        border: 1px solid #ddd;
-        border-radius: 8px;
-        background: white;
-        color: #555;
-        font-weight: 500;
-        font-size: 13px;
-        cursor: pointer;
-        transition: all 0.2s;
-    }
-
-        .btn-menu:hover {
-            background: #f8f8fa;
-            border-color: #ccc;
-        }
-
-    .filter-bar {
-        background: white;
-        border: 1px solid #e8e8ec;
-        border-radius: 14px;
-        padding: 18px;
-        margin-bottom: 20px;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.04);
-    }
-
-    .filter-input {
-        background: #f8f8fa;
-        border: 1px solid #e0e0e4;
-        padding: 8px 12px;
-        color: #333;
-        font-size: 13px;
-        width: 100%;
-        border-radius: 8px;
-    }
-
-        .filter-input:focus {
-            border-color: #6c5ce7;
-            box-shadow: 0 0 0 3px rgba(108, 92, 231, 0.1);
-            outline: none;
-        }
-
-    .btn-filter {
-        padding: 6px 16px;
-        border: 1px solid #e0e0e4;
-        border-radius: 20px;
-        background: white;
-        color: #666;
-        font-size: 12px;
-        cursor: pointer;
-        transition: all 0.2s;
-    }
-
-        .btn-filter:hover {
-            background: #f5f3ff;
-            border-color: #6c5ce7;
-            color: #6c5ce7;
-        }
-
-        .btn-filter.active {
-            background: #6c5ce7;
-            color: white;
-            border-color: #6c5ce7;
-        }
-
-    .recipe-card {
-        background: white;
-        border: 1px solid #eee;
-        border-radius: 16px;
-        overflow: hidden;
-        transition: all 0.3s;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.04);
-        height: 100%;
-    }
-
-        .recipe-card:hover {
-            box-shadow: 0 8px 24px rgba(0,0,0,0.1);
-            transform: translateY(-4px);
-        }
-
-    .recipe-image {
-        height: 160px;
-        position: relative;
-    }
-
-    .recipe-image-overlay {
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        padding: 12px;
-        display: flex;
-        justify-content: space-between;
-        align-items: flex-start;
-    }
-
-    .btn-favorite {
-        background: rgba(255,255,255,0.9);
-        border: none;
-        border-radius: 50%;
-        width: 32px;
-        height: 32px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        cursor: pointer;
-        transition: all 0.2s;
-    }
-
-        .btn-favorite:hover {
-            transform: scale(1.1);
-        }
-
-        .btn-favorite.active {
-            background: rgba(255, 100, 100, 0.9);
-        }
-
-    .heart-icon {
-        font-size: 16px;
-    }
-
-    .recipe-time-badge {
-        background: rgba(0,0,0,0.6);
-        color: white;
-        padding: 4px 10px;
-        border-radius: 12px;
-        font-size: 11px;
-        backdrop-filter: blur(4px);
-    }
-
-    .recipe-info {
-        padding: 16px;
-    }
-
-    .recipe-name {
-        color: #1a1a2e;
-        font-size: 15px;
-        font-weight: 600;
-        margin-bottom: 2px;
-    }
-
-    .recipe-desc {
-        color: #999;
-        font-size: 12px;
-        margin: 8px 0;
-        line-height: 1.4;
-        display: -webkit-box;
-        -webkit-line-clamp: 2;
-        -webkit-box-orient: vertical;
-        overflow: hidden;
-    }
-
-    .difficulty-badge {
-        padding: 2px 8px;
-        border-radius: 10px;
-        font-size: 10px;
-        font-weight: 500;
-    }
-
-        .difficulty-badge.easy {
-            background: #e8f5e9;
-            color: #27ae60;
-        }
-
-        .difficulty-badge.medium {
-            background: #fff8e1;
-            color: #f39c12;
-        }
-
-        .difficulty-badge.hard {
-            background: #ffebee;
-            color: #e74c3c;
-        }
-
-    .ingredients-availability {
-        padding: 8px 10px;
-        background: #fafafa;
-        border-radius: 8px;
-    }
-
-    .availability-bar {
-        flex: 1;
-        height: 4px;
-        background: #e8e8e8;
-        border-radius: 4px;
-        overflow: hidden;
-    }
-
-    .availability-fill {
-        height: 100%;
-        border-radius: 4px;
-        transition: width 0.3s;
-    }
-
-    .availability-text {
-        font-size: 11px;
-        font-weight: 500;
-        white-space: nowrap;
-    }
-
-    .recipe-stats {
-        display: flex;
-        gap: 16px;
-        margin-top: 8px;
-    }
-
-    .stat-item {
-        color: #999;
-        font-size: 11px;
-        display: flex;
-        align-items: center;
-        gap: 4px;
-    }
-
-    .btn-recipe-view {
-        padding: 8px;
-        border: 1px solid #e0e0e4;
-        border-radius: 8px;
-        background: white;
-        color: #555;
-        font-size: 12px;
-        cursor: pointer;
-        transition: all 0.2s;
-    }
-
-        .btn-recipe-view:hover {
-            background: #f5f3ff;
-            border-color: #6c5ce7;
-            color: #6c5ce7;
-        }
-
-    .empty-state {
-        text-align: center;
-        padding: 80px 20px;
-        background: white;
-        border: 2px dashed #e0e0e4;
-        border-radius: 16px;
-    }
-
-    .empty-icon {
-        font-size: 72px;
-        opacity: 0.25;
-    }
-</style>
-
 @code {
-    private List<Recipe> recipes = new();
+    private List<Recipe> allRecipes = new();
     private List<Recipe> filteredRecipes = new();
-    private HashSet<int> fridgeProductIds = new();
     private HashSet<int> favoriteIds = new();
+
     private string searchQuery = "";
-    private string filterCategory = "";
-    private string filterTime = "0";
-    private string filterDifficulty = "";
-    private string activeFilter = "all";
+    private int filterTime = 0;
+    private string activeFilter = "all"; // "all", "favorites", "byIngredients"
 
     protected override async Task OnInitializedAsync()
     {
@@ -414,22 +150,14 @@
         {
             await using var context = await DbContextFactory.CreateDbContextAsync();
 
-            recipes = await context.Recipes
-                .Include(r => r.RecipeIngredients)
-                .ToListAsync();
+            allRecipes = await context.Recipes.ToListAsync();
 
-            fridgeProductIds = (await context.FridgeItems
-                .Where(f => f.UserId == AuthService.CurrentUserId)
-                .Select(f => f.ProductId)
-                .ToListAsync())
-                .Where(id => id > 0)
-                .ToHashSet();
-
-            favoriteIds = (await context.FavoriteRecipes
+            var favorites = await context.FavoriteRecipes
                 .Where(f => f.UserId == AuthService.CurrentUserId)
                 .Select(f => f.RecipeId)
-                .ToListAsync())
-                .ToHashSet();
+                .ToListAsync();
+
+            favoriteIds = new HashSet<int>(favorites);
 
             RefreshFilters();
         }
@@ -439,60 +167,38 @@
         }
     }
 
-    private async Task ForceReload()
+    private void SetFilterType(string filterType)
     {
-        await LoadData();
+        activeFilter = filterType;
+        RefreshFilters();
     }
 
     private void RefreshFilters()
     {
-        var query = recipes.AsEnumerable();
-
-        if (!string.IsNullOrWhiteSpace(searchQuery))
-            query = query.Where(r => r.Title?.Contains(searchQuery, StringComparison.OrdinalIgnoreCase) == true);
-
-        if (activeFilter == "available")
-            query = query.Where(r => r.RecipeIngredients != null &&
-                                     r.RecipeIngredients.Any() &&
-                                     r.RecipeIngredients.All(ri => fridgeProductIds.Contains(ri.ProductId)));
+        var query = allRecipes.AsEnumerable();
 
         if (activeFilter == "favorites")
-            query = query.Where(r => favoriteIds.Contains(r.Id));
-
-        if (int.TryParse(filterTime, out int maxTime) && maxTime > 0)
-            query = query.Where(r => (r.PrepTime ?? 0) + (r.CookTime ?? 0) <= maxTime);
-
-        if (!string.IsNullOrEmpty(filterDifficulty))
         {
-            query = filterDifficulty switch
-            {
-                "easy" => query.Where(r => (r.PrepTime ?? 0) + (r.CookTime ?? 0) <= 30),
-                "medium" => query.Where(r => (r.PrepTime ?? 0) + (r.CookTime ?? 0) > 30 && (r.PrepTime ?? 0) + (r.CookTime ?? 0) <= 60),
-                "hard" => query.Where(r => (r.PrepTime ?? 0) + (r.CookTime ?? 0) > 60),
-                _ => query
-            };
+            query = query.Where(r => favoriteIds.Contains(r.Id));
+        }
+        else if (activeFilter == "byIngredients")
+        {
+            // Заглушка под будущую фильтрацию по продуктам в наличии
+            query = query.Where(r => ((r.PrepTime ?? 0) + (r.CookTime ?? 0)) <= 30);
+        }
+
+        if (!string.IsNullOrWhiteSpace(searchQuery))
+        {
+            query = query.Where(r => r.Title != null && r.Title.Contains(searchQuery, StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (filterTime > 0)
+        {
+            query = query.Where(r => ((r.PrepTime ?? 0) + (r.CookTime ?? 0)) <= filterTime);
         }
 
         filteredRecipes = query.ToList();
         StateHasChanged();
-    }
-
-    private void ShowAll()
-    {
-        activeFilter = "all";
-        RefreshFilters();
-    }
-
-    private void ShowAvailable()
-    {
-        activeFilter = "available";
-        RefreshFilters();
-    }
-
-    private void ShowFavorites()
-    {
-        activeFilter = "favorites";
-        RefreshFilters();
     }
 
     private async Task ToggleFavorite(int recipeId)
@@ -501,13 +207,16 @@
         {
             await using var context = await DbContextFactory.CreateDbContextAsync();
 
-            var existing = await context.FavoriteRecipes
-                .FirstOrDefaultAsync(f => f.RecipeId == recipeId && f.UserId == AuthService.CurrentUserId);
-
-            if (existing != null)
+            if (favoriteIds.Contains(recipeId))
             {
-                context.FavoriteRecipes.Remove(existing);
-                favoriteIds.Remove(recipeId);
+                var favorite = await context.FavoriteRecipes
+                    .FirstOrDefaultAsync(f => f.RecipeId == recipeId && f.UserId == AuthService.CurrentUserId);
+
+                if (favorite != null)
+                {
+                    context.FavoriteRecipes.Remove(favorite);
+                    favoriteIds.Remove(recipeId);
+                }
             }
             else
             {
@@ -522,7 +231,6 @@
 
             await context.SaveChangesAsync();
 
-            // Если активен фильтр "Избранное" — обновляем список
             if (activeFilter == "favorites")
                 RefreshFilters();
             else
@@ -552,10 +260,10 @@
             1 => "linear-gradient(135deg, #ffa502, #ffbe76)",
             2 => "linear-gradient(135deg, #a29bfe, #6c5ce7)",
             3 => "linear-gradient(135deg, #fd79a8, #e84393)",
-            4 => "linear-gradient(135deg, #00b894, #55efc4)",
-            5 => "linear-gradient(135deg, #fdcb6e, #ffeaa7)",
-            6 => "linear-gradient(135deg, #74b9ff, #0984e3)",
-            _ => "linear-gradient(135deg, #e17055, #d63031)"
+            4 => "linear-gradient(135deg, #2ed573, #7bed9f)",
+            5 => "linear-gradient(135deg, #1e90ff, #70a1ff)",
+            6 => "linear-gradient(135deg, #2f3542, #57606f)",
+            _ => "linear-gradient(135deg, #f10555, #f15233)"
         };
     }
 }

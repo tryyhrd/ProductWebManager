@@ -8,994 +8,356 @@
 @inject IDbContextFactory<ProductWebManager.Data.ProductManagerContext> DbContextFactory
 @inject ProductWebManager.Services.AuthService AuthService
 
-<PageTitle>Список покупок</PageTitle>
+<PageTitle>SmartPlate AI — Список покупок</PageTitle>
 
-<div class="shopping-page">
+<div class="max-w-[1440px] mx-auto p-6 lg:p-10 font-sans">
 
-    <!-- HEADER -->
-
-    <div class="page-header">
-
+    <header class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-10">
         <div>
-            <h1 class="page-title">
-                Список покупок
-            </h1>
-
-            <div class="page-subtitle">
+            <h1 class="text-4xl font-black text-slate-900 tracking-tighter">Списки покупок</h1>
+            <p class="text-slate-500 font-medium mt-1">
                 Осталось купить:
-                <strong>@shoppingItems.Count(x => !x.IsPurchased)</strong>
-                из
-                <strong>@shoppingItems.Count</strong>
-
+                <span class="text-indigo-600 font-bold">@shoppingItems.Count(x => !x.IsPurchased)</span>
+                из <span class="text-slate-800 font-bold">@shoppingItems.Count</span>
                 @if (isMealPlanList)
                 {
-                    <span class="meal-plan-badge">Из плана питания</span>
+                    <span class="ml-2 inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-50 text-indigo-600 border border-indigo-100">
+                        <i class="fas fa-robot text-[10px]"></i> Из плана питания
+                    </span>
                 }
-            </div>
+            </p>
         </div>
 
-        <div class="header-actions">
-
-            <button class="btn-outline"
+        <div class="flex flex-wrap gap-3 w-full md:w-auto">
+            <button class="flex items-center gap-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 px-6 py-4 rounded-2xl font-bold transition-all shadow-sm"
                     @onclick="OpenListModal">
-
-                Списки
-
+                <i class="fas fa-layer-group text-slate-400"></i>
+                <span>Управление списками</span>
             </button>
 
-            <button class="btn-primary"
+            <button class="flex items-center gap-2 bg-slate-900 hover:bg-indigo-600 text-white px-8 py-4 rounded-2xl font-bold transition-all transform hover:-translate-y-1 shadow-xl disabled:opacity-50"
+                    disabled="@(currentListId == 0)"
                     @onclick="OpenAddModal">
-
-                Добавить
-
+                <i class="fas fa-plus"></i>
+                <span>Добавить продукт</span>
             </button>
-
         </div>
+    </header>
 
-    </div>
-
-    <!-- LIST TABS -->
     @if (shoppingLists.Any())
     {
-        <div class="lists-tabs">
-
+        <div class="flex items-center gap-2 overflow-x-auto pb-4 mb-6 scrollbar-none">
             @foreach (var list in shoppingLists)
             {
-                <button class="list-tab @(currentListId == list.Id ? "active" : "")"
-                        @onclick="() => SwitchList(list.Id)">
-
-                    @if (IsMealPlanList(list))
-                    {
-                        <span>📋</span>
-                    }
-
+                var isSelected = list.Id == currentListId;
+                <button @onclick="() => SelectList(list.Id)"
+                        class="px-5 py-3 rounded-xl font-bold text-sm whitespace-nowrap transition-all border @(isSelected ? "bg-slate-900 text-white border-slate-900 shadow-md" : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50")">
                     @list.Name
-
-                    @if ((list.Items?.Count(x => !x.IsPurchased) ?? 0) > 0)
-                    {
-                        <span class="tab-badge">
-                            @list.Items!.Count(x => !x.IsPurchased)
-                        </span>
-                    }
-
                 </button>
             }
-
         </div>
     }
 
-    <!-- STATS -->
-
-    <div class="stats-grid">
-
-        <div class="stat-card">
-            <div class="stat-label">ВСЕГО</div>
-            <div class="stat-value">@shoppingItems.Count</div>
-        </div>
-
-        <div class="stat-card success">
-            <div class="stat-label">КУПЛЕНО</div>
-            <div class="stat-value">
-                @shoppingItems.Count(x => x.IsPurchased)
-            </div>
-        </div>
-
-        <div class="stat-card warning">
-            <div class="stat-label">ОСТАЛОСЬ</div>
-            <div class="stat-value">
-                @shoppingItems.Count(x => !x.IsPurchased)
-            </div>
-        </div>
-
-        <div class="stat-card">
-            <div class="stat-label">СУММА</div>
-            <div class="stat-value">
-                @estimatedTotal.ToString("0.##") ₽
-            </div>
-        </div>
-
-    </div>
-
-    <!-- ITEMS -->
-    @if (shoppingItems.Any())
-    {
-        <div class="shopping-container">
-
-            @foreach (var item in shoppingItems)
-            {
-                <div class="shopping-item @(item.IsPurchased ? "purchased" : "")">
-
-                    <div class="item-left">
-
-                        <input type="checkbox"
-                               checked="@item.IsPurchased"
-                               @onchange="async _ => await TogglePurchased(item)"
-                               class="shopping-checkbox" />
-
-                        <div>
-
-                            <div class="item-name">
-
-                                @if (item.IsPurchased)
-                                {
-                                    <s>@item.Product?.Name</s>
-                                }
-                                else
-                                {
-                                    @item.Product?.Name
-                                }
-
-                            </div>
-
-                            <div class="item-details">
-
-                                @item.Quantity
-                                @(item.Product?.Unit?.Name ?? "шт.")
-
-                                @if ((item.Product?.Price ?? 0) > 0)
-                                {
-                                    <span>
-                                        • ~@(((item.Product?.Price ?? 0m) * (decimal)item.Quantity).ToString("0.##")) ₽
-                                    </span>
-                                }
-
-                            </div>
-
-                        </div>
-
-                    </div>
-
-                    <div class="item-actions">
-
-                        <button class="btn-delete"
-                                @onclick="() => RemoveItem(item)">
-
-                            ×
-
-                        </button>
-                    </div>
-
+    <div class="bg-white border border-slate-100 rounded-[2.5rem] shadow-sm p-8">
+        @if (currentListId == 0)
+        {
+            <div class="flex flex-col items-center justify-center py-20 text-center">
+                <div class="w-16 h-16 bg-slate-50 text-slate-400 rounded-2xl flex items-center justify-center text-2xl mb-4 shadow-inner">
+                    <i class="fas fa-folder-plus"></i>
                 </div>
-            }
-
-        </div>
-
-        <div class="footer-actions">
-
-            <button class="btn-danger"
-                    @onclick="ClearPurchased">
-
-                Очистить купленные
-
-            </button>
-
-            <button class="btn-danger"
-                    @onclick="ClearAll">
-
-                Очистить всё
-
-            </button>
-
-        </div>
-    }
-    else
-    {
-        <div class="empty-state">
-
-            <div class="empty-icon">
-                🛒
+                <h3 class="text-xl font-black text-slate-800">Нет активного списка</h3>
+                <p class="text-slate-400 font-medium max-w-xs mt-1">Создайте новый список в меню управления списками или сгенерируйте план питания.</p>
             </div>
-
-            <h3>
-                Список покупок пуст
-            </h3>
-
-            <p>
-                Добавьте товары для покупки
-            </p>
-
-            <button class="btn-primary"
-                    @onclick="OpenAddModal">
-
-                Добавить товар
-
-            </button>
-
-        </div>
-    }
-
-</div>
-
-<!-- ADD MODAL -->
-@if (showModal)
-{
-    <div class="modal-overlay"
-         @onclick="CloseModal">
-
-        <div class="modal-box"
-             @onclick:stopPropagation="true">
-
-            <h3 class="modal-title">
-                Добавить продукт
-            </h3>
-
-            <div class="form-group">
-
-                <label>
-                    Продукт
-                </label>
-
-                <select class="form-input"
-                        @bind="selectedProductId">
-
-                    <option value="0">
-                        -- Выберите продукт --
-                    </option>
-
-                    @foreach (var product in availableProducts)
-                    {
-                        <option value="@product.Id">
-                            @product.Name
-                        </option>
-                    }
-
-                </select>
-
-            </div>
-
-            <div class="form-group">
-
-                <label>
-                    Количество
-                </label>
-
-                <input type="number"
-                       class="form-input"
-                       min="0.1"
-                       step="0.1"
-                       @bind="editQuantity" />
-
-            </div>
-
-            <div class="modal-actions">
-
-                <button class="btn-primary"
-                        @onclick="SaveItem">
-
-                    Сохранить
-
-                </button>
-
-                <button class="btn-outline"
-                        @onclick="CloseModal">
-
-                    Отмена
-
-                </button>
-
-            </div>
-
-        </div>
-
-    </div>
-}
-
-<!-- LIST MODAL -->
-@if (showListModal)
-{
-    <div class="modal-overlay"
-         @onclick="CloseListModal">
-
-        <div class="modal-box large"
-             @onclick:stopPropagation="true">
-
-            <h3 class="modal-title">
-                Управление списками
-            </h3>
-
-            <div class="form-group">
-
-                <label>
-                    Новый список
-                </label>
-
-                <div class="create-list-row">
-
-                    <input type="text"
-                           class="form-input"
-                           placeholder="Название списка"
-                           @bind="newListName" />
-
-                    <button class="btn-primary"
-                            @onclick="CreateNewList">
-
-                        Создать
-
-                    </button>
-
+        }
+        else if (!shoppingItems.Any())
+        {
+            <div class="flex flex-col items-center justify-center py-20 text-center">
+                <div class="w-16 h-16 bg-indigo-50 text-indigo-500 rounded-2xl flex items-center justify-center text-2xl mb-4 shadow-inner">
+                    <i class="fas fa-shopping-basket"></i>
                 </div>
-
+                <h3 class="text-xl font-black text-slate-800">Список пока пуст</h3>
+                <p class="text-slate-400 font-medium max-w-xs mt-1">Нажмите кнопку «Добавить продукт», чтобы наполнить ваш корзину покупками.</p>
             </div>
-
-            <div class="lists-manager">
-
-                @foreach (var list in shoppingLists)
+        }
+        else
+        {
+            <div class="space-y-3">
+                @foreach (var item in shoppingItems.OrderBy(x => x.IsPurchased))
                 {
-                    <div class="manager-item">
+                    <div class="flex items-center justify-between p-4 bg-slate-50/50 hover:bg-white hover:shadow-xl hover:shadow-slate-500/5 border border-transparent hover:border-slate-100 rounded-2xl transition-all duration-300 group select-none">
+                        <label class="flex items-center gap-4 flex-1 cursor-pointer">
+                            <input type="checkbox" checked="@item.IsPurchased" @onchange="@(e => TogglePurchased(item, e))"
+                                   class="w-6 h-6 rounded-lg border-slate-300 text-indigo-600 focus:ring-indigo-500 transition-all cursor-pointer" />
+                            <span class="font-bold text-slate-800 transition-all @(item.IsPurchased ? "line-through text-slate-400 font-medium" : "")">
+                                @item.Product.Name
+                            </span>
+                        </label>
 
-                        <div>
-
-                            <div class="manager-title">
-                                @if (IsMealPlanList(list))
-                                {
-                                    <span>📋</span>
-                                }
-                                @list.Name
-                            </div>
-
-                            <div class="manager-subtitle">
-
-                                @(list.Items?.Count ?? 0)
-                                товаров
-
-                                @if (IsMealPlanList(list))
-                                {
-                                    <span class="meal-plan-badge">Из плана питания</span>
-                                }
-
-                            </div>
-
-                        </div>
-
-                        <div class="manager-actions">
-
-                            <button class="btn-outline small"
-                                    @onclick="() => SwitchList(list.Id)">
-
-                                Открыть
-
+                        <div class="flex items-center gap-4">
+                            <span class="text-xs font-black px-4 py-2 bg-white rounded-xl text-slate-600 border border-slate-100 transition-all @(item.IsPurchased ? "bg-slate-50/50 text-slate-400 shadow-none border-transparent" : "shadow-sm")">
+                                @item.Quantity.ToString("G") @item.Product.Unit?.Name
+                            </span>
+                            <button @onclick="() => RemoveItem(item)"
+                                    class="text-slate-300 hover:text-red-500 transition-colors p-2"
+                                    title="Удалить позицию">
+                                <i class="fas fa-trash-alt text-sm"></i>
                             </button>
-
-                            <button class="btn-danger small"
-                                    @onclick="() => DeleteList(list.Id)">
-
-                                Удалить
-
-                            </button>
-
                         </div>
-
                     </div>
                 }
-
             </div>
 
-        </div>
+            <div class="mt-8 pt-6 border-t border-slate-100 flex flex-wrap gap-3">
+                <button @onclick="ClearPurchased"
+                        class="inline-flex items-center gap-2 text-emerald-700 hover:text-emerald-800 text-sm font-bold bg-emerald-50 hover:bg-emerald-100 border border-emerald-100 px-5 py-3 rounded-xl transition-colors">
+                    <i class="fas fa-check-double text-xs"></i>
+                    <span>Удалить купленные</span>
+                </button>
+                <button @onclick="ClearAll"
+                        class="inline-flex items-center gap-2 text-red-600 hover:text-red-700 text-sm font-bold bg-red-50 hover:bg-red-100 border border-red-100 px-5 py-3 rounded-xl transition-colors">
+                    <i class="fas fa-dumpster text-xs"></i>
+                    <span>Очистить весь список</span>
+                </button>
+            </div>
+        }
+    </div>
+</div>
 
+@if (showModal && modalType == "add")
+{
+    <div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
+        <div class="bg-white rounded-[2rem] max-w-md w-full shadow-2xl overflow-hidden border border-slate-100 flex flex-col transform transition-all">
+            <div class="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center shadow-inner">
+                        <i class="fas fa-cart-plus"></i>
+                    </div>
+                    <h2 class="text-xl font-black text-slate-800 tracking-tight">Добавить в список</h2>
+                </div>
+                <button @onclick="CloseModal" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center transition-colors">
+                    <i class="fas fa-times text-xs"></i>
+                </button>
+            </div>
+
+            <div class="p-6 space-y-4 flex-1">
+                <div class="space-y-1.5">
+                    <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Продукт</label>
+                    <select @bind="newItemProductId" class="w-full bg-slate-50 border-2 border-transparent focus:border-indigo-500 focus:bg-white rounded-xl p-3 font-bold text-sm outline-none transition-all">
+                        <option value="0">-- Выберите из базы --</option>
+                        @foreach (var p in availableProducts)
+                        {
+                            <option value="@p.Id">@p.Name (@p.Unit?.Name)</option>
+                        }
+                    </select>
+                </div>
+
+                <div class="space-y-1.5">
+                    <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Количество</label>
+                    <input type="number" step="any" min="0.1" @bind-value="newItemQuantity" class="w-full bg-slate-50 border-2 border-transparent focus:border-indigo-500 focus:bg-white rounded-xl p-3 font-bold outline-none transition-all" />
+                </div>
+            </div>
+
+            <div class="p-6 border-t border-slate-100 bg-slate-50/50 flex justify-end gap-3">
+                <button @onclick="CloseModal" class="bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold px-5 py-3 rounded-xl text-sm transition-colors shadow-sm">
+                    Отмена
+                </button>
+                <button @onclick="AddItem" class="bg-slate-900 hover:bg-indigo-600 text-white font-bold px-6 py-3 rounded-xl text-sm transition-all shadow-md">
+                    Добавить
+                </button>
+            </div>
+        </div>
     </div>
 }
 
-<style>
+@if (showModal && modalType == "lists")
+{
+    <div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
+        <div class="bg-white rounded-[2rem] max-w-lg w-full max-h-[85vh] shadow-2xl overflow-hidden border border-slate-100 flex flex-col transform transition-all">
+            <div class="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center shadow-inner">
+                        <i class="fas fa-layer-group"></i>
+                    </div>
+                    <h2 class="text-xl font-black text-slate-800 tracking-tight">Управление списками</h2>
+                </div>
+                <button @onclick="CloseModal" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center transition-colors">
+                    <i class="fas fa-times text-xs"></i>
+                </button>
+            </div>
 
-    .shopping-page {
-        min-height: 100vh;
-        background: #f5f7fb;
-        padding: 28px;
-    }
+            <div class="p-6 overflow-y-auto flex-1 space-y-6">
+                <div class="bg-slate-50/60 border border-slate-100 p-4 rounded-2xl space-y-3">
+                    <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Новый список</span>
+                    <div class="flex gap-2">
+                        <input type="text" @bind-value="newListName" placeholder="Название (например, Закупка на Пятницу)"
+                               class="flex-1 bg-white border border-slate-200 focus:border-indigo-500 rounded-xl px-4 py-2.5 font-bold text-sm outline-none transition-all" />
+                        <button @onclick="CreateList" class="bg-slate-900 hover:bg-indigo-600 text-white font-bold px-4 py-2.5 rounded-xl text-sm transition-colors whitespace-nowrap shadow-sm">
+                            Создать
+                        </button>
+                    </div>
+                </div>
 
-    .page-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        gap: 20px;
-        margin-bottom: 28px;
-        flex-wrap: wrap;
-    }
+                <div class="space-y-2">
+                    <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest block px-1">Доступные списки</span>
+                    @if (!shoppingLists.Any())
+                    {
+                        <p class="text-xs font-medium text-slate-400 italic p-2">Списки отсутствуют</p>
+                    }
+                    else
+                    {
+                        @foreach (var list in shoppingLists)
+                        {
+                            <div class="flex items-center justify-between p-3 bg-white border border-slate-100 hover:border-slate-200 rounded-xl transition-all group">
+                                <span class="font-bold text-sm text-slate-700 @(list.Id == currentListId ? "text-indigo-600 font-black" : "")">
+                                    @list.Name @(list.Id == currentListId ? " (Активный)" : "")
+                                </span>
+                                <div class="flex items-center gap-2">
+                                    @if (list.Id != currentListId)
+                                    {
+                                        <button @onclick="() => SelectList(list.Id)" class="text-xs font-bold text-slate-500 hover:text-slate-900 px-2.5 py-1.5 bg-slate-50 rounded-lg border border-slate-100 transition-colors">
+                                            Выбрать
+                                        </button>
+                                    }
+                                    <button @onclick="() => DeleteList(list.Id)" class="text-slate-300 hover:text-red-500 p-1.5 transition-colors">
+                                        <i class="fas fa-trash-alt text-xs"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        }
+                    }
+                </div>
+            </div>
 
-    .page-title {
-        margin: 0;
-        font-size: 34px;
-        font-weight: 800;
-        color: #111827;
-    }
-
-    .page-subtitle {
-        color: #6b7280;
-        margin-top: 6px;
-    }
-
-    .header-actions {
-        display: flex;
-        gap: 12px;
-    }
-
-    .btn-primary,
-    .btn-outline,
-    .btn-danger {
-        border: none;
-        border-radius: 14px;
-        padding: 12px 18px;
-        font-weight: 700;
-        transition: 0.2s;
-        cursor: pointer;
-    }
-
-    .btn-primary {
-        background: #6366f1;
-        color: white;
-    }
-
-        .btn-primary:hover {
-            background: #4f46e5;
-        }
-
-    .btn-outline {
-        background: white;
-        border: 1px solid #e5e7eb;
-        color: #374151;
-    }
-
-        .btn-outline:hover {
-            background: #f9fafb;
-        }
-
-    .btn-danger {
-        background: #ef4444;
-        color: white;
-    }
-
-        .btn-danger:hover {
-            background: #dc2626;
-        }
-
-    .small {
-        padding: 8px 12px;
-        font-size: 13px;
-    }
-
-    .lists-tabs {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 10px;
-        margin-bottom: 28px;
-    }
-
-    .list-tab {
-        border: 1px solid #e5e7eb;
-        background: white;
-        padding: 10px 16px;
-        border-radius: 999px;
-        cursor: pointer;
-        font-weight: 600;
-        color: #4b5563;
-        transition: 0.2s;
-    }
-
-        .list-tab.active {
-            background: #6366f1;
-            border-color: #6366f1;
-            color: white;
-        }
-
-    .tab-badge {
-        margin-left: 8px;
-        background: rgba(255,255,255,0.2);
-        padding: 2px 8px;
-        border-radius: 999px;
-        font-size: 12px;
-    }
-
-    .stats-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit,minmax(220px,1fr));
-        gap: 18px;
-        margin-bottom: 28px;
-    }
-
-    .stat-card {
-        background: white;
-        border-radius: 24px;
-        padding: 24px;
-        border: 1px solid #eceff5;
-    }
-
-        .stat-card.success {
-            background: #f0fdf4;
-        }
-
-        .stat-card.warning {
-            background: #fff7ed;
-        }
-
-    .stat-label {
-        color: #9ca3af;
-        font-size: 12px;
-        font-weight: 700;
-        margin-bottom: 10px;
-    }
-
-    .stat-value {
-        font-size: 32px;
-        font-weight: 800;
-        color: #111827;
-    }
-
-    .shopping-container {
-        background: white;
-        border-radius: 28px;
-        border: 1px solid #eceff5;
-        overflow: hidden;
-    }
-
-    .shopping-item {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        gap: 20px;
-        padding: 20px 24px;
-        border-bottom: 1px solid #f1f5f9;
-    }
-
-        .shopping-item:last-child {
-            border-bottom: none;
-        }
-
-        .shopping-item.purchased {
-            opacity: 0.55;
-        }
-
-    .item-left {
-        display: flex;
-        align-items: center;
-        gap: 16px;
-    }
-
-    .shopping-checkbox {
-        width: 22px;
-        height: 22px;
-        cursor: pointer;
-    }
-
-    .item-name {
-        font-size: 16px;
-        font-weight: 700;
-        color: #111827;
-    }
-
-    .item-details {
-        margin-top: 4px;
-        color: #6b7280;
-        font-size: 13px;
-    }
-
-    .btn-delete {
-        border: none;
-        background: #fee2e2;
-        color: #dc2626;
-        border-radius: 12px;
-        padding: 10px 14px;
-        font-weight: 700;
-        cursor: pointer;
-    }
-
-        .btn-delete:hover {
-            background: #fecaca;
-        }
-
-    .footer-actions {
-        display: flex;
-        justify-content: flex-end;
-        gap: 12px;
-        margin-top: 20px;
-        flex-wrap: wrap;
-    }
-
-    .empty-state {
-        background: white;
-        border-radius: 32px;
-        padding: 80px 20px;
-        text-align: center;
-        border: 2px dashed #dbe3ef;
-    }
-
-    .empty-icon {
-        font-size: 72px;
-        margin-bottom: 20px;
-    }
-
-    .modal-overlay {
-        position: fixed;
-        inset: 0;
-        background: rgba(0,0,0,0.45);
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        z-index: 9999;
-        backdrop-filter: blur(5px);
-    }
-
-    .modal-box {
-        background: white;
-        border-radius: 28px;
-        padding: 28px;
-        width: 90%;
-        max-width: 460px;
-    }
-
-        .modal-box.large {
-            max-width: 650px;
-        }
-
-    .modal-title {
-        margin-bottom: 24px;
-        font-size: 24px;
-        font-weight: 800;
-        color: #111827;
-    }
-
-    .form-group {
-        margin-bottom: 18px;
-    }
-
-        .form-group label {
-            display: block;
-            margin-bottom: 8px;
-            font-size: 14px;
-            color: #6b7280;
-            font-weight: 600;
-        }
-
-    .form-input {
-        width: 100%;
-        border-radius: 14px;
-        border: 1px solid #dbe3ef;
-        padding: 12px 14px;
-        background: #f8fafc;
-    }
-
-    .modal-actions {
-        display: flex;
-        gap: 12px;
-        margin-top: 24px;
-    }
-
-    .create-list-row {
-        display: flex;
-        gap: 12px;
-    }
-
-    .lists-manager {
-        display: flex;
-        flex-direction: column;
-        gap: 14px;
-        margin-top: 24px;
-    }
-
-    .manager-item {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 18px;
-        border-radius: 18px;
-        background: #f8fafc;
-    }
-
-    .manager-title {
-        font-weight: 700;
-        color: #111827;
-    }
-
-    .manager-subtitle {
-        font-size: 13px;
-        color: #6b7280;
-        margin-top: 4px;
-    }
-
-    .manager-actions {
-        display: flex;
-        gap: 10px;
-    }
-
-    .meal-plan-badge {
-        display: inline-block;
-        margin-left: 8px;
-        padding: 2px 8px;
-        background: #f0e6ff;
-        color: #6c5ce7;
-        border-radius: 12px;
-        font-size: 12px;
-        font-weight: 600;
-    }
-
-    .auto-generated-badge {
-        margin-right: 8px;
-        font-size: 16px;
-        cursor: help;
-    }
-
-    .item-actions {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-    }
-
-    @@media (max-width: 768px) {
-
-        .shopping-page {
-            padding: 16px;
-        }
-
-        .shopping-item {
-            flex-direction: column;
-            align-items: flex-start;
-        }
-
-        .manager-item {
-            flex-direction: column;
-            align-items: flex-start;
-            gap: 14px;
-        }
-
-        .manager-actions {
-            width: 100%;
-        }
-
-            .manager-actions button {
-                flex: 1;
-            }
-
-        .modal-actions {
-            flex-direction: column;
-        }
-
-        .create-list-row {
-            flex-direction: column;
-        }
-    }
-
-</style>
+            <div class="p-6 border-t border-slate-100 bg-slate-50/50 flex justify-end">
+                <button @onclick="CloseModal" class="w-full sm:w-auto bg-slate-900 hover:bg-slate-800 text-white font-bold px-6 py-3 rounded-xl text-sm transition-colors shadow-sm">
+                    Готово
+                </button>
+            </div>
+        </div>
+    </div>
+}
 
 @code {
-
     private List<Models.ShoppingList> shoppingLists = new();
-
     private List<ShoppingListItem> shoppingItems = new();
-
     private List<Product> availableProducts = new();
 
-    private int currentListId;
+    private int currentListId = 0;
+    private bool isMealPlanList = false;
 
-    private bool showModal;
+    // Modal state
+    private bool showModal = false;
+    private string modalType = ""; // "add" or "lists"
 
-    private bool showListModal;
-
-    private int selectedProductId;
-
-    private double editQuantity = 1;
-
-    private decimal estimatedTotal;
-
-    private string newListName = string.Empty;
-
-    private bool isMealPlanList;
+    // Form fields
+    private string newListName = "";
+    private int newItemProductId = 0;
+    private double newItemQuantity = 1.0;
 
     protected override async Task OnInitializedAsync()
     {
         await LoadLists();
         await LoadProducts();
 
-        // Проверяем параметр listId в URL
-        var uri = new Uri(Navigation.Uri);
-        var queryParams = System.Web.HttpUtility.ParseQueryString(uri.Query);
-        var listIdParam = queryParams["listId"];
-
-        if (int.TryParse(listIdParam, out int listId))
+        if (shoppingLists.Any())
         {
-            currentListId = listId;
-            await LoadCurrentList();
+            await SelectList(shoppingLists.First().Id);
         }
-    }
-
-    private bool IsMealPlanList(Models.ShoppingList list)
-    {
-        return list.Name.Contains("План питания");
     }
 
     private async Task LoadLists()
     {
         await using var context = await DbContextFactory.CreateDbContextAsync();
-
-        var userId = AuthService.CurrentUserId;
-
         shoppingLists = await context.ShoppingList
-
-            .Include(sl => sl.Items)
-                .ThenInclude(i => i.Product)
-                    .ThenInclude(p => p.Unit)
-
-            .Where(sl =>
-                sl.UserId == userId &&
-                !sl.IsCompleted)
-
-            .OrderByDescending(sl => sl.CreatedAt)
-
+            .Where(l => l.UserId == AuthService.CurrentUserId)
+            .OrderByDescending(l => l.CreatedAt)
             .ToListAsync();
-
-        if (!shoppingLists.Any())
-        {
-            var defaultList = new Models.ShoppingList
-                {
-                    UserId = userId,
-                    Name = "Основной",
-                    CreatedAt = DateTime.UtcNow,
-                    IsCompleted = false
-                };
-
-            context.ShoppingList.Add(defaultList);
-
-            await context.SaveChangesAsync();
-
-            shoppingLists.Add(defaultList);
-        }
-
-        currentListId = shoppingLists.First().Id;
-
-        await LoadCurrentList();
-    }
-
-    private async Task LoadCurrentList()
-    {
-        await using var context = await DbContextFactory.CreateDbContextAsync();
-
-        var list = await context.ShoppingList
-
-            .Include(sl => sl.Items)
-                .ThenInclude(i => i.Product)
-                    .ThenInclude(p => p.Unit)
-
-            .FirstOrDefaultAsync(sl =>
-                sl.Id == currentListId);
-
-        shoppingItems = list?.Items?.ToList()
-            ?? new List<ShoppingListItem>();
-
-        if (list != null)
-        {
-            isMealPlanList = IsMealPlanList(list);
-        }
-
-        UpdateTotal();
     }
 
     private async Task LoadProducts()
     {
         await using var context = await DbContextFactory.CreateDbContextAsync();
-
         availableProducts = await context.Products
-
             .Include(p => p.Unit)
-
             .OrderBy(p => p.Name)
-
             .ToListAsync();
     }
 
-    private async Task DeleteList(int listId)
-    {
-        await using var context = await DbContextFactory.CreateDbContextAsync();
-
-        var list = await context.ShoppingList
-
-            .Include(sl => sl.Items)
-
-            .FirstOrDefaultAsync(sl =>
-                sl.Id == listId);
-
-        if (list == null)
-            return;
-
-        context.ShoppingListItems
-            .RemoveRange(list.Items);
-
-        context.ShoppingList.Remove(list);
-
-        await context.SaveChangesAsync();
-
-        await LoadLists();
-
-        if (shoppingLists.Any())
-        {
-            currentListId = shoppingLists.First().Id;
-
-            await LoadCurrentList();
-        }
-    }
-
-    private async Task SwitchList(int listId)
+    private async Task SelectList(int listId)
     {
         currentListId = listId;
+        await LoadCurrentList();
+    }
+
+    private async Task LoadCurrentList()
+    {
+        if (currentListId == 0)
+        {
+            shoppingItems = new List<ShoppingListItem>();
+            isMealPlanList = false;
+            return;
+        }
+
+        await using var context = await DbContextFactory.CreateDbContextAsync();
+
+        var currentList = await context.ShoppingList
+            .FirstOrDefaultAsync(l => l.Id == currentListId);
+
+        if (currentList != null)
+        {
+            isMealPlanList = currentList.Name.Contains("План питания");
+        }
+
+        shoppingItems = await context.ShoppingListItems
+            .Include(i => i.Product)
+                .ThenInclude(p => p.Unit)
+            .Where(i => i.ShoppingListId == currentListId)
+            .ToListAsync();
+    }
+
+    private async Task TogglePurchased(ShoppingListItem item, ChangeEventArgs e)
+    {
+        bool isChecked = (bool)(e.Value ?? false);
+        item.IsPurchased = isChecked;
+
+        await using var context = await DbContextFactory.CreateDbContextAsync();
+        var dbItem = await context.ShoppingListItems.FindAsync(item.Id);
+        if (dbItem != null)
+        {
+            dbItem.IsPurchased = isChecked;
+            await context.SaveChangesAsync();
+        }
 
         await LoadCurrentList();
     }
 
-    private void UpdateTotal()
-    {
-        estimatedTotal = shoppingItems
-
-            .Where(i => !i.IsPurchased)
-
-            .Sum(i =>
-                (i.Product?.Price ?? 0)
-                * (decimal)i.Quantity);
-    }
-
-    private async Task TogglePurchased(
-        ShoppingListItem item)
-    {
-        await using var context = await DbContextFactory.CreateDbContextAsync();
-
-        var dbItem = await context.ShoppingListItems.FindAsync(item.Id);
-        if (dbItem != null)
-        {
-            dbItem.IsPurchased = !dbItem.IsPurchased;
-            await context.SaveChangesAsync();
-        }
-
-        item.IsPurchased = !item.IsPurchased;
-        UpdateTotal();
-    }
-
     private void OpenAddModal()
     {
-        selectedProductId = 0;
-        editQuantity = 1;
+        modalType = "add";
+        newItemProductId = 0;
+        newItemQuantity = 1.0;
+        showModal = true;
+    }
+
+    private void OpenListModal()
+    {
+        modalType = "lists";
+        newListName = "";
         showModal = true;
     }
 
     private void CloseModal()
     {
         showModal = false;
+        modalType = "";
     }
 
-    private void OpenListModal()
+    private async Task CreateList()
     {
-        newListName = string.Empty;
-        showListModal = true;
-    }
-
-    private void CloseListModal()
-    {
-        showListModal = false;
-    }
-
-    private async Task CreateNewList()
-    {
-        if (string.IsNullOrWhiteSpace(newListName))
-            return;
+        if (string.IsNullOrWhiteSpace(newListName)) return;
 
         await using var context = await DbContextFactory.CreateDbContextAsync();
-
-        var list = new Models.ShoppingList
+        var newList = new Models.ShoppingList
             {
                 UserId = AuthService.CurrentUserId,
                 Name = newListName.Trim(),
@@ -1003,62 +365,71 @@
                 IsCompleted = false
             };
 
-        context.ShoppingList.Add(list);
-
+        context.ShoppingList.Add(newList);
         await context.SaveChangesAsync();
 
         await LoadLists();
-
-        showListModal = false;
+        await SelectList(newList.Id);
+        newListName = "";
     }
 
-    private async Task SaveItem()
+    private async Task DeleteList(int listId)
     {
-        if (selectedProductId == 0)
-            return;
+        await using var context = await DbContextFactory.CreateDbContextAsync();
+        var list = await context.ShoppingList.FindAsync(listId);
+        if (list != null)
+        {
+            context.ShoppingList.Remove(list);
+            await context.SaveChangesAsync();
+        }
+
+        await LoadLists();
+
+        if (currentListId == listId)
+        {
+            if (shoppingLists.Any())
+            {
+                await SelectList(shoppingLists.First().Id);
+            }
+            else
+            {
+                await SelectList(0);
+            }
+        }
+    }
+
+    private async Task AddItem()
+    {
+        if (newItemProductId == 0 || newItemQuantity <= 0 || currentListId == 0) return;
 
         await using var context = await DbContextFactory.CreateDbContextAsync();
 
-        var list = await context.ShoppingList
+        var existingItem = await context.ShoppingListItems
+            .FirstOrDefaultAsync(i => i.ShoppingListId == currentListId && i.ProductId == newItemProductId);
 
-            .Include(sl => sl.Items)
-
-            .FirstOrDefaultAsync(sl =>
-                sl.Id == currentListId);
-
-        if (list == null)
-            return;
-
-        var existing = list.Items
-            .FirstOrDefault(i =>
-                i.ProductId == selectedProductId);
-
-        if (existing != null)
+        if (existingItem != null)
         {
-            existing.Quantity += editQuantity;
+            existingItem.Quantity += newItemQuantity;
         }
         else
         {
-            list.Items.Add(new ShoppingListItem
+            context.ShoppingListItems.Add(new ShoppingListItem
                 {
-                    ProductId = selectedProductId,
-                    Quantity = editQuantity,
+                    ShoppingListId = currentListId,
+                    ProductId = newItemProductId,
+                    Quantity = newItemQuantity,
                     IsPurchased = false
                 });
         }
 
         await context.SaveChangesAsync();
-
         await LoadCurrentList();
-
         showModal = false;
     }
 
-    private async Task RemoveItem(
-        ShoppingListItem item)
+    private async Task RemoveItem(ShoppingListItem item)
     {
         await using var context = await DbContextFactory.CreateDbContextAsync();
-
         var dbItem = await context.ShoppingListItems.FindAsync(item.Id);
         if (dbItem != null)
         {
@@ -1071,15 +442,14 @@
 
     private async Task ClearPurchased()
     {
-        await using var context = await DbContextFactory.CreateDbContextAsync();
+        if (currentListId == 0) return;
 
+        await using var context = await DbContextFactory.CreateDbContextAsync();
         var purchased = await context.ShoppingListItems
             .Where(i => i.ShoppingListId == currentListId && i.IsPurchased)
             .ToListAsync();
 
-        context.ShoppingListItems
-            .RemoveRange(purchased);
-
+        context.ShoppingListItems.RemoveRange(purchased);
         await context.SaveChangesAsync();
 
         await LoadCurrentList();
@@ -1087,15 +457,14 @@
 
     private async Task ClearAll()
     {
-        await using var context = await DbContextFactory.CreateDbContextAsync();
+        if (currentListId == 0) return;
 
+        await using var context = await DbContextFactory.CreateDbContextAsync();
         var items = await context.ShoppingListItems
             .Where(i => i.ShoppingListId == currentListId)
             .ToListAsync();
 
-        context.ShoppingListItems
-            .RemoveRange(items);
-
+        context.ShoppingListItems.RemoveRange(items);
         await context.SaveChangesAsync();
 
         await LoadCurrentList();
