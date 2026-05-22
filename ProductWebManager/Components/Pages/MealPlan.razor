@@ -28,8 +28,8 @@
 
     <header class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-10">
         <div>
-            <h1 class="text-4xl font-black text-slate-900 tracking-tighter">Мой Рацион</h1>
-            <p class="text-slate-500 font-medium mt-1">Персональный План на неделю на основе AI</p>
+            <h1 class="text-4xl font-black text-slate-900 tracking-tighter">Персональный план</h1>
+            <p class="text-slate-500 font-medium mt-1">Персональный план на на основе AI</p>
         </div>
 
         <div class="flex flex-wrap gap-3 w-full md:w-auto">
@@ -106,7 +106,7 @@
                 </div>
             </div>
 
-            <div class="bento-card p-8 bg-white border border-slate-100 rounded-3xl shadow-sm space-y-4">
+            @* <div class="bento-card p-8 bg-white border border-slate-100 rounded-3xl shadow-sm space-y-4">
                 <h3 class="text-lg font-black text-slate-800">Параметры</h3>
 
                 <div class="grid grid-cols-2 gap-4">
@@ -171,7 +171,7 @@
                         Набор
                     </button>
                 </div>
-            </div>
+            </div> *@
         </aside>
 
         <section>
@@ -384,11 +384,11 @@
     private static readonly CultureInfo RuCulture = CultureInfo.GetCultureInfo("ru-RU");
     private bool isGenerating = false;
     private bool isReplacing = false;
-    private bool isSavingList = false; // Блокиратор для кнопки сохранения
+    private bool isSavingList = false;
     private string errorMessage = string.Empty;
     private UserProfile profile = new() { Weight = 75, Height = 180, Age = 30, Gender = Gender.Male, ActivityLevel = ActivityLevel.Medium };
     private GoalType selectedGoal = GoalType.Maintain;
-    private int targetCalories, targetProteins, targetFats, targetCarbs;
+    private int targetCalories = 2000, targetProteins, targetFats, targetCarbs;
     private int generationDays = 7;
     private List<MealPlanDay> mealPlanDays = new();
     private List<ShoppingItemDto> shoppingList = new();
@@ -397,7 +397,6 @@
     private bool isModalVisible = false;
     private string modalTitle = string.Empty;
     private string modalMessage = string.Empty;
-
     protected override async Task OnInitializedAsync()
     {
         try
@@ -409,12 +408,35 @@
                 profile = user.Profile;
                 selectedGoal = profile.Goal;
             }
+
+            await LoadUserCalories();
             CalculateTargets();
             await LoadExistingPlan();
         }
         catch (Exception ex)
         {
             errorMessage = $"Ошибка загрузки профиля: {ex.Message}";
+        }
+    }
+
+    private async Task LoadUserCalories()
+    {
+        try
+        {
+            await using var context = await DbContextFactory.CreateDbContextAsync();
+            var userId = AuthService.CurrentUserId;
+
+            var profile = await context.UserProfiles
+                .FirstOrDefaultAsync(x => x.UserId == userId);
+
+            if (profile != null)
+            {
+                this.targetCalories = (int)Math.Round(profile.TargetCalories);
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Ошибка синхронизации калорий в плане питания: {ex.Message}");
         }
     }
 

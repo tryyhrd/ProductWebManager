@@ -2,767 +2,326 @@
 @rendermode InteractiveServer
 
 @inject ProductWebManager.Services.AuthService AuthService
-@inject ProductWebManager.Data.ProductManagerContext DbContext
-
+@inject IDbContextFactory<ProductWebManager.Data.ProductManagerContext> DbContextFactory
 @using Microsoft.EntityFrameworkCore
 @using ProductWebManager.Models
+@using System.Globalization
 
 <PageTitle>Профиль</PageTitle>
 
-<div class="profile-page">
+<div class="max-w-[1440px] mx-auto p-6 lg:p-10 font-sans text-slate-800">
 
-    <div class="profile-container">
+    <header class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-10 border-b border-slate-100 pb-6">
+        <div>
+            <h1 class="text-4xl font-black text-slate-900 tracking-tighter">Профиль</h1>
+            <p class="text-slate-500 font-medium mt-1">Управление аккаунтом, физическими параметрами и ограничениями в еде</p>
+        </div>
+    </header>
 
-        <!-- HEADER -->
-        <div class="page-header">
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
 
-            <div>
-                <h1 class="page-title">
-                    Профиль
-                </h1>
+        <div class="lg:col-span-7 bg-white border border-slate-100 rounded-[2rem] shadow-sm p-6 lg:p-8 space-y-6">
+            <h2 class="text-lg font-bold text-slate-900 flex items-center gap-2">
+                <i class="fas fa-calculator text-indigo-500 text-sm"></i>
+                <span>Физические параметры</span>
+            </h2>
 
-                <div class="page-subtitle">
-                    Управление аккаунтом и персональными настройками
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Вес (кг)</label>
+                    <input type="number" @bind="userWeight" @bind:after="UpdateCaloriesAndSave"
+                           class="w-full bg-slate-50 text-xs font-semibold px-4 py-3 rounded-xl border border-slate-100 focus:outline-none focus:border-indigo-500 focus:bg-white transition-all" />
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Рост (см)</label>
+                    <input type="number" @bind="userHeight" @bind:after="UpdateCaloriesAndSave"
+                           class="w-full bg-slate-50 text-xs font-semibold px-4 py-3 rounded-xl border border-slate-100 focus:outline-none focus:border-indigo-500 focus:bg-white transition-all" />
                 </div>
             </div>
 
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Возраст (лет)</label>
+                    <input type="number" @bind="userAge" @bind:after="UpdateCaloriesAndSave"
+                           class="w-full bg-slate-50 text-xs font-semibold px-4 py-3 rounded-xl border border-slate-100 focus:outline-none focus:border-indigo-500 focus:bg-white transition-all" />
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Пол</label>
+                    <select value="@genderString" @onchange="OnGenderChanged"
+                            class="w-full bg-slate-50 text-xs font-semibold px-4 py-3 rounded-xl border border-slate-100 focus:outline-none focus:border-indigo-500 focus:bg-white transition-all">
+                        <option value="Male">Мужской</option>
+                        <option value="Female">Женский</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Уровень активности</label>
+                    <select value="@activityString" @onchange="OnActivityChanged"
+                            class="w-full bg-slate-50 text-xs font-semibold px-4 py-3 rounded-xl border border-slate-100 focus:outline-none focus:border-indigo-500 focus:bg-white transition-all">
+                        <option value="Low">Низкая (сидячий образ жизни)</option>
+                        <option value="Medium">Средняя (тренировки 3-5 раз в неделю)</option>
+                        <option value="High">Высокая (тяжелые нагрузки ежедневно)</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Цель питания</label>
+                    <select value="@goalString" @onchange="OnGoalChanged"
+                            class="w-full bg-slate-50 text-xs font-semibold px-4 py-3 rounded-xl border border-slate-100 focus:outline-none focus:border-indigo-500 focus:bg-white transition-all">
+                        <option value="Maintain">Поддержание веса</option>
+                        <option value="LoseWeight">Похудение</option>
+                        <option value="GainWeight">Набор массы</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="mt-8 bg-indigo-50/50 border border-indigo-100/50 rounded-2xl p-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div>
+                    <h3 class="text-xs font-bold text-indigo-900 uppercase tracking-wide">Ваша суточная норма</h3>
+                    <p class="text-slate-500 text-[11px] mt-0.5">Автоматически пересчитано и сохранено на основе формулы Миффлина-Сан Жеора</p>
+                </div>
+                <div class="text-3xl font-black text-indigo-600 tracking-tight">
+                    @targetCalories <span class="text-xs font-bold text-indigo-400 uppercase ml-1">ккал / день</span>
+                </div>
+            </div>
         </div>
 
-        <div class="row g-4">
-
-            <!-- LEFT -->
-            <div class="col-lg-4">
-
-                <div class="content-card soft-card">
-
-                    <div class="profile-top">
-
-                        <div class="avatar-circle">
-                            @GetFirstLetter()
-                        </div>
-
-                        <div>
-
-                            <div class="profile-name">
-                                @AuthService.CurrentUserName
-                            </div>
-
-                            <div class="profile-role">
-                                Пользователь системы
-                            </div>
-
-                        </div>
-
-                    </div>
-
-                    <div class="profile-stats">
-
-                        <div class="mini-stat">
-                            <div class="mini-stat-value">
-                                @allergens.Count(x => x.Selected)
-                            </div>
-
-                            <div class="mini-stat-label">
-                                Аллергенов
-                            </div>
-                        </div>
-
-                        <div class="mini-stat">
-                            <div class="mini-stat-value">
-                                @generatedMenusCount
-                            </div>
-
-                            <div class="mini-stat-label">
-                                Планов питания
-                            </div>
-                        </div>
-
-                    </div>
-
-                </div>
-
-                <!-- PROFILE SETTINGS -->
-                <div class="content-card soft-card mt-4">
-
-                    <div class="section-header">
-
-                        <div>
-                            <h3 class="section-title">
-                                Параметры
-                            </h3>
-
-                            <div class="section-subtitle">
-                                Используются при расчёте меню
-                            </div>
-                        </div>
-
-                    </div>
-
-                    <div class="form-grid">
-
-                        <div class="form-group">
-                            <label>Возраст</label>
-
-                            <input type="number"
-                                   class="soft-input"
-                                   @bind="profile.Age" />
-                        </div>
-
-                        <div class="form-group">
-                            <label>Рост (см)</label>
-
-                            <input type="number"
-                                   class="soft-input"
-                                   @bind="profile.Height" />
-                        </div>
-
-                        <div class="form-group">
-                            <label>Вес (кг)</label>
-
-                            <input type="number"
-                                   class="soft-input"
-                                   @bind="profile.Weight" />
-                        </div>
-
-                        <div class="form-group">
-                            <label>Пол</label>
-
-                            <select class="soft-input"
-                                    @bind="profile.Gender">
-
-                                <option value="@Gender.Male">
-                                    Мужской
-                                </option>
-
-                                <option value="@Gender.Female">
-                                    Женский
-                                </option>
-
-                            </select>
-                        </div>
-
-                        <div class="form-group">
-                            <label>Активность</label>
-
-                            <select class="soft-input"
-                                    @bind="profile.ActivityLevel">
-
-                                <option value="@ActivityLevel.Low">
-                                    Низкая
-                                </option>
-
-                                <option value="@ActivityLevel.Medium">
-                                    Средняя
-                                </option>
-
-                                <option value="@ActivityLevel.High">
-                                    Высокая
-                                </option>
-
-                            </select>
-                        </div>
-
-                        <div class="form-group">
-                            <label>Цель</label>
-
-                            <select class="soft-input"
-                                    @bind="profile.Goal">
-
-                                <option value="@GoalType.Maintain">
-                                    Поддержание веса
-                                </option>
-
-                                <option value="@GoalType.LoseWeight">
-                                    Похудение
-                                </option>
-
-                                <option value="@GoalType.GainWeight">
-                                    Набор массы
-                                </option>
-
-                            </select>
-                        </div>
-
-                    </div>
-
-                    <div class="calories-card">
-
-                        <div>
-                            <div class="calories-title">
-                                Рекомендуемая калорийность
-                            </div>
-
-                            <div class="calories-subtitle">
-                                Автоматически рассчитывается
-                            </div>
-                        </div>
-
-                        <div class="calories-value">
-                            @profile.TargetCalories.ToString("0")
-                            ккал
-                        </div>
-
-                    </div>
-
-                    <button class="save-btn"
-                            @onclick="SaveProfile">
-
-                        Сохранить профиль
-                    </button>
-
-                </div>
-
+        <div class="lg:col-span-5 bg-white border border-slate-100 rounded-[2rem] shadow-sm p-6 lg:p-8 space-y-6">
+            <div>
+                <h2 class="text-lg font-bold text-slate-900 flex items-center gap-2">
+                    <i class="fas fa-exclamation-triangle text-amber-500 text-sm"></i>
+                    <span>Аллергия и исключения</span>
+                </h2>
+                <p class="text-slate-400 text-[11px] mt-0.5">Блюда с выбранными компонентами будут исключены из генерации плана</p>
             </div>
 
-            <!-- RIGHT -->
-            <div class="col-lg-8">
-
-                <div class="content-card soft-card">
-
-                    <div class="section-header">
-
-                        <div>
-
-                            <h3 class="section-title">
-                                Аллергены
-                            </h3>
-
-                            <div class="section-subtitle">
-                                Эти продукты будут исключаться
-                                из рекомендаций и рецептов
-                            </div>
-
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                @foreach (var allergen in allergens)
+                {
+                    <button @onclick="() => ToggleAllergen(allergen)"
+                            class="flex items-center justify-between p-3.5 rounded-xl border font-bold text-xs transition-all text-left
+                                   @(allergen.Selected
+                                       ? "bg-rose-50 border-rose-200 text-rose-700 shadow-sm shadow-rose-100"
+                                       : "bg-slate-50/50 border-slate-100 text-slate-600 hover:bg-slate-50 hover:border-slate-200")">
+                        <div class="flex items-center gap-3">
+                            <span class="text-lg">@GetAllergenIcon(allergen.Name)</span>
+                            <span>@allergen.Name</span>
                         </div>
-
-                    </div>
-
-                    <div class="allergens-grid">
-
-                        @foreach (var allergen in allergens)
+                        @if (allergen.Selected)
                         {
-                            <div class="allergen-card @(allergen.Selected ? "selected" : "")"
-                                 @onclick="async () => await ToggleAllergen(allergen)">
-
-                                <div class="allergen-top">
-
-                                    <div class="allergen-icon">
-                                        @GetAllergenIcon(allergen.Name)
-                                    </div>
-
-                                    @if (allergen.Selected)
-                                    {
-                                        <div class="allergen-check">
-                                            ✓
-                                        </div>
-                                    }
-
-                                </div>
-
-                                <div class="allergen-name">
-                                    @allergen.Name
-                                </div>
-
-                                <div class="allergen-status">
-                                    @(allergen.Selected
-                                        ? "Исключён"
-                                        : "Разрешён")
-                                </div>
-
-                            </div>
+                            <i class="fas fa-check-circle text-rose-500"></i>
                         }
-
-                    </div>
-
-                </div>
-
+                    </button>
+                }
             </div>
-
         </div>
 
     </div>
-
 </div>
 
-<style>
-
-    .profile-page {
-        min-height: 100vh;
-        background: linear-gradient( 180deg, #f8f9ff 0%, #f5f7fb 100%);
-        padding: 28px;
-    }
-
-    .profile-container {
-        max-width: 1450px;
-        margin: 0 auto;
-    }
-
-    .page-header {
-        margin-bottom: 28px;
-    }
-
-    .page-title {
-        margin: 0;
-        font-size: 38px;
-        font-weight: 800;
-        color: #1f2235;
-        letter-spacing: -0.5px;
-    }
-
-    .page-subtitle {
-        margin-top: 8px;
-        color: #9094aa;
-        font-size: 14px;
-    }
-
-    .soft-card {
-        background: rgba(255,255,255,0.82);
-        backdrop-filter: blur(10px);
-        border: 1px solid rgba(255,255,255,0.6);
-        box-shadow: 0 10px 35px rgba(120,120,160,0.08);
-    }
-
-    .content-card {
-        border-radius: 32px;
-        padding: 28px;
-    }
-
-    .profile-top {
-        display: flex;
-        align-items: center;
-        gap: 18px;
-    }
-
-    .avatar-circle {
-        width: 76px;
-        height: 76px;
-        border-radius: 50%;
-        background: linear-gradient( 135deg, #8f94fb, #6c5ce7);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        color: white;
-        font-size: 30px;
-        font-weight: 700;
-        box-shadow: 0 8px 24px rgba(108,92,231,0.25);
-    }
-
-    .profile-name {
-        font-size: 26px;
-        font-weight: 800;
-        color: #1a1a2e;
-    }
-
-    .profile-role {
-        margin-top: 4px;
-        color: #9497ad;
-        font-size: 13px;
-    }
-
-    .profile-stats {
-        margin-top: 26px;
-        display: grid;
-        grid-template-columns: repeat(2,1fr);
-        gap: 14px;
-    }
-
-    .mini-stat {
-        background: #f7f8fd;
-        border-radius: 22px;
-        padding: 18px;
-        text-align: center;
-    }
-
-    .mini-stat-value {
-        font-size: 30px;
-        font-weight: 800;
-        color: #6c5ce7;
-    }
-
-    .mini-stat-label {
-        margin-top: 6px;
-        font-size: 12px;
-        color: #9094aa;
-    }
-
-    .section-header {
-        margin-bottom: 24px;
-    }
-
-    .section-title {
-        margin: 0;
-        font-size: 24px;
-        font-weight: 800;
-        color: #1f2235;
-    }
-
-    .section-subtitle {
-        margin-top: 6px;
-        color: #9497ad;
-        font-size: 13px;
-    }
-
-    .form-grid {
-        display: grid;
-        grid-template-columns: repeat(2,1fr);
-        gap: 18px;
-    }
-
-    .form-group {
-        display: flex;
-        flex-direction: column;
-        gap: 8px;
-    }
-
-        .form-group label {
-            color: #6f748d;
-            font-size: 13px;
-            font-weight: 600;
-        }
-
-    .soft-input {
-        border: none;
-        border-radius: 18px;
-        background: #f7f8fd;
-        padding: 14px 16px;
-        color: #1f2235;
-        font-size: 14px;
-        transition: 0.2s ease;
-    }
-
-        .soft-input:focus {
-            outline: none;
-            background: white;
-            box-shadow: 0 0 0 4px rgba(108,92,231,0.12);
-        }
-
-    .calories-card {
-        margin-top: 24px;
-        background: linear-gradient( 135deg, #6c5ce7, #8e7dff);
-        border-radius: 24px;
-        padding: 22px;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        color: white;
-    }
-
-    .calories-title {
-        font-size: 16px;
-        font-weight: 700;
-    }
-
-    .calories-subtitle {
-        margin-top: 4px;
-        font-size: 12px;
-        opacity: 0.85;
-    }
-
-    .calories-value {
-        font-size: 34px;
-        font-weight: 800;
-    }
-
-    .save-btn {
-        width: 100%;
-        margin-top: 22px;
-        border: none;
-        border-radius: 20px;
-        background: linear-gradient( 135deg, #6c5ce7, #7f6fff);
-        color: white;
-        padding: 15px;
-        font-size: 15px;
-        font-weight: 700;
-        transition: 0.2s ease;
-        box-shadow: 0 10px 24px rgba(108,92,231,0.18);
-    }
-
-        .save-btn:hover {
-            transform: translateY(-2px);
-        }
-
-    .allergens-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fill,minmax(180px,1fr));
-        gap: 18px;
-    }
-
-    .allergen-card {
-        position: relative;
-        background: #f9faff;
-        border: 1px solid #edf0f8;
-        border-radius: 24px;
-        padding: 20px;
-        cursor: pointer;
-        transition: 0.2s ease;
-    }
-
-        .allergen-card:hover {
-            transform: translateY(-4px);
-            box-shadow: 0 10px 24px rgba(0,0,0,0.05);
-        }
-
-        .allergen-card.selected {
-            background: linear-gradient( 180deg, #f4f1ff 0%, #ffffff 100%);
-            border-color: #6c5ce7;
-        }
-
-    .allergen-top {
-        display: flex;
-        justify-content: space-between;
-        align-items: flex-start;
-        margin-bottom: 16px;
-    }
-
-    .allergen-icon {
-        width: 54px;
-        height: 54px;
-        border-radius: 18px;
-        background: white;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 28px;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.04);
-    }
-
-    .allergen-check {
-        width: 28px;
-        height: 28px;
-        border-radius: 50%;
-        background: #6c5ce7;
-        color: white;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 13px;
-        font-weight: 700;
-    }
-
-    .allergen-name {
-        color: #1a1a2e;
-        font-size: 16px;
-        font-weight: 700;
-        margin-bottom: 6px;
-    }
-
-    .allergen-status {
-        color: #8d90a1;
-        font-size: 13px;
-    }
-
-    @@media (max-width: 992px) {
-
-        .profile-page {
-            padding: 16px;
-        }
-
-        .form-grid {
-            grid-template-columns: 1fr;
-        }
-
-        .profile-stats {
-            grid-template-columns: 1fr;
-        }
-
-        .calories-card {
-            flex-direction: column;
-            gap: 16px;
-            text-align: center;
-        }
-
-        .page-title {
-            font-size: 30px;
-        }
-    }
-
-</style>
-
 @code {
+    private double userWeight = 70;
+    private double userHeight = 175;
+    private int userAge = 25;
+    private double targetCalories = 2000;
+
+    // Строки для стабильного связывания с HTML-элементами <select>
+    private string genderString = "Male";
+    private string activityString = "Low";
+    private string goalString = "Maintain";
 
     private List<AllergenViewModel> allergens = new();
 
-    private UserProfile profile = new();
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadProfileAndAllergens();
+    }
 
-    private int generatedMenusCount;
+    private async Task LoadProfileAndAllergens()
+    {
+        await using var context = await DbContextFactory.CreateDbContextAsync();
+        var userId = AuthService.CurrentUserId;
+
+        // 1. Загрузка параметров профиля строго по вашей модели
+        var profile = await context.UserProfiles.FirstOrDefaultAsync(x => x.UserId == userId);
+        if (profile != null)
+        {
+            userWeight = profile.Weight;
+            userHeight = profile.Height;
+            userAge = profile.Age;
+            targetCalories = profile.TargetCalories;
+
+            // Преобразуем Enums из базы в строки для Select-контролов
+            genderString = profile.Gender.ToString();
+            activityString = profile.ActivityLevel.ToString();
+            goalString = profile.Goal.ToString();
+        }
+        else
+        {
+            RecalculateCalories();
+        }
+
+        // 2. Загрузка аллергенов
+        var allAllergies = await context.Allergies.ToListAsync();
+        var userAllergyIds = await context.UserAllergies
+            .Where(x => x.UserId == userId)
+            .Select(x => x.AllergyId)
+            .ToListAsync();
+
+        allergens = allAllergies.Select(x => new AllergenViewModel
+            {
+                Id = x.Id,
+                Name = x.Name,
+                Selected = userAllergyIds.Contains(x.Id)
+            }).ToList();
+    }
+
+    private async Task OnGenderChanged(ChangeEventArgs e)
+    {
+        genderString = e.Value?.ToString() ?? "Male";
+        await UpdateCaloriesAndSave();
+    }
+
+    private async Task OnActivityChanged(ChangeEventArgs e)
+    {
+        activityString = e.Value?.ToString() ?? "Low";
+        await UpdateCaloriesAndSave();
+    }
+
+    private async Task OnGoalChanged(ChangeEventArgs e)
+    {
+        goalString = e.Value?.ToString() ?? "Maintain";
+        await UpdateCaloriesAndSave();
+    }
+
+    private void RecalculateCalories()
+    {
+        if (userWeight <= 0 || userHeight <= 0 || userAge <= 0)
+        {
+            targetCalories = 2000;
+            return;
+        }
+
+        // Коэффициенты на базе ActivityLevel Enum
+        double activityMultiplier = activityString switch
+        {
+            "Low" => 1.2,
+            "Medium" => 1.55,
+            "High" => 1.725,
+            _ => 1.2
+        };
+
+        // Расчет BMR (Миффлин-Сан Жеор)
+        double bmr = (10 * userWeight) + (6.25 * userHeight) - (5 * userAge);
+        bmr = (genderString == "Male") ? (bmr + 5) : (bmr - 161);
+
+        double totalCalories = bmr * activityMultiplier;
+
+        // Коррекция калорий в зависимости от выбранного GoalType
+        totalCalories = goalString switch
+        {
+            "LoseWeight" => totalCalories - 400, // Дефицит для похудения
+            "GainWeight" => totalCalories + 400, // Профицит для набора массы
+            _ => totalCalories
+        };
+
+        targetCalories = Math.Round(totalCalories);
+    }
+
+    private async Task UpdateCaloriesAndSave()
+    {
+        // 1. Выполняем расчет
+        RecalculateCalories();
+
+        // 2. Сохраняем все поля, приводя типы к структуре БД
+        try
+        {
+            await using var context = await DbContextFactory.CreateDbContextAsync();
+            var userId = AuthService.CurrentUserId;
+            var profile = await context.UserProfiles.FirstOrDefaultAsync(x => x.UserId == userId);
+
+            // Конвертируем строки обратно в Enum типы модели
+            Enum.TryParse<Gender>(genderString, out var parsedGender);
+            Enum.TryParse<ActivityLevel>(activityString, out var parsedActivity);
+            Enum.TryParse<GoalType>(goalString, out var parsedGoal);
+
+            if (profile != null)
+            {
+                profile.Weight = userWeight;
+                profile.Height = userHeight;
+                profile.Age = userAge;
+                profile.Gender = parsedGender;
+                profile.ActivityLevel = parsedActivity;
+                profile.Goal = parsedGoal;
+                profile.TargetCalories = targetCalories;
+            }
+            else
+            {
+                var newProfile = new UserProfile
+                    {
+                        UserId = userId,
+                        Weight = userWeight,
+                        Height = userHeight,
+                        Age = userAge,
+                        Gender = parsedGender,
+                        ActivityLevel = parsedActivity,
+                        Goal = parsedGoal,
+                        TargetCalories = targetCalories
+                    };
+                context.UserProfiles.Add(newProfile);
+            }
+
+            await context.SaveChangesAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Ошибка сохранения в базу данных: {ex.Message}");
+        }
+    }
+
+    private async Task ToggleAllergen(AllergenViewModel allergen)
+    {
+        try
+        {
+            await using var context = await DbContextFactory.CreateDbContextAsync();
+            var userId = AuthService.CurrentUserId;
+
+            if (allergen.Selected)
+            {
+                var userAllergy = await context.UserAllergies
+                    .FirstOrDefaultAsync(x => x.UserId == userId && x.AllergyId == allergen.Id);
+                if (userAllergy != null) context.UserAllergies.Remove(userAllergy);
+                allergen.Selected = false;
+            }
+            else
+            {
+                context.UserAllergies.Add(new UserAllergy { UserId = userId, AllergyId = allergen.Id });
+                allergen.Selected = true;
+            }
+            await context.SaveChangesAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Ошибка изменения аллергена: {ex.Message}");
+        }
+    }
+
+    private string GetAllergenIcon(string name) => name switch
+    {
+        "Лактоза" => "🥛",
+        "Глютен" => "🌾",
+        "Орехи" => "🥜",
+        "Морепродукты" => "🦐",
+        "Рыба" => "🐟",
+        "Яйца" => "🥚",
+        _ => "🍽️"
+    };
 
     public class AllergenViewModel
     {
         public int Id { get; set; }
-
         public string Name { get; set; } = "";
-
         public bool Selected { get; set; }
     }
-
-    protected override async Task OnInitializedAsync()
-    {
-        var currentUser = await DbContext.Users
-
-            .Include(x => x.UserAllergies)
-                .ThenInclude(x => x.Allergy)
-
-            .Include(x => x.Profile)
-
-            .FirstOrDefaultAsync(x =>
-                x.Id == AuthService.CurrentUserId);
-
-        if (currentUser == null)
-            return;
-
-        if (currentUser.Profile == null)
-        {
-            currentUser.Profile = new UserProfile
-                {
-                    UserId = currentUser.Id,
-                    Age = 20,
-                    Height = 170,
-                    Weight = 70,
-                    Gender = Gender.Male,
-                    ActivityLevel = ActivityLevel.Medium,
-                    Goal = GoalType.Maintain,
-                    TargetCalories = 2200
-                };
-
-            DbContext.UserProfiles.Add(currentUser.Profile);
-
-            await DbContext.SaveChangesAsync();
-        }
-
-        profile = currentUser.Profile;
-
-        CalculateCalories();
-
-        var dbAllergens = await DbContext.Allergies
-            .ToListAsync();
-
-        allergens = dbAllergens
-
-            .Select(x => new AllergenViewModel
-                {
-                    Id = x.Id,
-
-                    Name = x.Name,
-
-                    Selected = currentUser.UserAllergies
-                        .Any(a => a.AllergyId == x.Id)
-                })
-
-            .ToList();
-
-        generatedMenusCount = await DbContext.MealPlans
-
-            .CountAsync(x =>
-                x.UserId == currentUser.Id);
-    }
-
-    private async Task SaveProfile()
-    {
-        CalculateCalories();
-
-        DbContext.UserProfiles.Update(profile);
-
-        await DbContext.SaveChangesAsync();
-    }
-
-    private void CalculateCalories()
-    {
-        double bmr;
-
-        if (profile.Gender == Gender.Male)
-        {
-            bmr =
-                10 * profile.Weight +
-                6.25 * profile.Height -
-                5 * profile.Age + 5;
-        }
-        else
-        {
-            bmr =
-                10 * profile.Weight +
-                6.25 * profile.Height -
-                5 * profile.Age - 161;
-        }
-
-        double activity = profile.ActivityLevel switch
-        {
-            ActivityLevel.Low => 1.2,
-            ActivityLevel.Medium => 1.55,
-            ActivityLevel.High => 1.8,
-            _ => 1.2
-        };
-
-        double calories = bmr * activity;
-
-        calories = profile.Goal switch
-        {
-            GoalType.LoseWeight => calories - 300,
-            GoalType.GainWeight => calories + 300,
-            _ => calories
-        };
-
-        profile.TargetCalories = calories;
-    }
-
-    private async Task ToggleAllergen(
-        AllergenViewModel allergen)
-    {
-        var currentUser = await DbContext.Users
-
-            .Include(x => x.UserAllergies)
-
-            .FirstOrDefaultAsync(x =>
-                x.Id == AuthService.CurrentUserId);
-
-        if (currentUser == null)
-            return;
-
-        var existing = currentUser.UserAllergies
-
-            .FirstOrDefault(x =>
-                x.AllergyId == allergen.Id);
-
-        if (existing != null)
-        {
-            DbContext.UserAllergies.Remove(existing);
-
-            allergen.Selected = false;
-        }
-        else
-        {
-            currentUser.UserAllergies.Add(new UserAllergy
-                {
-                    UserId = currentUser.Id,
-                    AllergyId = allergen.Id
-                });
-
-            allergen.Selected = true;
-        }
-
-        await DbContext.SaveChangesAsync();
-    }
-
-    private string GetFirstLetter()
-    {
-        if (string.IsNullOrWhiteSpace(AuthService.CurrentUserName))
-            return "U";
-
-        return AuthService.CurrentUserName
-            .Substring(0, 1)
-            .ToUpper();
-    }
-
-    private string GetAllergenIcon(string name)
-    {
-        return name switch
-        {
-            "Лактоза" => "🥛",
-            "Глютен" => "🌾",
-            "Орехи" => "🥜",
-            "Яйца" => "🥚",
-            "Мёд" => "🍯",
-            "Морепродукты" => "🦐",
-            _ => "⚠️"
-        };
-    }
-
 }

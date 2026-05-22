@@ -22,43 +22,56 @@
         </button>
     </header>
 
-    <div class="bg-white border border-slate-100 rounded-[2.5rem] shadow-sm p-6 lg:p-8 mb-10 space-y-6">
+    <div class="space-y-4 pb-5 mb-8 border-b border-slate-100">
 
-        <div class="flex flex-wrap gap-2 border-b border-slate-100 pb-4">
-            <button @onclick='() => SetFilterType("all")'
-                    class="px-5 py-2.5 rounded-xl text-sm font-bold transition-all @(activeFilter == "all" ? "bg-slate-900 text-white shadow-md" : "bg-slate-50 text-slate-600 hover:bg-slate-100")">
-                ✨ Все рецепты
-            </button>
-            <button @onclick='() => SetFilterType("favorites")'
-                    class="px-5 py-2.5 rounded-xl text-sm font-bold transition-all @(activeFilter == "favorites" ? "bg-red-50 text-red-600 border border-red-100" : "bg-slate-50 text-slate-600 hover:bg-slate-100")">
-                ❤️ Избранное (@favoriteIds.Count)
-            </button>
-            <button @onclick='() => SetFilterType("byIngredients")'
-                    class="px-5 py-2.5 rounded-xl text-sm font-bold transition-all @(activeFilter == "byIngredients" ? "bg-indigo-50 text-indigo-600 border border-indigo-100" : "bg-slate-50 text-slate-600 hover:bg-slate-100")">
-                🥑 По наличию продуктов
-            </button>
-        </div>
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
 
-        <div class="grid grid-cols-1 md:grid-cols-12 gap-4">
-            <div class="md:col-span-7 relative">
-                <i class="fas fa-search absolute left-4 top-4 text-slate-400"></i>
-                <input type="text" class="w-full bg-slate-50 border-2 border-transparent focus:border-indigo-500 focus:bg-white rounded-xl pl-11 pr-4 py-3.5 font-bold text-sm outline-none transition-all placeholder-slate-400"
-                       placeholder="Поиск рецептов по названию..."
-                       @bind="searchQuery"
-                       @bind:event="oninput"
-                       @bind:after="RefreshFilters" />
+            <div class="flex items-center gap-6 text-sm font-medium border-b sm:border-none border-slate-100 pb-2 sm:pb-0">
+                <button @onclick='() => SetFilterType("all")'
+                        class="pb-2 sm:py-1 transition-all relative @(activeFilter == "all" ? "text-slate-900 font-semibold after:absolute after:bottom-0 after:left-0 after:right-0 after:h-[2px] after:bg-slate-900" : "text-slate-400 hover:text-slate-600")">
+                    Все рецепты
+                </button>
+
+                <button @onclick='() => SetFilterType("favorites")'
+                        class="pb-2 sm:py-1 transition-all relative flex items-center gap-1.5 @(activeFilter == "favorites" ? "text-rose-600 font-semibold after:absolute after:bottom-0 after:left-0 after:right-0 after:h-[2px] after:bg-rose-500" : "text-slate-400 hover:text-slate-600")">
+                    <span>Избранное</span>
+                    <span class="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-50 text-slate-500 font-normal border border-slate-100">@favoriteIds.Count</span>
+                </button>
+
+                <button @onclick='() => SetFilterType("byIngredients")'
+                        class="pb-2 sm:py-1 transition-all relative @(activeFilter == "byIngredients" ? "text-indigo-600 font-semibold after:absolute after:bottom-0 after:left-0 after:right-0 after:h-[2px] after:bg-indigo-600" : "text-slate-400 hover:text-slate-600")">
+                    По наличию продуктов
+                </button>
             </div>
 
-            <div class="md:col-span-5">
-                <select class="w-full bg-slate-50 border-2 border-transparent focus:border-indigo-500 focus:bg-white rounded-xl px-4 py-3.5 font-bold text-sm outline-none transition-all text-slate-700"
+            <div class="flex items-center gap-2 text-xs text-slate-400 self-start sm:self-center">
+                <span>Время готовки:</span>
+                <select class="bg-transparent font-medium text-slate-700 focus:outline-none cursor-pointer border-none p-0 pr-4 text-xs"
                         @bind="filterTime" @bind:after="RefreshFilters">
-                    <option value="0">⏱️ Любое время готовки</option>
+                    <option value="0">Любое</option>
                     <option value="15">До 15 мин</option>
                     <option value="30">До 30 мин</option>
                     <option value="45">До 45 мин</option>
                     <option value="60">До 1 часа</option>
                 </select>
             </div>
+        </div>
+
+        <div class="relative w-full max-w-md">
+            <input type="text"
+                   class="w-full bg-slate-50 text-xs px-3 py-2 rounded-lg border border-slate-100 focus:outline-none focus:border-slate-200 focus:bg-white placeholder-slate-400 transition-all"
+                   placeholder="Поиск рецептов по названию..."
+                   @bind="searchQuery"
+                   @bind:event="oninput"
+                   @bind:after="RefreshFilters" />
+
+            @if (!string.IsNullOrEmpty(searchQuery))
+            {
+                <button @onclick="async () => { searchQuery = string.Empty; RefreshFilters(); }"
+                        class="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600 text-xs">
+                    <i class="fas fa-times"></i>
+                </button>
+            }
         </div>
     </div>
 
