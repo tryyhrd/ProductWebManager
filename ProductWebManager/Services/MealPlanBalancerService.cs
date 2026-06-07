@@ -65,7 +65,28 @@ public class MealPlanBalancerService
         }
 
         for (int i = 0; i < result.Count; i++)
-            result[i].TargetCalories = Math.Max(0, allocated[i]);
+        {
+            var meal = result[i];
+            meal.TargetCalories = Math.Max(0, allocated[i]);
+
+            double currentCalories = meal.Calories > 0 ? meal.Calories : (meal.Ingredients?.Sum(ing => ing.Calories) ?? 1);
+            if (currentCalories <= 0) currentCalories = 1;
+
+            double ratio = (double)meal.TargetCalories / currentCalories;
+
+            meal.Calories = meal.TargetCalories;
+            meal.Proteins = meal.Proteins * ratio;
+            meal.Fats = meal.Fats * ratio;
+            meal.Carbs = meal.Carbs * ratio;
+
+            if (meal.Ingredients != null)
+            {
+                foreach (var ing in meal.Ingredients)
+                {
+                    ing.Quantity = (decimal)Math.Round((double)ing.Quantity * ratio, 1);
+                }
+            }
+        }
 
         return result;
     }

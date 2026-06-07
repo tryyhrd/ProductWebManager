@@ -1,4 +1,4 @@
-﻿@page "/recipe/{Id:int}"
+@page "/recipe/{Id:int}"
 @rendermode InteractiveServer
 
 @using Microsoft.EntityFrameworkCore
@@ -47,23 +47,25 @@
 
             <div class="lg:col-span-7 space-y-8">
 
-                <div class="w-full h-64 lg:h-80 bg-slate-100 rounded-[2.5rem] overflow-hidden shadow-sm relative group">
+                <div class="w-full h-72 lg:h-[28rem] bg-slate-900 rounded-[2.5rem] overflow-hidden shadow-2xl relative group">
                     @if (!string.IsNullOrWhiteSpace(recipe.ImageUrl))
                     {
-                        <img src="@recipe.ImageUrl" alt="@recipe.Title" class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
+                        <img src="@recipe.ImageUrl" alt="@recipe.Title" class="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110 opacity-90 group-hover:opacity-100" />
                     }
                     else
                     {
-                        <div class="w-full h-full flex flex-col items-center justify-center text-white/50 space-y-3"
-                             style="background: linear-gradient(135deg, #a29bfe, #6c5ce7)">
-                            <i class="fas fa-utensils text-5xl"></i>
-                            <span class="text-sm font-bold tracking-wider uppercase opacity-70">SmartPlate AI Photo</span>
+                        <div class="w-full h-full flex flex-col items-center justify-center text-white/60 space-y-4"
+                             style="background: radial-gradient(circle at top right, #818cf8, #4f46e5, #312e81)">
+                            <i class="fas fa-camera text-6xl opacity-50 mb-2 drop-shadow-lg transform group-hover:scale-110 transition-transform duration-500"></i>
+                            <span class="text-sm font-black tracking-[0.2em] uppercase opacity-80">ФОТО БЛЮДА</span>
                         </div>
                     }
+                    <div class="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/40 to-transparent opacity-80"></div>
+                    
                     @if (!string.IsNullOrWhiteSpace(recipe.Description))
                     {
-                        <div class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-slate-900/80 via-slate-900/40 to-transparent p-6 pt-12">
-                            <p class="text-white/90 text-sm font-medium leading-relaxed line-clamp-2">@recipe.Description</p>
+                        <div class="absolute inset-x-0 bottom-0 p-8 lg:p-10 transform translate-y-2 group-hover:translate-y-0 transition-transform duration-500">
+                            <p class="text-white/95 text-lg lg:text-xl font-medium leading-relaxed drop-shadow-md border-l-4 border-indigo-500 pl-4">@recipe.Description</p>
                         </div>
                     }
                 </div>
@@ -74,21 +76,25 @@
                     </h3>
 
                     <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                        <div class="bg-amber-50/60 border border-amber-100/50 rounded-2xl p-4 text-center">
-                            <span class="block text-2xl font-black text-amber-700">@GetTotalCalories()</span>
-                            <span class="text-xs font-bold text-slate-400 uppercase tracking-wider mt-1 block">Калории (ккал)</span>
+                        <div class="bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-100/60 rounded-[1.5rem] p-5 text-center shadow-sm hover:shadow-md transition-shadow">
+                            <i class="fas fa-fire text-amber-400 text-xl mb-2"></i>
+                            <span class="block text-3xl font-black text-amber-700 tracking-tight">@GetTotalCalories()</span>
+                            <span class="text-[10px] font-black text-amber-600/70 uppercase tracking-widest mt-1 block">Ккал</span>
                         </div>
-                        <div class="bg-emerald-50/60 border border-emerald-100/50 rounded-2xl p-4 text-center">
-                            <span class="block text-2xl font-black text-emerald-700">@GetTotalProteins() г</span>
-                            <span class="text-xs font-bold text-slate-400 uppercase tracking-wider mt-1 block">Белки</span>
+                        <div class="bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-100/60 rounded-[1.5rem] p-5 text-center shadow-sm hover:shadow-md transition-shadow">
+                            <i class="fas fa-drumstick-bite text-emerald-400 text-xl mb-2"></i>
+                            <span class="block text-3xl font-black text-emerald-700 tracking-tight">@GetTotalProteins()</span>
+                            <span class="text-[10px] font-black text-emerald-600/70 uppercase tracking-widest mt-1 block">Белки (г)</span>
                         </div>
-                        <div class="bg-indigo-50/60 border border-indigo-100/50 rounded-2xl p-4 text-center">
-                            <span class="block text-2xl font-black text-indigo-700">@GetTotalFats() г</span>
-                            <span class="text-xs font-bold text-slate-400 uppercase tracking-wider mt-1 block">Жиры</span>
+                        <div class="bg-gradient-to-br from-sky-50 to-blue-50 border border-sky-100/60 rounded-[1.5rem] p-5 text-center shadow-sm hover:shadow-md transition-shadow">
+                            <i class="fas fa-tint text-sky-400 text-xl mb-2"></i>
+                            <span class="block text-3xl font-black text-sky-700 tracking-tight">@GetTotalFats()</span>
+                            <span class="text-[10px] font-black text-sky-600/70 uppercase tracking-widest mt-1 block">Жиры (г)</span>
                         </div>
-                        <div class="bg-rose-50/60 border border-rose-100/50 rounded-2xl p-4 text-center">
-                            <span class="block text-2xl font-black text-rose-700">@GetTotalCarbs() г</span>
-                            <span class="text-xs font-bold text-slate-400 uppercase tracking-wider mt-1 block">Углеводы</span>
+                        <div class="bg-gradient-to-br from-rose-50 to-pink-50 border border-rose-100/60 rounded-[1.5rem] p-5 text-center shadow-sm hover:shadow-md transition-shadow">
+                            <i class="fas fa-seedling text-rose-400 text-xl mb-2"></i>
+                            <span class="block text-3xl font-black text-rose-700 tracking-tight">@GetTotalCarbs()</span>
+                            <span class="text-[10px] font-black text-rose-600/70 uppercase tracking-widest mt-1 block">Углеводы (г)</span>
                         </div>
                     </div>
                 </div>
@@ -147,50 +153,35 @@
                         <i class="fas fa-cheese text-amber-500"></i> Ингредиенты
                     </h3>
 
-                    <div class="divide-y divide-slate-100">
+                    <div class="space-y-3">
                         @foreach (var ri in recipe.RecipeIngredients)
                         {
                             var hasProduct = fridgeProductIds.Contains(ri.ProductId);
-                            <div class="py-4 group first:pt-0 last:pb-0">
-                                <div class="flex justify-between items-center">
-                                    <div class="flex items-center gap-3">
-                                        <div class="w-2 h-2 rounded-full @(hasProduct ? "bg-emerald-500" : "bg-slate-300")"></div>
-                                        <span class="font-black text-sm lg:text-base @(hasProduct ? "text-slate-800" : "text-slate-500")">
-                                            @ri.Product?.Name
-                                        </span>
+                            <label class="flex items-start lg:items-center flex-col lg:flex-row gap-3 lg:gap-4 p-4 lg:p-5 rounded-2xl border transition-all cursor-pointer group hover:shadow-md @(hasProduct ? "bg-white border-slate-200 hover:border-emerald-300" : "bg-slate-50 border-transparent hover:border-indigo-200")">
+                                <input type="checkbox" class="peer hidden" />
+                                
+                                <div class="flex items-center gap-4 w-full lg:w-auto flex-1">
+                                    <div class="relative w-6 h-6 rounded border-2 flex items-center justify-center shrink-0 transition-all peer-checked:bg-indigo-500 peer-checked:border-indigo-500 @(hasProduct ? "border-emerald-400" : "border-slate-300") group-hover:scale-110">
+                                        <i class="fas fa-check text-white text-[10px] opacity-0 peer-checked:opacity-100 transition-opacity"></i>
                                     </div>
-                                    <div class="flex items-center gap-2">
-                                        <span class="font-black text-slate-700 text-xs bg-slate-50 px-2.5 py-1.5 rounded-xl border border-slate-100/70">
-                                            @ri.Quantity @ri.Product?.Unit?.Name
-                                        </span>
-                                        <span class="w-6 text-center" title="@(hasProduct ? "Есть в холодильнике" : "Отсутствует")">
-                                            @if (hasProduct)
-                                            {
-                                                <i class="fas fa-check-circle text-emerald-500 text-sm"></i>
-                                            }
-                                            else
-                                            {
-                                                <i class="fas fa-times-circle text-slate-200 text-sm"></i>
-                                            }
-                                        </span>
-                                    </div>
-                                </div>
-
-                                <div class="flex flex-wrap gap-1.5 mt-2 pl-5 text-[10px] font-bold text-slate-400">
-                                    <span class="bg-amber-50/40 text-amber-700/80 px-2 py-0.5 rounded-md">
-                                        🔥 @GetIngredientCalories(ri) ккал
+                                    <span class="font-bold text-base lg:text-lg text-slate-800 peer-checked:line-through peer-checked:text-slate-400 transition-all flex-1">
+                                        @ri.Product?.Name
                                     </span>
-                                    <span class="bg-slate-50 text-slate-500 px-2 py-0.5 rounded-md">
-                                        Б: <strong class="text-slate-700">@GetIngredientProteins(ri)г</strong>
-                                    </span>
-                                    <span class="bg-slate-50 text-slate-500 px-2 py-0.5 rounded-md">
-                                        Ж: <strong class="text-slate-700">@GetIngredientFats(ri)г</strong>
-                                    </span>
-                                    <span class="bg-slate-50 text-slate-500 px-2 py-0.5 rounded-md">
-                                        У: <strong class="text-slate-700">@GetIngredientCarbs(ri)г</strong>
+                                    <span class="lg:hidden @(hasProduct ? "text-emerald-500" : "text-slate-300") text-sm">
+                                        <i class="fas @(hasProduct ? "fa-check-circle" : "fa-info-circle")"></i>
                                     </span>
                                 </div>
-                            </div>
+                                
+                                <div class="flex items-center gap-3 w-full lg:w-auto justify-between lg:justify-end pl-10 lg:pl-0 peer-checked:opacity-50 transition-opacity">
+                                    <div class="flex gap-1.5 text-[10px] font-black tracking-widest uppercase">
+                                        <span class="bg-amber-100/50 text-amber-700 px-2 py-1 rounded-lg">@GetIngredientCalories(ri) КК</span>
+                                        <span class="bg-slate-100 text-slate-600 px-2 py-1 rounded-lg">@GetIngredientProteins(ri)Б</span>
+                                    </div>
+                                    <span class="font-black text-slate-700 bg-white border border-slate-200 px-3 py-1.5 rounded-xl shadow-sm">
+                                        @ri.Quantity @ri.Product?.Unit?.Name
+                                    </span>
+                                </div>
+                            </label>
                         }
                     </div>
                 </div>
@@ -246,10 +237,10 @@
     // Примечание: Если в вашей таблице `Product` или `RecipeIngredient` появятся
     // свойства Calories/Proteins/Fats/Carbs, просто замените формулу (например: ri.Product.Calories * ri.Quantity)
 
-    private int GetIngredientCalories(RecipeIngredient ri) => (ri.Id % 4 + 1) * 35;
-    private int GetIngredientProteins(RecipeIngredient ri) => (ri.Id % 3 + 1) * 2;
-    private int GetIngredientFats(RecipeIngredient ri) => (ri.Id % 2 + 1) * 1;
-    private int GetIngredientCarbs(RecipeIngredient ri) => (ri.Id % 5 + 2) * 3;
+    private int GetIngredientCalories(RecipeIngredient ri) => (int)Math.Round(ProductWebManager.Services.NutritionCalculator.CalculateCalories(ri.Product, ri.Quantity));
+    private int GetIngredientProteins(RecipeIngredient ri) => (int)Math.Round(ProductWebManager.Services.NutritionCalculator.CalculateProteins(ri.Product, ri.Quantity));
+    private int GetIngredientFats(RecipeIngredient ri) => (int)Math.Round(ProductWebManager.Services.NutritionCalculator.CalculateFats(ri.Product, ri.Quantity));
+    private int GetIngredientCarbs(RecipeIngredient ri) => (int)Math.Round(ProductWebManager.Services.NutritionCalculator.CalculateCarbs(ri.Product, ri.Quantity));
 
     // СУММАРНЫЕ ЗНАЧЕНИЯ ДЛЯ ВСЕГО РЕЦЕПТА
     private int GetTotalCalories() => recipe?.RecipeIngredients.Sum(ri => GetIngredientCalories(ri)) ?? 0;

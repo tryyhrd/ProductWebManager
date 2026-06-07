@@ -9,6 +9,7 @@
 @inject NavigationManager Navigation
 @inject IDbContextFactory<ProductWebManager.Data.ProductManagerContext> DbContextFactory
 @inject GigaChatHelper GigaChatAI
+@inject MealPlanGeneratorService MealPlanGenerator
 
 <PageTitle>SmartPlate AI — План питания</PageTitle>
 
@@ -42,7 +43,7 @@
                 </button>
             }
 
-            <button @onclick="GenerateMealPlanAsync" disabled="@(isGenerating || isReplacing)"
+            <button @onclick="GenerateMealPlanAsync" disabled="@(isGenerating || replacingMealId != -1)"
                     class="flex items-center gap-3 bg-slate-900 hover:bg-indigo-600 text-white px-8 py-4 rounded-2xl font-bold transition-all transform hover:-translate-y-1 shadow-xl disabled:opacity-50 disabled:cursor-not-allowed">
                 @if (isGenerating)
                 {
@@ -61,8 +62,17 @@
     <div class="grid grid-cols-1 lg:grid-cols-[380px_1fr] gap-8 items-start">
         <aside class="space-y-6">
             <div class="bento-card p-8 bg-white border border-slate-100 rounded-3xl shadow-sm">
+                @{
+                    var expandedDay = mealPlanDays.FirstOrDefault(d => d.IsExpanded);
+                    var displayCalories = expandedDay != null ? expandedDay.Meals.Sum(m => m.Calories) : targetCalories;
+                    var displayProteins = expandedDay != null ? (int)expandedDay.Meals.Sum(m => m.Proteins) : targetProteins;
+                    var displayFats = expandedDay != null ? (int)expandedDay.Meals.Sum(m => m.Fats) : targetFats;
+                    var displayCarbs = expandedDay != null ? (int)expandedDay.Meals.Sum(m => m.Carbs) : targetCarbs;
+                    var displayTitle = expandedDay != null ? $"День {expandedDay.Date:dd.MM}" : "Дневная цель";
+                }
+
                 <div class="flex justify-between items-center mb-6">
-                    <span class="text-xs font-black uppercase tracking-widest text-slate-400">Дневная цель</span>
+                    <span class="text-xs font-black uppercase tracking-widest text-slate-400">@displayTitle</span>
                     <div class="w-10 h-10 bg-orange-50 text-orange-500 rounded-full flex items-center justify-center shadow-sm">
                         <i class="fas fa-fire"></i>
                     </div>
@@ -72,20 +82,20 @@
                     <svg class="w-full h-full -rotate-90" viewBox="0 0 36 36">
                         <circle class="fill-none stroke-slate-100 stroke-[3]" cx="18" cy="18" r="15.915"></circle>
                         @{
-                            var totalGrams = targetProteins + targetFats + targetCarbs;
-                            var pPerc = totalGrams > 0 ? (targetProteins * 100 / totalGrams) : 0;
-                            var fPerc = totalGrams > 0 ? (targetFats * 100 / totalGrams) : 0;
-                            var cPerc = totalGrams > 0 ? (targetCarbs * 100 / totalGrams) : 0;
+                            var totalGrams = displayProteins + displayFats + displayCarbs;
+                            var pPerc = totalGrams > 0 ? (displayProteins * 100.0 / totalGrams) : 0;
+                            var fPerc = totalGrams > 0 ? (displayFats * 100.0 / totalGrams) : 0;
+                            var cPerc = totalGrams > 0 ? (displayCarbs * 100.0 / totalGrams) : 0;
                         }
                         <circle class="fill-none stroke-indigo-500 stroke-[3] transition-all duration-1000"
-                                cx="18" cy="18" r="15.915" stroke-dasharray="@($"{pPerc} {100-pPerc}")" stroke-dashoffset="0"></circle>
+                                cx="18" cy="18" r="15.915" stroke-dasharray="@($"{pPerc.ToString(CultureInfo.InvariantCulture)} {Math.Max(0, 100 - pPerc).ToString(CultureInfo.InvariantCulture)}")" stroke-dashoffset="0"></circle>
                         <circle class="fill-none stroke-amber-500 stroke-[3] transition-all duration-1000"
-                                cx="18" cy="18" r="15.915" stroke-dasharray="@($"{fPerc} {100-fPerc}")" stroke-dashoffset="@(-pPerc)"></circle>
+                                cx="18" cy="18" r="15.915" stroke-dasharray="@($"{fPerc.ToString(CultureInfo.InvariantCulture)} {Math.Max(0, 100 - fPerc).ToString(CultureInfo.InvariantCulture)}")" stroke-dashoffset="@((-pPerc).ToString(CultureInfo.InvariantCulture))"></circle>
                         <circle class="fill-none stroke-emerald-500 stroke-[3] transition-all duration-1000"
-                                cx="18" cy="18" r="15.915" stroke-dasharray="@($"{cPerc} {100-cPerc}")" stroke-dashoffset="@(-(pPerc + fPerc))"></circle>
+                                cx="18" cy="18" r="15.915" stroke-dasharray="@($"{cPerc.ToString(CultureInfo.InvariantCulture)} {Math.Max(0, 100 - cPerc).ToString(CultureInfo.InvariantCulture)}")" stroke-dashoffset="@((-(pPerc + fPerc)).ToString(CultureInfo.InvariantCulture))"></circle>
                     </svg>
                     <div class="absolute inset-0 flex flex-col items-center justify-center text-center">
-                        <span class="text-4xl font-black text-slate-800 leading-none">@targetCalories</span>
+                        <span class="text-4xl font-black text-slate-800 leading-none">@displayCalories</span>
                         <span class="text-[10px] font-bold text-slate-400 uppercase mt-1 tracking-tighter">ккал / день</span>
                     </div>
                 </div>
@@ -93,15 +103,15 @@
                 <div class="space-y-3">
                     <div class="flex items-center justify-between p-3 bg-indigo-50 rounded-xl text-indigo-700 font-bold text-sm">
                         <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-indigo-500"></span> Белки</div>
-                        <span>@targetProteins г</span>
+                        <span>@displayProteins г</span>
                     </div>
                     <div class="flex items-center justify-between p-3 bg-amber-50 rounded-xl text-amber-700 font-bold text-sm">
                         <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-amber-500"></span> Жиры</div>
-                        <span>@targetFats г</span>
+                        <span>@displayFats г</span>
                     </div>
                     <div class="flex items-center justify-between p-3 bg-emerald-50 rounded-xl text-emerald-700 font-bold text-sm">
                         <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-emerald-500"></span> Углеводы</div>
-                        <span>@targetCarbs г</span>
+                        <span>@displayCarbs г</span>
                     </div>
                 </div>
             </div>
@@ -181,7 +191,15 @@
 
                                 <div class="flex items-center gap-8">
                                     <div class="hidden md:block text-right">
-                                        <div class="text-xl font-black text-slate-800">@day.Meals.Sum(m => m.Calories)</div>
+                                        <div class="flex items-center gap-2 justify-end">
+                                            <div class="text-xl font-black text-slate-800">@day.Meals.Sum(m => m.Calories)</div>
+                                            @if (day.Meals.Sum(m => m.Calories) > targetCalories && targetCalories > 0)
+                                            {
+                                                var diff = day.Meals.Sum(m => m.Calories) - targetCalories;
+                                                var percent = (int)Math.Round((double)diff / targetCalories * 100);
+                                                <span class="text-[9px] font-bold text-red-600 bg-red-100 px-2 py-0.5 rounded-full">+@percent%</span>
+                                            }
+                                        </div>
                                         <div class="text-[10px] font-black text-slate-400 uppercase tracking-widest">ккал всего</div>
                                     </div>
                                     <div class="w-10 h-10 rounded-full flex items-center justify-center transition-all border border-slate-100 bg-white @(day.IsExpanded ? "rotate-180 shadow-sm border-slate-200" : "")">
@@ -219,10 +237,18 @@
                                                 </div>
 
                                                 <div class="mb-4">
-                                                    <button type="button" @onclick="() => ReplaceMealAsync(meal)" disabled="@(isGenerating || isReplacing)"
+                                                    <button type="button" @onclick="() => ReplaceMealAsync(meal)" disabled="@(isGenerating || replacingMealId != -1)"
                                                             class="group relative overflow-hidden inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-amber-400 to-orange-500 hover:from-amber-500 hover:to-orange-600 text-white text-xs font-bold rounded-xl shadow-md hover:shadow-lg transition-all disabled:opacity-50 transform hover:-translate-y-0.5">
-                                                        <i class="fas fa-sync-alt text-[10px] group-hover:rotate-180 transition-transform duration-500"></i>
-                                                        <span class="relative z-10">Заменить блюдо</span>
+                                                        @if (replacingMealId == meal.MealPlanItemId)
+                                                        {
+                                                            <i class="fas fa-spinner fa-spin text-[10px]"></i>
+                                                            <span class="relative z-10">Замена...</span>
+                                                        }
+                                                        else
+                                                        {
+                                                            <i class="fas fa-sync-alt text-[10px] group-hover:rotate-180 transition-transform duration-500"></i>
+                                                            <span class="relative z-10">Заменить блюдо</span>
+                                                        }
                                                         <div class="absolute inset-0 h-full w-full bg-white/20 scale-x-0 group-hover:scale-x-100 origin-left transition-transform duration-500 rounded-xl"></div>
                                                     </button>
                                                 </div>
@@ -374,7 +400,7 @@
 @code {
     private static readonly CultureInfo RuCulture = CultureInfo.GetCultureInfo("ru-RU");
     private bool isGenerating = false;
-    private bool isReplacing = false;
+    private int replacingMealId = -1;
     private bool isSavingList = false;
     private string errorMessage = string.Empty;
     private UserProfile profile = new() { Weight = 75, Height = 180, Age = 30, Gender = Gender.Male, ActivityLevel = ActivityLevel.Medium };
@@ -471,6 +497,7 @@
                 dbUser.Profile.Goal = selectedGoal;
                 dbUser.Profile.Gender = profile.Gender;
                 dbUser.Profile.ActivityLevel = profile.ActivityLevel;
+                dbUser.Profile.TargetCalories = targetCalories;
                 await context.SaveChangesAsync();
             }
         }
@@ -548,18 +575,8 @@
         {
             await SaveProfileToDbAsync();
 
-            List<string>? fridgeProductNames = null;
-            if (useFridgeProducts)
-            {
-                await using var dbContext = await DbContextFactory.CreateDbContextAsync();
-                fridgeProductNames = await dbContext.FridgeItems
-                    .Include(f => f.Product)
-                    .Where(f => f.UserId == AuthService.CurrentUserId && f.Quantity >= minFridgeQuantity)
-                    .Select(f => f.Product.Name)
-                    .ToListAsync();
-            }
-
-            var planStructure = await GigaChatAI.GenerateMealPlanStructureAsync(
+            await MealPlanGenerator.GenerateMealPlanAsync(
+                AuthService.CurrentUserId,
                 profile,
                 generationDays,
                 selectedGoal,
@@ -568,95 +585,8 @@
                 targetFats,
                 targetCarbs,
                 useFridgeProducts,
-                "balanced",
-                null,
-                fridgeProductNames);
+                minFridgeQuantity);
 
-            if (planStructure == null || planStructure.Days == null || !planStructure.Days.Any())
-            {
-                errorMessage = "Нейросеть вернула пустой ответ. Попробуйте еще раз.";
-                return;
-            }
-
-            await using var context = await DbContextFactory.CreateDbContextAsync();
-            var planName = $"План питания от {DateTime.Today:dd.MM.yyyy}";
-
-            // УДАЛЕНИЕ СТАРОГО ПЛАНА за тот же день (чтобы база не копила 10 одинаковых планов)
-            var oldPlans = await context.MealPlans.Where(p => p.UserId == AuthService.CurrentUserId && p.Name == planName).ToListAsync();
-            if (oldPlans.Any())
-            {
-                context.MealPlans.RemoveRange(oldPlans);
-            }
-
-            var newPlan = new Models.MealPlan
-                {
-                    UserId = AuthService.CurrentUserId,
-                    CreatedAt = DateTime.UtcNow,
-                    Name = planName,
-                    Items = new List<MealPlanItem>()
-                };
-            var categoryCache = new Dictionary<string, Category>();
-            var unitCache = new Dictionary<string, Unit>();
-
-            DateTime startingDate = DateTime.Today;
-            for (int dayIndex = 0; dayIndex < generationDays; dayIndex++)
-            {
-                if (dayIndex >= planStructure.Days.Count) break;
-                var currentAiDay = planStructure.Days[dayIndex];
-                if (currentAiDay?.Meals == null) continue;
-
-                var targetDate = startingDate.AddDays(dayIndex);
-                foreach (var aiMeal in currentAiDay.Meals)
-                {
-                    var recipe = new Recipe
-                        {
-                            Title = aiMeal.Title,
-                            Description = aiMeal.Description ?? "",
-                            Instructions = aiMeal.Instructions != null ? string.Join("\n", aiMeal.Instructions) : "Приготовьте согласно рецепту.",
-                            RecipeIngredients = new List<RecipeIngredient>()
-                        };
-                    foreach (var aiIng in aiMeal.Ingredients)
-                    {
-                        var catKey = (aiIng.Category ?? "Разное").Trim().ToLower();
-                        if (!categoryCache.TryGetValue(catKey, out var dbCategory))
-                        {
-                            dbCategory = await context.Set<Category>().FirstOrDefaultAsync(c => c.Name.ToLower() == catKey) ?? new Category { Name = aiIng.Category ?? "Разное" };
-                            categoryCache[catKey] = dbCategory;
-                        }
-
-                        var unitKey = (aiIng.Unit ?? "г").Trim().ToLower();
-                        if (!unitCache.TryGetValue(unitKey, out var dbUnit))
-                        {
-                            dbUnit = await context.Set<Unit>().FirstOrDefaultAsync(u => u.Name.ToLower() == unitKey) ?? new Unit { Name = aiIng.Unit ?? "г" };
-                            unitCache[unitKey] = dbUnit;
-                        }
-
-                        var dbProduct = await FindOrCreateProductAsync(context, aiIng, dbCategory, dbUnit);
-
-                        recipe.RecipeIngredients.Add(new RecipeIngredient { Product = dbProduct, Quantity = (double)aiIng.Quantity, Unit = dbUnit });
-                    }
-
-                    int mealProteins = aiMeal.Proteins != 0 ? aiMeal.Proteins : (int)aiMeal.Ingredients.Sum(i => i.Proteins);
-                    int mealFats = aiMeal.Fats != 0 ? aiMeal.Fats : (int)aiMeal.Ingredients.Sum(i => i.Fats);
-                    int mealCarbs = aiMeal.Carbs != 0 ? aiMeal.Carbs : (int)aiMeal.Ingredients.Sum(i => i.Carbs);
-                    int mealCalories = aiMeal.Calories != 0 ? aiMeal.Calories : (int)aiMeal.Ingredients.Sum(i => i.Calories);
-
-                    var planItem = new Models.MealPlanItem
-                        {
-                            Date = targetDate,
-                            Calories = mealCalories,
-                            Proteins = mealProteins,
-                            Fats = mealFats,
-                            Carbs = mealCarbs,
-                            Recipe = recipe,
-                            MealType = Enum.TryParse<MealType>(aiMeal.MealType, true, out var parsedEnum) ? parsedEnum : MealType.Snack
-                        };
-                    newPlan.Items.Add(planItem);
-                }
-            }
-
-            context.MealPlans.Add(newPlan);
-            await context.SaveChangesAsync();
             await LoadExistingPlan();
             ShowModal("Успех!", "Новое меню успешно сформировано.");
         }
@@ -791,106 +721,46 @@
 
     private async Task ReplaceMealAsync(MealPlanMeal meal)
     {
-        if (isGenerating || isReplacing) return;
-        isReplacing = true;
+        if (isGenerating || replacingMealId != -1) return;
+        replacingMealId = meal.MealPlanItemId;
         errorMessage = string.Empty;
         StateHasChanged();
 
         try
         {
-            List<string>? fridgeProductNames = null;
-            if (useFridgeProducts)
-            {
-                await using var dbContext = await DbContextFactory.CreateDbContextAsync();
-                fridgeProductNames = await dbContext.FridgeItems
-                    .Include(f => f.Product)
-                    .Where(f => f.UserId == AuthService.CurrentUserId && f.Quantity >= minFridgeQuantity)
-                    .Select(f => f.Product.Name)
-                    .ToListAsync();
-            }
+            var existingTitles = mealPlanDays
+                .SelectMany(d => d.Meals)
+                .Select(m => m.Title)
+                .Where(t => !string.IsNullOrWhiteSpace(t))
+                .ToList();
 
-            var singleDayPlan = await GigaChatAI.GenerateMealPlanStructureAsync(
+            var newTitle = await MealPlanGenerator.ReplaceMealAsync(
+                AuthService.CurrentUserId,
+                meal.MealPlanItemId,
+                meal.MealType,
+                existingTitles,
                 profile,
-                1,
-                selectedGoal,
                 targetCalories,
                 targetProteins,
                 targetFats,
                 targetCarbs,
                 useFridgeProducts,
-                "balanced",
-                null,
-                fridgeProductNames);
-            if (singleDayPlan?.Days == null || !singleDayPlan.Days.Any())
-            {
-                errorMessage = "Нейросеть не смогла сгенерировать замену.";
-                return;
-            }
+                minFridgeQuantity);
 
-            var matchingAiMeal = singleDayPlan.Days[0].Meals
-                .FirstOrDefault(m => m.MealType.Equals(meal.MealType, StringComparison.OrdinalIgnoreCase))
-                ?? singleDayPlan.Days[0].Meals.FirstOrDefault();
-
-            if (matchingAiMeal == null)
-            {
-                errorMessage = "Подходящее блюдо для замены не найдено.";
-                return;
-            }
-
-            await using var context = await DbContextFactory.CreateDbContextAsync();
-            var dbItem = await context.Set<MealPlanItem>().Include(i => i.Recipe).FirstOrDefaultAsync(i => i.Id == meal.MealPlanItemId);
-
-            if (dbItem == null)
-            {
-                errorMessage = "Элемент рациона не найден в базе данных.";
-                return;
-            }
-
-            var newRecipe = new Recipe
-                {
-                    Title = matchingAiMeal.Title,
-                    Description = matchingAiMeal.Description ?? "",
-                    Instructions = matchingAiMeal.Instructions != null ? string.Join("\n", matchingAiMeal.Instructions) : "Приготовьте по рецепту.",
-                    RecipeIngredients = new List<RecipeIngredient>()
-                };
-
-            var categoryCache = new Dictionary<string, Category>();
-            var unitCache = new Dictionary<string, Unit>();
-            foreach (var aiIng in matchingAiMeal.Ingredients)
-            {
-                var catKey = (aiIng.Category ?? "Разное").Trim().ToLower();
-                if (!categoryCache.TryGetValue(catKey, out var dbCategory))
-                {
-                    dbCategory = await context.Set<Category>().FirstOrDefaultAsync(c => c.Name.ToLower() == catKey) ?? new Category { Name = aiIng.Category ?? "Разное" };
-                    categoryCache[catKey] = dbCategory;
-                }
-
-                var unitKey = (aiIng.Unit ?? "г").Trim().ToLower();
-                if (!unitCache.TryGetValue(unitKey, out var dbUnit))
-                {
-                    dbUnit = await context.Set<Unit>().FirstOrDefaultAsync(u => u.Name.ToLower() == unitKey) ?? new Unit { Name = aiIng.Unit ?? "г" };
-                    unitCache[unitKey] = dbUnit;
-                }
-
-                var dbProduct = await FindOrCreateProductAsync(context, aiIng, dbCategory, dbUnit);
-
-                newRecipe.RecipeIngredients.Add(new RecipeIngredient { Product = dbProduct, Quantity = (double)aiIng.Quantity, Unit = dbUnit });
-            }
-
-            int mealProteins = matchingAiMeal.Proteins != 0 ? matchingAiMeal.Proteins : (int)matchingAiMeal.Ingredients.Sum(i => i.Proteins);
-            int mealFats = matchingAiMeal.Fats != 0 ? matchingAiMeal.Fats : (int)matchingAiMeal.Ingredients.Sum(i => i.Fats);
-            int mealCarbs = matchingAiMeal.Carbs != 0 ? matchingAiMeal.Carbs : (int)matchingAiMeal.Ingredients.Sum(i => i.Carbs);
-            int mealCalories = matchingAiMeal.Calories != 0 ? matchingAiMeal.Calories : (int)matchingAiMeal.Ingredients.Sum(i => i.Calories);
-
-            dbItem.Calories = mealCalories;
-            dbItem.Proteins = mealProteins;
-            dbItem.Fats = mealFats;
-            dbItem.Carbs = mealCarbs;
-            dbItem.Recipe = newRecipe;
-
-            await context.SaveChangesAsync();
+            var expandedDay = mealPlanDays.FirstOrDefault(d => d.IsExpanded)?.Date;
             await LoadExistingPlan();
-            ShowModal("Блюдо заменено", $"Новое блюдо: {matchingAiMeal.Title}");
+
+            if (expandedDay.HasValue)
+            {
+                var dayToExpand = mealPlanDays.FirstOrDefault(d => d.Date.Date == expandedDay.Value.Date);
+                if (dayToExpand != null)
+                {
+                    foreach (var d in mealPlanDays) d.IsExpanded = false;
+                    dayToExpand.IsExpanded = true;
+                }
+            }
+
+            ShowModal("Блюдо заменено", $"Новое блюдо: {newTitle}");
         }
         catch (Newtonsoft.Json.JsonReaderException)
         {
@@ -898,11 +768,11 @@
         }
         catch (Exception ex)
         {
-            errorMessage = $"Ошибка при замене: {ex.Message}";
+            errorMessage = $"Ошибка замены блюда: {ex.Message}";
         }
         finally
         {
-            isReplacing = false;
+            replacingMealId = -1;
             StateHasChanged();
         }
     }

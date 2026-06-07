@@ -23,10 +23,10 @@ public class MealStructureDto
     public bool IsSnack { get; set; }
 
     public int TargetCalories { get; set; }
-    public int Calories { get; set; }
-    public int Proteins { get; set; }
-    public int Fats { get; set; }
-    public int Carbs { get; set; }
+    public double Calories { get; set; }
+    public double Proteins { get; set; }
+    public double Fats { get; set; }
+    public double Carbs { get; set; }
     public string Description { get; set; } = "";
     public List<string> Instructions { get; set; } = [];
     public List<GeneratedIngredientDto> Ingredients { get; set; } = [];
