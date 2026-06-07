@@ -1,4 +1,4 @@
-﻿using System.Net.Http.Headers;
+using System.Net.Http.Headers;
 using System.Text;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -77,6 +77,8 @@ public sealed class GigaChatHelper
 3. ХОЛОДИЛЬНИК: Если переданы продукты ({string.Join(", ", fridgeProducts)}), они ОБЯЗАТЕЛЬНО должны быть основными ингредиентами минимум в 2 приемах пищи в день.
 4. КУЛИНАРНАЯ ЛОГИКА: Не предлагай '120г яблока', если можно предложить '1 среднее яблоко (150г)'. Подгоняй КБЖУ за счет круп и масел.
 
+ОБЯЗАТЕЛЬНО: Для каждого ингредиента укажи КБЖУ НА 100 ГРАММ (или на 1 штуку для штучных продуктов).
+
 ВЕРНИ JSON:
 {{
   ""days"": [
@@ -86,8 +88,13 @@ public sealed class GigaChatHelper
         {{
           ""type"": ""Lunch"",
           ""title"": ""Название"",
-          ""calories"": 0,
-          ""ingredients"": [{{ ""name"": ""..."", ""quantity"": 0, ""unit"": ""г"" }}]
+          ""calories"": 500,
+          ""proteins"": 30,
+          ""fats"": 15,
+          ""carbs"": 60,
+          ""description"": ""Описание блюда"",
+          ""instructions"": [""Шаг 1"", ""Шаг 2""],
+          ""ingredients"": [{{ ""name"": ""Продукт"", ""quantity"": 150, ""unit"": ""г"", ""category"": ""Категория"", ""calories"": 130, ""proteins"": 11, ""fats"": 2, ""carbs"": 20 }}]
         }}
       ]
     }}
@@ -138,6 +145,21 @@ public sealed class GigaChatHelper
 
                     if (meal.TargetCalories <= 0)
                         meal.TargetCalories = targetCalories / 4;
+
+                    // Фильтрация невалидных ингредиентов
+                    meal.Ingredients = (meal.Ingredients ?? new List<GeneratedIngredientDto>())
+                        .Where(i => !string.IsNullOrWhiteSpace(i.Name) && i.Quantity > 0)
+                        .Select(i =>
+                        {
+                            i.Name = i.Name.Trim();
+                            // Гарантируем неотрицательные значения КБЖУ
+                            i.Calories = Math.Max(0, i.Calories);
+                            i.Proteins = Math.Max(0, i.Proteins);
+                            i.Fats = Math.Max(0, i.Fats);
+                            i.Carbs = Math.Max(0, i.Carbs);
+                            return i;
+                        })
+                        .ToList();
                 }
             }
 

@@ -1,4 +1,4 @@
-﻿@page "/meal-plan"
+@page "/meal-plan"
 @rendermode InteractiveServer
 @using System.Globalization
 @using Microsoft.EntityFrameworkCore
@@ -106,7 +106,7 @@
                 </div>
             </div>
 
-            @* <div class="bento-card p-8 bg-white border border-slate-100 rounded-3xl shadow-sm space-y-4">
+            <div class="bento-card p-8 bg-white border border-slate-100 rounded-3xl shadow-sm space-y-4">
                 <h3 class="text-lg font-black text-slate-800">Параметры</h3>
 
                 <div class="grid grid-cols-2 gap-4">
@@ -171,7 +171,24 @@
                         Набор
                     </button>
                 </div>
-            </div> *@
+
+                <div class="space-y-2 pt-4 border-t border-slate-100">
+                    <label class="flex items-center gap-3 cursor-pointer select-none">
+                        <input type="checkbox" @bind="useFridgeProducts" class="w-5 h-5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 transition-all" />
+                        <span class="text-sm font-bold text-slate-800">Использовать холодильник</span>
+                    </label>
+                </div>
+
+                @if (useFridgeProducts)
+                {
+                    <div class="space-y-2 animate-fade-in">
+                        <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Минимум продукта (г/шт)</label>
+                        <input type="number" min="0" step="any"
+                               @bind-value="minFridgeQuantity"
+                               class="w-full bg-slate-50 border-2 border-transparent focus:border-indigo-500 focus:bg-white rounded-xl p-3 font-bold outline-none transition-all" />
+                    </div>
+                }
+            </div>
         </aside>
 
         <section>
@@ -249,7 +266,7 @@
                                                     <div class="h-full bg-emerald-400 transition-all" style="width: @cWidth" title="Углеводы"></div>
                                                 </div>
 
-                                                <div class="grid grid-cols-3 gap-2 @(meal.Ingredients.Any() ? "mb-6" : "mb-2")">
+                                                <div class="grid grid-cols-3 gap-2 @(meal.Ingredients?.Any() == true ? "mb-6" : "mb-2")">
                                                     <div class="p-2 bg-indigo-50/70 border border-indigo-100/40 rounded-xl text-center shadow-sm">
                                                         <div class="text-[9px] font-black uppercase text-indigo-500 mb-0.5">Белки</div>
                                                         <div class="text-xs font-black text-indigo-700">@meal.Proteins г</div>
@@ -390,6 +407,8 @@
     private GoalType selectedGoal = GoalType.Maintain;
     private int targetCalories = 2000, targetProteins, targetFats, targetCarbs;
     private int generationDays = 7;
+    private bool useFridgeProducts = false;
+    private double minFridgeQuantity = 100.0;
     private List<MealPlanDay> mealPlanDays = new();
     private List<ShoppingItemDto> shoppingList = new();
     private bool showShoppingList = false;
@@ -554,7 +573,30 @@
         try
         {
             await SaveProfileToDbAsync();
-            var planStructure = await GigaChatAI.GenerateMealPlanStructureAsync(profile, generationDays, selectedGoal);
+
+            List<string>? fridgeProductNames = null;
+            if (useFridgeProducts)
+            {
+                await using var dbContext = await DbContextFactory.CreateDbContextAsync();
+                fridgeProductNames = await dbContext.FridgeItems
+                    .Include(f => f.Product)
+                    .Where(f => f.UserId == AuthService.CurrentUserId && f.Quantity >= minFridgeQuantity)
+                    .Select(f => f.Product.Name)
+                    .ToListAsync();
+            }
+
+            var planStructure = await GigaChatAI.GenerateMealPlanStructureAsync(
+                profile,
+                generationDays,
+                selectedGoal,
+                targetCalories,
+                targetProteins,
+                targetFats,
+                targetCarbs,
+                useFridgeProducts,
+                "balanced",
+                null,
+                fridgeProductNames);
 
             if (planStructure == null || planStructure.Days == null || !planStructure.Days.Any())
             {
@@ -615,23 +657,7 @@
                             unitCache[unitKey] = dbUnit;
                         }
 
-                        var prodKey = aiIng.Name.Trim().ToLower();
-                        var dbProduct = await context.Products.FirstOrDefaultAsync(p => p.Name.ToLower() == prodKey);
-                        if (dbProduct == null)
-                        {
-                            dbProduct = new Product
-                                {
-                                    Name = aiIng.Name,
-                                    Category = dbCategory,
-                                    Unit = dbUnit,
-                                    Proteins = aiIng.Proteins,
-                                    Fats = aiIng.Fats,
-                                    Carbohydrates = aiIng.Carbs,
-                                    Calories = aiIng.Calories,
-                                    IsPieceBased = false
-                                };
-                            context.Products.Add(dbProduct);
-                        }
+                        var dbProduct = await FindOrCreateProductAsync(context, aiIng, dbCategory, dbUnit);
 
                         recipe.RecipeIngredients.Add(new RecipeIngredient { Product = dbProduct, Quantity = (double)aiIng.Quantity, Unit = dbUnit });
                     }
@@ -798,7 +824,29 @@
 
         try
         {
-            var singleDayPlan = await GigaChatAI.GenerateMealPlanStructureAsync(profile, 1, selectedGoal);
+            List<string>? fridgeProductNames = null;
+            if (useFridgeProducts)
+            {
+                await using var dbContext = await DbContextFactory.CreateDbContextAsync();
+                fridgeProductNames = await dbContext.FridgeItems
+                    .Include(f => f.Product)
+                    .Where(f => f.UserId == AuthService.CurrentUserId && f.Quantity >= minFridgeQuantity)
+                    .Select(f => f.Product.Name)
+                    .ToListAsync();
+            }
+
+            var singleDayPlan = await GigaChatAI.GenerateMealPlanStructureAsync(
+                profile,
+                1,
+                selectedGoal,
+                targetCalories,
+                targetProteins,
+                targetFats,
+                targetCarbs,
+                useFridgeProducts,
+                "balanced",
+                null,
+                fridgeProductNames);
             if (singleDayPlan?.Days == null || !singleDayPlan.Days.Any())
             {
                 errorMessage = "Нейросеть не смогла сгенерировать замену.";
@@ -850,23 +898,7 @@
                     unitCache[unitKey] = dbUnit;
                 }
 
-                var prodKey = aiIng.Name.Trim().ToLower();
-                var dbProduct = await context.Products.FirstOrDefaultAsync(p => p.Name.ToLower() == prodKey);
-                if (dbProduct == null)
-                {
-                    dbProduct = new Product
-                        {
-                            Name = aiIng.Name,
-                            Category = dbCategory,
-                            Unit = dbUnit,
-                            Proteins = aiIng.Proteins,
-                            Fats = aiIng.Fats,
-                            Carbohydrates = aiIng.Carbs,
-                            Calories = aiIng.Calories,
-                            IsPieceBased = false
-                        };
-                    context.Products.Add(dbProduct);
-                }
+                var dbProduct = await FindOrCreateProductAsync(context, aiIng, dbCategory, dbUnit);
 
                 newRecipe.RecipeIngredients.Add(new RecipeIngredient { Product = dbProduct, Quantity = (double)aiIng.Quantity, Unit = dbUnit });
             }
@@ -934,6 +966,60 @@
         modalTitle = string.Empty;
         modalMessage = string.Empty;
         StateHasChanged();
+    }
+
+    /// <summary>
+    /// Ищет продукт в БД с нечётким совпадением имени.
+    /// Если не найден — создаёт новый.
+    /// Если найден с КБЖУ = 0 и AI вернул ненулевые значения — обновляет.
+    /// </summary>
+    private async Task<Product> FindOrCreateProductAsync(
+        ProductWebManager.Data.ProductManagerContext context,
+        GigaChatHelper.GeneratedIngredientDto aiIng,
+        Category dbCategory,
+        Unit dbUnit)
+    {
+        var normalizedName = ProductNameNormalizer.Normalize(aiIng.Name);
+
+        // 1. Точный поиск (быстрый)
+        var dbProduct = await context.Products.FirstOrDefaultAsync(
+            p => p.Name.ToLower() == normalizedName);
+
+        // 2. Нечёткий поиск по всем продуктам, если точного совпадения нет
+        if (dbProduct == null)
+        {
+            var allProducts = await context.Products.ToListAsync();
+            dbProduct = allProducts.FirstOrDefault(
+                p => ProductNameNormalizer.AreSimilar(p.Name, aiIng.Name));
+        }
+
+        if (dbProduct != null)
+        {
+            // Обновляем КБЖУ, если у существующего продукта нули, а AI дал значения
+            if (dbProduct.Calories == 0 && aiIng.Calories > 0)
+            {
+                dbProduct.Calories = aiIng.Calories;
+                dbProduct.Proteins = aiIng.Proteins;
+                dbProduct.Fats = aiIng.Fats;
+                dbProduct.Carbohydrates = aiIng.Carbs;
+            }
+            return dbProduct;
+        }
+
+        // 3. Создаём новый продукт
+        dbProduct = new Product
+        {
+            Name = aiIng.Name.Trim(),
+            Category = dbCategory,
+            Unit = dbUnit,
+            Proteins = aiIng.Proteins,
+            Fats = aiIng.Fats,
+            Carbohydrates = aiIng.Carbs,
+            Calories = aiIng.Calories,
+            IsPieceBased = false
+        };
+        context.Products.Add(dbProduct);
+        return dbProduct;
     }
 
     public class MealPlanDay

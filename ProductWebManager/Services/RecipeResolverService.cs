@@ -1,4 +1,4 @@
-﻿// Services/RecipeResolverService.cs
+// Services/RecipeResolverService.cs
 
 using Microsoft.EntityFrameworkCore;
 using ProductWebManager.Data;
@@ -29,6 +29,6 @@ public class RecipeResolverService
                     .ThenInclude(x => x.Category)
 
             .FirstOrDefaultAsync(x =>
-                x.Title.ToLower() == title);
+                x.Title != null && x.Title.ToLower() == title);
     }
 }
