@@ -109,42 +109,7 @@
             <div class="bento-card p-8 bg-white border border-slate-100 rounded-3xl shadow-sm space-y-4">
                 <h3 class="text-lg font-black text-slate-800">Параметры</h3>
 
-                <div class="grid grid-cols-2 gap-4">
-                    <div class="space-y-2">
-                        <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Вес (кг)</label>
-                        <input type="number" min="30" max="250"
-                               @bind-value="profile.Weight"
-                               @bind-value:after="OnParametersChangedAsync"
-                               class="w-full bg-slate-50 border-2 border-transparent focus:border-indigo-500 focus:bg-white rounded-xl p-3 font-bold outline-none transition-all" />
-                    </div>
-                    <div class="space-y-2">
-                        <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Рост (см)</label>
-                        <input type="number" min="100" max="250"
-                               @bind-value="profile.Height"
-                               @bind-value:after="OnParametersChangedAsync"
-                               class="w-full bg-slate-50 border-2 border-transparent focus:border-indigo-500 focus:bg-white rounded-xl p-3 font-bold outline-none transition-all" />
-                    </div>
-                </div>
 
-                <div class="grid grid-cols-2 gap-4">
-                    <div class="space-y-2">
-                        <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Пол</label>
-                        <select @bind="profile.Gender" @bind:after="OnParametersChangedAsync"
-                                class="w-full bg-slate-50 border-2 border-transparent focus:border-indigo-500 focus:bg-white rounded-xl p-3 font-bold text-xs outline-none transition-all">
-                            <option value="@Gender.Male">Мужской</option>
-                            <option value="@Gender.Female">Женский</option>
-                        </select>
-                    </div>
-                    <div class="space-y-2">
-                        <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Активность</label>
-                        <select @bind="profile.ActivityLevel" @bind:after="OnParametersChangedAsync"
-                                class="w-full bg-slate-50 border-2 border-transparent focus:border-indigo-500 focus:bg-white rounded-xl p-3 font-bold text-xs outline-none transition-all">
-                            <option value="@ActivityLevel.Low">Низкая</option>
-                            <option value="@ActivityLevel.Medium">Средняя</option>
-                            <option value="@ActivityLevel.High">Высокая</option>
-                        </select>
-                    </div>
-                </div>
 
                 <div class="space-y-2">
                     <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Период плана</label>
@@ -236,8 +201,15 @@
                                                         <span class="text-[10px] font-black uppercase tracking-wider text-indigo-500 mb-1 block">
                                                             @TranslateMealType(meal.MealType)
                                                         </span>
-                                                        <h4 class="font-black text-slate-900 text-lg leading-tight group-hover:text-indigo-600 transition-colors">
-                                                            @meal.Title
+                                                        <h4 class="font-black text-slate-900 text-lg leading-tight transition-colors">
+                                                            @if (meal.Recipe != null && meal.Recipe.Id > 0)
+                                                            {
+                                                                <a href="/recipe/@meal.Recipe.Id" class="hover:underline hover:text-indigo-600">@meal.Title</a>
+                                                            }
+                                                            else
+                                                            {
+                                                                @meal.Title
+                                                            }
                                                         </h4>
                                                     </div>
                                                     <div class="bg-white px-4 py-2 rounded-2xl text-center shadow-sm border border-slate-100 shrink-0">
@@ -248,8 +220,10 @@
 
                                                 <div class="mb-4">
                                                     <button type="button" @onclick="() => ReplaceMealAsync(meal)" disabled="@(isGenerating || isReplacing)"
-                                                            class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 text-xs font-bold rounded-xl border border-amber-200 transition-colors disabled:opacity-50">
-                                                        <i class="fas fa-redo-alt text-[10px]"></i> Заменить блюдо
+                                                            class="group relative overflow-hidden inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-amber-400 to-orange-500 hover:from-amber-500 hover:to-orange-600 text-white text-xs font-bold rounded-xl shadow-md hover:shadow-lg transition-all disabled:opacity-50 transform hover:-translate-y-0.5">
+                                                        <i class="fas fa-sync-alt text-[10px] group-hover:rotate-180 transition-transform duration-500"></i>
+                                                        <span class="relative z-10">Заменить блюдо</span>
+                                                        <div class="absolute inset-0 h-full w-full bg-white/20 scale-x-0 group-hover:scale-x-100 origin-left transition-transform duration-500 rounded-xl"></div>
                                                     </button>
                                                 </div>
 

@@ -135,6 +135,8 @@ public sealed class GigaChatHelper
                 ? $"План питания {DateTime.Now:dd.MM.yyyy}"
                 : dto.Name.Trim();
 
+            var balancer = new ProductWebManager.Services.MealPlanBalancerService();
+
             foreach (var day in dto.Days)
             {
                 day.Meals ??= new List<MealStructureDto>();
@@ -142,9 +144,6 @@ public sealed class GigaChatHelper
                 {
                     meal.Title = string.IsNullOrWhiteSpace(meal.Title) ? "Блюдо" : meal.Title.Trim();
                     meal.MealType = NormalizeMealType(meal.MealType);
-
-                    if (meal.TargetCalories <= 0)
-                        meal.TargetCalories = targetCalories / 4;
 
                     // Фильтрация невалидных ингредиентов
                     meal.Ingredients = (meal.Ingredients ?? new List<GeneratedIngredientDto>())
@@ -161,6 +160,8 @@ public sealed class GigaChatHelper
                         })
                         .ToList();
                 }
+
+                day.Meals = balancer.DistributeCalories(day.Meals, targetCalories);
             }
 
             _logger.LogInformation("Успешно получена структура плана: {Days} дней", dto.Days.Count);

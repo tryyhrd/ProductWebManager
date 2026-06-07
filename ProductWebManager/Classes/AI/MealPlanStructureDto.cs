@@ -1,4 +1,4 @@
-﻿using static ProductWebManager.Classes.AI.GigaChatHelper;
+using static ProductWebManager.Classes.AI.GigaChatHelper;
 
 namespace ProductWebManager.Classes.AI;
 
@@ -16,6 +16,8 @@ public class MealPlanStructureDayDto
 
 public class MealStructureDto
 {
+    [Newtonsoft.Json.JsonProperty("type")]
+    [System.Text.Json.Serialization.JsonPropertyName("type")]
     public string MealType { get; set; } = "";
     public string Title { get; set; } = "";
     public bool IsSnack { get; set; }

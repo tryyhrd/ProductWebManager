@@ -1,4 +1,4 @@
-﻿using ProductWebManager.Classes.AI;
+using ProductWebManager.Classes.AI;
 
 namespace ProductWebManager.Services;
 
@@ -11,14 +11,12 @@ public class MealPlanBalancerService
         if (meals == null || meals.Count == 0)
             return new List<MealStructureDto>();
 
-        var result = meals
-            .Select(m => new MealStructureDto
-            {
-                MealType = NormalizeMealType(m.MealType),
-                Title = m.Title,
-                IsSnack = m.IsSnack
-            })
-            .ToList();
+        var result = meals.ToList();
+
+        foreach (var m in result)
+        {
+            m.MealType = NormalizeMealType(m.MealType);
+        }
 
         var shares = result.Select(GetShare).ToList();
 
