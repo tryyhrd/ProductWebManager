@@ -2,6 +2,7 @@
 @rendermode InteractiveServer
 
 @inject ProductWebManager.Services.AuthService AuthService
+@inject NavigationManager Navigation
 @inject IDbContextFactory<ProductWebManager.Data.ProductManagerContext> DbContextFactory
 @using Microsoft.EntityFrameworkCore
 @using ProductWebManager.Models
@@ -95,6 +96,16 @@
                         }
                     </button>
                 }
+            </div>
+
+            <div class="mt-8 pt-8 border-t border-slate-100">
+                <form method="post" action="/api/auth/logout">
+                    <AntiforgeryToken />
+                    <button type="submit" class="w-full flex justify-center items-center gap-3 bg-red-50 hover:bg-red-500 text-red-600 hover:text-white px-6 py-4 rounded-2xl font-bold transition-all shadow-sm group">
+                        <i class="fas fa-sign-out-alt group-hover:-translate-x-1 transition-transform"></i>
+                        <span>Выйти из аккаунта</span>
+                    </button>
+                </form>
             </div>
         </div>
 
@@ -305,4 +316,6 @@
         public string Name { get; set; } = "";
         public bool Selected { get; set; }
     }
+
+}
 }

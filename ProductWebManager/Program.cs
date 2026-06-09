@@ -1,10 +1,14 @@
-﻿using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.EntityFrameworkCore;
 using ProductWebManager.Classes.AI;
 using ProductWebManager.Components;
 using ProductWebManager.Data;
 using ProductWebManager.Models;
 using ProductWebManager.Services;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -37,10 +41,15 @@ builder.Services.AddScoped<RecipeResolverService>();
 builder.Services.AddScoped<MealPlanBalancerService>();
 builder.Services.AddScoped<MealPlanGeneratorService>();
 
-builder.Services.AddScoped<AuthenticationStateProvider>(sp =>
-    sp.GetRequiredService<AuthService>());
+builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
+    .AddCookie(options =>
+    {
+        options.LoginPath = "/login";
+        options.LogoutPath = "/api/auth/logout";
+        options.ExpireTimeSpan = TimeSpan.FromDays(30);
+    });
 
-builder.Services.AddAuthorizationCore();
+builder.Services.AddAuthorization();
 builder.Services.AddCascadingAuthenticationState();
 
 
@@ -403,7 +412,36 @@ app.UseStaticFiles();
 
 app.UseAntiforgery();
 
+app.UseAuthentication();
+app.UseAuthorization();
+
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
+
+// Minimal API для авторизации
+app.MapPost("/api/auth/login", async ([FromForm] string login, [FromForm] string password, HttpContext ctx, ProductManagerContext db) =>
+{
+    var user = await db.Users.FirstOrDefaultAsync(u => u.Login == login && u.Password == password);
+    if (user != null)
+    {
+        var claims = new List<Claim>
+        {
+            new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
+            new Claim(ClaimTypes.Name, user.Login ?? "")
+        };
+
+        var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
+        await ctx.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(identity));
+        return Results.Redirect("/fridge");
+    }
+
+    return Results.Redirect("/login?error=invalid");
+}).DisableAntiforgery();
+
+app.MapPost("/api/auth/logout", async (HttpContext ctx) =>
+{
+    await ctx.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+    return Results.Redirect("/login");
+}).DisableAntiforgery();
 
 app.Run();

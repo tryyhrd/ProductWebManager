@@ -19,9 +19,6 @@
                     <div class="user-section">
                         <div class="user-info-chip">
                             <span class="u-name">@context.User.Identity?.Name</span>
-                            <button class="btn-exit" @onclick="HandleLogout" title="Выйти">
-                                <i class="fas fa-sign-out-alt"></i>
-                            </button>
                         </div>
                     </div>
                 </div>
@@ -65,11 +62,4 @@
         </div>
     </NotAuthorized>
 </AuthorizeView>
-
-@code {
-    private async Task HandleLogout()
-    {
-        await AuthService.Logout();
-        Navigation.NavigateTo("/login");
-    }
-}
+

@@ -1,131 +1,57 @@
-﻿using Microsoft.AspNetCore.Components.Authorization;
-using Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage;
+using Microsoft.AspNetCore.Components.Authorization;
 using System.Security.Claims;
+using System.Threading.Tasks;
 
 namespace ProductWebManager.Services
 {
-    public class AuthService : AuthenticationStateProvider
+    public class AuthService
     {
-        private readonly ProtectedLocalStorage _localStorage;
-        private bool _isInitialized = false;
-        private bool _isAuthenticated = false;
-        private string _userName = "";
-        private int _userId = 0;
+        private readonly AuthenticationStateProvider _authStateProvider;
 
-        public int CurrentUserId => _userId;
-        public string CurrentUserName => _userName;
-        public bool IsAuthenticated => _isAuthenticated;
-
-        public AuthService(ProtectedLocalStorage localStorage)
+        public AuthService(AuthenticationStateProvider authStateProvider)
         {
-            _localStorage = localStorage;
+            _authStateProvider = authStateProvider;
         }
 
-        // Этот метод Blazor вызывает автоматически для проверки прав доступа
-        public override async Task<AuthenticationState> GetAuthenticationStateAsync()
+        // Синхронные свойства для обратной совместимости.
+        // Так как это ServerAuthenticationStateProvider, задача уже завершена.
+        private AuthenticationState CurrentState => _authStateProvider.GetAuthenticationStateAsync().Result;
+
+        public int CurrentUserId 
         {
-            if (!_isInitialized)
+            get
             {
-                await InitializeAsync();
-            }
-
-            return CreateAuthenticationState();
-        }
-
-        // Вынесли создание состояния в отдельный метод для переиспользования
-        private AuthenticationState CreateAuthenticationState()
-        {
-            ClaimsIdentity identity;
-
-            if (_isAuthenticated)
-            {
-                identity = new ClaimsIdentity(new[]
+                var user = CurrentState.User;
+                if (user.Identity?.IsAuthenticated == true)
                 {
-                    new Claim(ClaimTypes.Name, _userName),
-                    new Claim(ClaimTypes.NameIdentifier, _userId.ToString()),
-                    new Claim(ClaimTypes.Role, "User")
-                }, "CustomAuth");
-            }
-            else
-            {
-                identity = new ClaimsIdentity();
-            }
-
-            var user = new ClaimsPrincipal(identity);
-            return new AuthenticationState(user);
-        }
-
-        public async Task InitializeAsync()
-        {
-            if (_isInitialized) return;
-
-            try
-            {
-                _isInitialized = true;
-                var result = await _localStorage.GetAsync<AuthState>("auth");
-                if (result.Success && result.Value != null)
-                {
-                    _isAuthenticated = result.Value.IsAuthenticated;
-                    _userId = result.Value.UserId;
-                    _userName = result.Value.UserName ?? "";
+                    var idClaim = user.FindFirst(ClaimTypes.NameIdentifier);
+                    if (idClaim != null && int.TryParse(idClaim.Value, out int id))
+                        return id;
                 }
-            }
-            catch
-            {
-                // Защита от пререндеринга на сервере, когда JS еще недоступен
-                _isAuthenticated = false;
-                _userId = 0;
-                _userName = "";
-                _isInitialized = false;
+                return 0;
             }
         }
 
-        public async Task Login(int userId, string userName)
+        public string CurrentUserName 
         {
-            _isAuthenticated = true;
-            _userId = userId;
-            _userName = userName;
-            _isInitialized = true;
-
-            try
+            get
             {
-                await _localStorage.SetAsync("auth", new AuthState
+                var user = CurrentState.User;
+                if (user.Identity?.IsAuthenticated == true)
                 {
-                    IsAuthenticated = true,
-                    UserId = userId,
-                    UserName = userName
-                });
+                    return user.Identity.Name ?? "";
+                }
+                return "";
             }
-            catch { }
-
-            // КРИТИЧЕСКИЙ СТЕП: Создаем новое состояние и уведомляем ВСЕ компоненты Blazor
-            var newState = Task.FromResult(CreateAuthenticationState());
-            NotifyAuthenticationStateChanged(newState);
         }
 
-        public async Task Logout()
-        {
-            _isAuthenticated = false;
-            _userId = 0;
-            _userName = "";
-            _isInitialized = true;
+        public bool IsAuthenticated => CurrentState.User.Identity?.IsAuthenticated == true;
+        
+        // Для обратной совместимости, чтобы Routes.razor не ругался (инициализация теперь не требуется)
+        public bool IsInitialized => true;
 
-            try
-            {
-                await _localStorage.DeleteAsync("auth");
-            }
-            catch { }
-
-            // КРИТИЧЕСКИЙ СТЕП: Оповещаем систему о выходе пользователя
-            var newState = Task.FromResult(CreateAuthenticationState());
-            NotifyAuthenticationStateChanged(newState);
-        }
-    }
-
-    public class AuthState
-    {
-        public bool IsAuthenticated { get; set; }
-        public int UserId { get; set; }
-        public string? UserName { get; set; }
+        // Эти методы теперь не делают ничего, так как авторизация идет через /api/auth/login
+        public Task Login(int userId, string userName) => Task.CompletedTask;
+        public Task Logout() => Task.CompletedTask;
     }
 }

@@ -179,6 +179,16 @@
         <section class="order-2 lg:order-2">
             @if (mealPlanDays.Any())
             {
+                <div class="flex justify-end mb-6">
+                    <label class="flex items-center gap-3 cursor-pointer group">
+                        <span class="text-xs font-bold text-slate-500 uppercase tracking-widest transition-colors group-hover:text-slate-800 select-none">Раскрыть КБЖУ продуктов</span>
+                        <div class="relative">
+                            <input type="checkbox" @bind="showAllNutrition" class="sr-only" />
+                            <div class="block w-10 h-6 rounded-full transition-colors @(showAllNutrition ? "bg-indigo-500 shadow-inner" : "bg-slate-200")"></div>
+                            <div class="dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform shadow-sm @(showAllNutrition ? "translate-x-4" : "")"></div>
+                        </div>
+                    </label>
+                </div>
                 <div class="space-y-6">
                     @foreach (var day in mealPlanDays)
                     {
@@ -308,9 +318,17 @@
                                                 <div class="space-y-2 pt-4 border-t border-slate-100 mt-auto">
                                                     @foreach (var ing in meal.Ingredients)
                                                     {
-                                                        <div class="flex justify-between text-[11px] font-medium text-slate-500 hover:text-slate-900 transition-colors">
-                                                            <span>@ing.Name</span>
-                                                            <span class="font-bold text-slate-800">@ing.Quantity.ToString("G", RuCulture) @ing.Unit</span>
+                                                        <div class="group flex flex-col text-[11px] font-medium text-slate-500 hover:text-slate-900 transition-colors cursor-pointer bg-transparent hover:bg-slate-100/70 p-1.5 -mx-1.5 rounded-lg">
+                                                            <div class="flex justify-between w-full">
+                                                                <span>@ing.Name</span>
+                                                                <span class="font-bold text-slate-800">@ing.Quantity.ToString("G", RuCulture) @ing.Unit</span>
+                                                            </div>
+                                                            <div class="@(showAllNutrition ? "flex" : "hidden group-hover:flex") flex-wrap items-center gap-1.5 mt-2">
+                                                                <div class="px-2 py-0.5 bg-indigo-50 text-indigo-600 rounded-full text-[9px] font-black tracking-widest border border-indigo-100/50 shadow-sm">@ing.Calories кк</div>
+                                                                <div class="px-2 py-0.5 bg-rose-50 text-rose-600 rounded-full text-[9px] font-black tracking-widest border border-rose-100/50 shadow-sm">Б: @ing.Proteins</div>
+                                                                <div class="px-2 py-0.5 bg-amber-50 text-amber-600 rounded-full text-[9px] font-black tracking-widest border border-amber-100/50 shadow-sm">Ж: @ing.Fats</div>
+                                                                <div class="px-2 py-0.5 bg-emerald-50 text-emerald-600 rounded-full text-[9px] font-black tracking-widest border border-emerald-100/50 shadow-sm">У: @ing.Carbs</div>
+                                                            </div>
                                                         </div>
                                                     }
                                                 </div>
@@ -435,6 +453,10 @@
     private List<ShoppingItemDto> shoppingList = new();
     private bool showShoppingList = false;
     private int _lastCreatedShoppingListId;
+
+    private List<Product> availableProducts = new();
+    private List<Recipe> allRecipes = new();
+    private bool showAllNutrition = false;
     private bool isModalVisible = false;
     private string modalTitle = string.Empty;
     private string modalMessage = string.Empty;
@@ -599,7 +621,11 @@
                                 {
                                     Name = ri.Product?.Name ?? "Ингредиент",
                                     Quantity = (double)ri.Quantity,
-                                    Unit = ri.Unit?.Name ?? "г"
+                                    Unit = ri.Unit?.Name ?? "г",
+                                    Calories = (int)Math.Round(ProductWebManager.Services.NutritionCalculator.CalculateCalories(ri.Product, (double)ri.Quantity)),
+                                    Proteins = (int)Math.Round(ProductWebManager.Services.NutritionCalculator.CalculateProteins(ri.Product, (double)ri.Quantity)),
+                                    Fats = (int)Math.Round(ProductWebManager.Services.NutritionCalculator.CalculateFats(ri.Product, (double)ri.Quantity)),
+                                    Carbs = (int)Math.Round(ProductWebManager.Services.NutritionCalculator.CalculateCarbs(ri.Product, (double)ri.Quantity))
                                 }).ToList() ?? new List<MealIngredientDto>()
                             };
                         }).ToList()
@@ -888,6 +914,10 @@
         public string Name { get; set; } = "";
         public double Quantity { get; set; }
         public string Unit { get; set; } = "";
+        public int Calories { get; set; }
+        public int Proteins { get; set; }
+        public int Fats { get; set; }
+        public int Carbs { get; set; }
     }
 
     public class ShoppingItemDto

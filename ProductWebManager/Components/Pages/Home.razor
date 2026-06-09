@@ -1,4 +1,4 @@
-﻿@page "/"
+@page "/"
 @rendermode InteractiveServer
 @inject ProductWebManager.Services.AuthService AuthService
 @inject NavigationManager Navigation
@@ -13,10 +13,8 @@
 </div>
 
 @code {
-    protected override async Task OnInitializedAsync()
+    protected override void OnInitialized()
     {
-        await AuthService.InitializeAsync();
-
         if (AuthService.IsAuthenticated)
         {
             Navigation.NavigateTo("/fridge");
@@ -27,3 +25,4 @@
         }
     }
 }
+н

@@ -7,13 +7,13 @@
 @inject ProductWebManager.Data.ProductManagerContext DbContext
 @inject ProductWebManager.Services.AuthService AuthService
 
-<PageTitle>Холодильник</PageTitle>
+<PageTitle>Продукты</PageTitle>
 
 <div class="max-w-[1100px] mx-auto px-4 py-4 sm:p-6 font-sans min-h-screen text-slate-800">
 
-    <header class="flex items-center justify-between pb-4 border-b border-slate-100 mb-4 sm:mb-6">
+    <header class="flex items-center justify-between pb-2 mb-4 sm:mb-6 border-none">
         <div>
-            <h1 class="text-lg sm:text-xl font-bold tracking-tight text-slate-900">Холодильник</h1>
+            <h1 class="text-lg sm:text-xl font-bold tracking-tight text-slate-900">Продукты</h1>
         </div>
 
         <button class="bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold px-3.5 py-2 rounded-lg transition-colors shadow-sm active:scale-95"
@@ -22,7 +22,20 @@
         </button>
     </header>
 
-    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 py-2 border-b border-slate-100 mb-4 sm:mb-6 text-sm">
+    <div class="flex gap-4 border-b border-slate-100 mb-6">
+        <button class="pb-2 font-bold text-sm transition-colors border-b-2 @(activeTab == "fridge" ? "text-indigo-600 border-indigo-600" : "text-slate-400 border-transparent hover:text-slate-600")"
+                @onclick="@(() => activeTab = "fridge")">
+            Мой холодильник
+        </button>
+        <button class="pb-2 font-bold text-sm transition-colors border-b-2 @(activeTab == "products" ? "text-indigo-600 border-indigo-600" : "text-slate-400 border-transparent hover:text-slate-600")"
+                @onclick="@(() => activeTab = "products")">
+            База продуктов
+        </button>
+    </div>
+
+    @if (activeTab == "fridge")
+    {
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 py-2 border-b border-slate-100 mb-4 sm:mb-6 text-sm">
         <div>
             <div class="text-lg font-bold text-slate-900 leading-none">@products.Count</div>
             <div class="text-[11px] text-slate-400 font-medium mt-1">Всего в наличии</div>
@@ -66,7 +79,7 @@
         </div>
     </div>
 
-    <div class="divide-y divide-slate-100">
+    <div class="max-w-3xl mx-auto flex flex-col">
         @{
             var displayedProducts = GetFilteredAndSortedProducts();
         }
@@ -81,54 +94,161 @@
         {
             @foreach (var product in displayedProducts)
             {
-                <div class="flex flex-col sm:flex-row sm:items-center justify-between py-3 gap-2 text-sm group animate-fade-in">
+                <div class="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 group hover:bg-slate-50/50 px-4 rounded-2xl transition-colors border-b border-slate-100 last:border-0">
+                    
+                    <!-- Left info block -->
+                    <div class="flex flex-1 items-center gap-4 min-w-0">
+                        <!-- Name & Quantity -->
+                        <div class="flex-1 min-w-0">
+                            <h3 class="font-bold text-slate-800 text-base leading-tight mb-1 truncate" title="@product.Product?.Name">@product.Product?.Name</h3>
+                            <div class="flex items-center gap-2">
+                                <span class="text-xs text-slate-400 font-medium truncate">@product.Product?.Category?.Name</span>
+                                <span class="w-1 h-1 rounded-full bg-slate-300"></span>
+                                <span class="text-xs font-black text-slate-700 whitespace-nowrap">@product.Quantity @product.Product?.Unit?.Name</span>
+                            </div>
+                        </div>
 
-                    <div class="flex items-center gap-3 min-w-0 flex-1">
-                        <div class="truncate">
-                            <span class="font-medium text-slate-900">@product.Product?.Name</span>
-                            <span class="text-slate-400 text-xs ml-2 font-normal">@product.Product?.Category?.Name</span>
+                        <!-- Expiration Bar -->
+                        @{
+                            var status = GetExpirationStatus(product.ExpirationDate);
+                            var progress = GetExpirationProgress(product);
+                        }
+                        <div class="hidden sm:block w-32 md:w-48 shrink-0">
+                            <div class="flex justify-between items-center mb-1.5 text-[10px] font-bold @status.ColorClass">
+                                <span>Срок</span>
+                                <span>@status.Text @(product.ExpirationDate.HasValue ? $"({product.ExpirationDate.Value:dd.MM})" : "")</span>
+                            </div>
+                            <div class="w-full h-1.5 bg-slate-200/50 rounded-full overflow-hidden">
+                                <div class="h-full rounded-full transition-all duration-500 @(progress >= 90 ? "bg-rose-500" : progress >= 70 ? "bg-amber-500" : "bg-emerald-500")"
+                                     style="width: @(progress)%"></div>
+                            </div>
                         </div>
                     </div>
 
-                    <div class="flex flex-wrap items-center justify-between sm:justify-end gap-3 sm:gap-6 text-xs w-full sm:w-auto">
-
-                        <div class="text-slate-600 font-medium whitespace-nowrap">
-                            @product.Quantity <span class="text-slate-400 text-[11px]">@product.Product?.Unit?.Name</span>
-                        </div>
-
-                        @{
-                            var status = GetExpirationStatus(product.ExpirationDate);
-                        }
-                        <div class="flex items-center gap-2 whitespace-nowrap @status.ColorClass">
-                            <span class="w-1.5 h-1.5 rounded-full flex-shrink-0 @status.DotClass"></span>
-                            <span>@status.Text</span>
-                            @if (product.ExpirationDate.HasValue)
-                            {
-                                <span class="text-slate-400 text-[11px] font-normal">(@product.ExpirationDate.Value.ToString("dd.MM"))</span>
-                            }
-                        </div>
-
-                        <div class="flex items-center gap-3 sm:pl-3 sm:border-l sm:border-slate-100 mt-1 sm:mt-0">
-                            <button @onclick="() => OpenEditModal(product)"
-                                    class="text-indigo-600 hover:text-indigo-800 font-medium transition-colors text-xs flex items-center gap-1.5 bg-indigo-50 sm:bg-transparent px-2 sm:px-0 py-1 sm:py-0 rounded">
-                                <i class="fas fa-pen sm:hidden"></i>
-                                <span>Изменить</span>
-                            </button>
-
-                            <button @onclick="() => OpenDelete(product)"
-                                    class="text-rose-500 hover:text-rose-700 font-medium transition-colors text-xs flex items-center gap-1.5 bg-rose-50 sm:bg-transparent px-2 sm:px-0 py-1 sm:py-0 rounded"
-                                    title="Удалить">
-                                <i class="fas fa-trash sm:hidden"></i>
-                                <span>Удалить</span>
-                            </button>
-                        </div>
-
+                    <!-- Action Buttons -->
+                    <div class="flex flex-wrap sm:flex-nowrap items-center gap-2 shrink-0 w-full sm:w-auto mt-1 sm:mt-0">
+                        <button @onclick="() => OpenNutritionModal(product)"
+                                class="flex-1 sm:flex-none px-3 py-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-2">
+                            <i class="fas fa-leaf"></i> <span>КБЖУ</span>
+                        </button>
+                        <button @onclick="() => OpenEditModal(product)"
+                                class="flex-1 sm:flex-none px-3 py-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-2">
+                            <i class="fas fa-pen"></i> <span>Изм.</span>
+                        </button>
+                        <button @onclick="() => OpenDelete(product)"
+                                class="px-3 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-500 rounded-xl text-xs transition-colors flex items-center justify-center"
+                                title="Удалить">
+                            <i class="fas fa-trash"></i>
+                        </button>
                     </div>
                 </div>
             }
         }
     </div>
+    }
+    else if (activeTab == "products")
+    {
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 mb-2">
+            <div class="relative flex-1 max-w-md w-full">
+                <input type="text"
+                       @bind="searchQuery"
+                       @bind:event="oninput"
+                       placeholder="Поиск по базе продуктов..."
+                       class="w-full bg-slate-50 text-xs px-3 py-2 rounded-lg border border-slate-100 focus:outline-none focus:border-slate-200 focus:bg-white placeholder-slate-400 transition-all" />
+                @if (!string.IsNullOrEmpty(searchQuery))
+                {
+                    <button @onclick="() => searchQuery = string.Empty" class="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600 text-xs">
+                        <i class="fas fa-times"></i>
+                    </button>
+                }
+            </div>
+        </div>
+
+        <div class="divide-y divide-slate-100">
+            @foreach (var product in GetFilteredProductsBase())
+            {
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between py-3 gap-2 text-sm group animate-fade-in">
+                    <div class="flex items-center gap-3 min-w-0 flex-1">
+                        <div class="truncate">
+                            <span class="font-medium text-slate-900">@product.Name</span>
+                            <span class="text-slate-400 text-xs ml-2 font-normal">@product.Category?.Name</span>
+                        </div>
+                    </div>
+                    <div class="flex flex-wrap items-center justify-between sm:justify-end gap-3 sm:gap-6 text-xs w-full sm:w-auto">
+                        <div class="flex items-center gap-3 sm:pl-3 sm:border-l sm:border-slate-100 mt-1 sm:mt-0">
+                            <button @onclick="() => OpenNutritionModal(product)"
+                                    class="text-emerald-600 hover:text-emerald-800 font-medium transition-colors text-xs flex items-center gap-1.5 bg-emerald-50 sm:bg-transparent px-2 sm:px-0 py-1 sm:py-0 rounded"
+                                    title="КБЖУ">
+                                <i class="fas fa-leaf sm:hidden"></i>
+                                <span>КБЖУ</span>
+                            </button>
+                            <button @onclick="() => OpenAddModalForProduct(product)"
+                                    class="text-indigo-600 hover:text-indigo-800 font-medium transition-colors text-xs flex items-center gap-1.5 bg-indigo-50 sm:bg-transparent px-2 sm:px-0 py-1 sm:py-0 rounded">
+                                <i class="fas fa-plus sm:hidden"></i>
+                                <span>В холодильник</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
 </div>
+
+@if (showNutritionModal && nutritionProduct != null)
+{
+    <div class="fixed inset-0 bg-slate-900/20 backdrop-blur-[2px] flex items-center justify-center p-4 z-50" @onclick="CloseNutritionModal">
+        <div class="bg-white border border-slate-100 rounded-xl p-6 w-full max-w-sm shadow-lg" @onclick:stopPropagation>
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-bold text-slate-900">Пищевая ценность</h3>
+                <button @onclick="CloseNutritionModal" class="text-slate-400 hover:text-slate-600 transition-colors p-1"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="mb-4 border-b border-slate-100 pb-4">
+                <p class="font-bold text-slate-800 text-base mb-1">@nutritionProduct.Name</p>
+                <div class="flex gap-4 text-xs font-medium">
+                    <span class="text-slate-500">На 100 г:</span>
+                </div>
+                <div class="grid grid-cols-4 gap-2 mt-2">
+                    <div class="bg-indigo-50 text-indigo-700 rounded p-1.5 text-center font-bold text-[10px]">
+                        @Math.Round(ProductWebManager.Services.NutritionCalculator.CalculateCalories(nutritionProduct, 100)) кк
+                    </div>
+                    <div class="bg-slate-100 text-slate-700 rounded p-1.5 text-center font-bold text-[10px]">
+                        @Math.Round(ProductWebManager.Services.NutritionCalculator.CalculateProteins(nutritionProduct, 100)) Б
+                    </div>
+                    <div class="bg-slate-100 text-slate-700 rounded p-1.5 text-center font-bold text-[10px]">
+                        @Math.Round(ProductWebManager.Services.NutritionCalculator.CalculateFats(nutritionProduct, 100)) Ж
+                    </div>
+                    <div class="bg-slate-100 text-slate-700 rounded p-1.5 text-center font-bold text-[10px]">
+                        @Math.Round(ProductWebManager.Services.NutritionCalculator.CalculateCarbs(nutritionProduct, 100)) У
+                    </div>
+                </div>
+            </div>
+            
+            @if (nutritionQuantity > 0)
+            {
+                <div class="bg-slate-50 rounded-xl p-4 space-y-3">
+                    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">На @nutritionQuantity @nutritionProduct.Unit?.Name в холодильнике</p>
+                    <div class="flex justify-between text-sm">
+                        <span class="text-slate-500">Калории</span>
+                        <span class="font-bold text-indigo-600">@Math.Round(ProductWebManager.Services.NutritionCalculator.CalculateCalories(nutritionProduct, nutritionQuantity)) ккал</span>
+                    </div>
+                    <div class="flex justify-between text-sm">
+                        <span class="text-slate-500">Белки</span>
+                        <span class="font-bold text-slate-700">@Math.Round(ProductWebManager.Services.NutritionCalculator.CalculateProteins(nutritionProduct, nutritionQuantity)) г</span>
+                    </div>
+                    <div class="flex justify-between text-sm">
+                        <span class="text-slate-500">Жиры</span>
+                        <span class="font-bold text-slate-700">@Math.Round(ProductWebManager.Services.NutritionCalculator.CalculateFats(nutritionProduct, nutritionQuantity)) г</span>
+                    </div>
+                    <div class="flex justify-between text-sm">
+                        <span class="text-slate-500">Углеводы</span>
+                        <span class="font-bold text-slate-700">@Math.Round(ProductWebManager.Services.NutritionCalculator.CalculateCarbs(nutritionProduct, nutritionQuantity)) г</span>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+}
 
 @if (showModal)
 {
@@ -187,8 +307,7 @@
     private List<FridgeItem> products = new();
     private List<Product> allProducts = new();
     private int expiredProducts = 0;
-
-    // Состояния фильтрации
+    private string activeTab = "fridge";
     private string searchQuery = string.Empty;
     private string sortBy = "expiry";
 
@@ -198,6 +317,10 @@
     private int selectedProductId;
     private double? editQuantity;
     private DateTime? editExpirationDate;
+
+    private bool showNutritionModal = false;
+    private Product? nutritionProduct;
+    private double nutritionQuantity;
 
     private bool showDeleteModal = false;
     private FridgeItem? productToDelete;
@@ -220,6 +343,17 @@
     }
 
     // Логика фильтрации и сортировки на клиенте (без лишних запросов к бд)
+    private IEnumerable<Product> GetFilteredProductsBase()
+    {
+        if (string.IsNullOrWhiteSpace(searchQuery))
+            return allProducts.OrderBy(p => p.Name);
+            
+        return allProducts
+            .Where(p => (p.Name != null && p.Name.Contains(searchQuery, StringComparison.OrdinalIgnoreCase)) ||
+                        (p.Category?.Name != null && p.Category.Name.Contains(searchQuery, StringComparison.OrdinalIgnoreCase)))
+            .OrderBy(p => p.Name);
+    }
+
     private IEnumerable<FridgeItem> GetFilteredAndSortedProducts()
     {
         var result = products.AsEnumerable();
@@ -238,6 +372,20 @@
             "quantity" => result.OrderByDescending(p => p.Quantity),
             "expiry" or _ => result.OrderBy(p => p.ExpirationDate ?? DateTime.MaxValue)
         };
+    }
+
+    private int GetExpirationProgress(FridgeItem item)
+    {
+        if (!item.ExpirationDate.HasValue) return 0;
+        
+        var totalDays = (item.ExpirationDate.Value.Date - item.AddedAt.Date).Days;
+        if (totalDays <= 0) return 100;
+        
+        var daysPassed = (DateTime.Today - item.AddedAt.Date).Days;
+        if (daysPassed <= 0) return 0;
+        
+        var percent = (int)Math.Round((double)daysPassed / totalDays * 100);
+        return percent > 100 ? 100 : percent;
     }
 
     private (string Text, string ColorClass, string DotClass) GetExpirationStatus(DateTime? expiryDate)
@@ -346,7 +494,37 @@
             await DbContext.SaveChangesAsync();
         }
 
-        await LoadData();
         CloseDelete();
+    }
+
+    private void OpenNutritionModal(FridgeItem item)
+    {
+        nutritionProduct = item.Product;
+        nutritionQuantity = item.Quantity ?? 0;
+        showNutritionModal = true;
+    }
+
+    private void OpenNutritionModal(Product product)
+    {
+        nutritionProduct = product;
+        nutritionQuantity = 0;
+        showNutritionModal = true;
+    }
+
+    private void OpenAddModalForProduct(Product product)
+    {
+        isEditing = false;
+        currentProduct = new FridgeItem();
+        selectedProductId = product.Id;
+        editQuantity = null;
+        editExpirationDate = null;
+        showModal = true;
+    }
+    
+    private void CloseNutritionModal()
+    {
+        showNutritionModal = false;
+        nutritionProduct = null;
+        StateHasChanged();
     }
 }

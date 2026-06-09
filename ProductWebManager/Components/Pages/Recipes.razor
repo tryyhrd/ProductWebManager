@@ -43,7 +43,7 @@
             <div class="flex items-center gap-2 text-xs text-slate-400 self-start sm:self-center">
                 <span>Время готовки:</span>
                 <select class="bg-transparent font-medium text-slate-700 focus:outline-none cursor-pointer border-none p-0 pr-4 text-xs"
-                        @bind="filterTime" @bind:after="RefreshFilters">
+                        value="@filterTime" @onchange="OnFilterTimeChanged">
                     <option value="0">Любое</option>
                     <option value="15">До 15 мин</option>
                     <option value="30">До 30 мин</option>
@@ -57,9 +57,8 @@
             <input type="text"
                    class="w-full bg-slate-50 text-xs px-3 py-2 rounded-lg border border-slate-100 focus:outline-none focus:border-slate-200 focus:bg-white placeholder-slate-400 transition-all"
                    placeholder="Поиск рецептов по названию..."
-                   @bind="searchQuery"
-                   @bind:event="oninput"
-                   @bind:after="RefreshFilters" />
+                   value="@searchQuery"
+                   @oninput="OnSearchInput" />
 
             @if (!string.IsNullOrEmpty(searchQuery))
             {
@@ -112,10 +111,19 @@
                             }
                         </div>
 
-                        <div class="p-4">
-                            <div class="flex items-center gap-1.5 text-xs font-bold text-slate-400 mb-1.5">
+                        <div class="p-4 sm:p-5">
+                            <div class="flex items-center gap-1.5 text-[11px] font-bold text-slate-400 mb-2">
                                 <i class="far fa-clock"></i>
                                 <span>@totalTime мин</span>
+                                
+                                @if (recipe.RecipeIngredients != null && recipe.RecipeIngredients.Any())
+                                {
+                                    var availableCount = recipe.RecipeIngredients.Count(ri => fridgeProductIds.Contains(ri.ProductId));
+                                    <div class="ml-auto flex items-center gap-1 px-2 py-0.5 rounded-lg @(availableCount == recipe.RecipeIngredients.Count ? "bg-emerald-50 text-emerald-600" : (availableCount > 0 ? "bg-amber-50 text-amber-600" : "bg-slate-50 text-slate-400"))">
+                                        <i class="fas fa-shopping-basket text-[9px]"></i>
+                                        <span>@availableCount / @recipe.RecipeIngredients.Count</span>
+                                    </div>
+                                }
                             </div>
 
                             <h3 class="font-black text-base text-slate-800 line-clamp-2 leading-tight group-hover:text-indigo-600 transition-colors mb-2" title="@recipe.Title">
@@ -143,6 +151,7 @@
     private List<Recipe> allRecipes = new();
     private List<Recipe> filteredRecipes = new();
     private HashSet<int> favoriteIds = new();
+    private HashSet<int> fridgeProductIds = new();
 
     private string searchQuery = "";
     private int filterTime = 0;
@@ -159,14 +168,22 @@
         {
             await using var context = await DbContextFactory.CreateDbContextAsync();
 
-            allRecipes = await context.Recipes.ToListAsync();
+            allRecipes = await context.Recipes
+                .Include(r => r.RecipeIngredients)
+                .ToListAsync();
 
             var favorites = await context.FavoriteRecipes
                 .Where(f => f.UserId == AuthService.CurrentUserId)
                 .Select(f => f.RecipeId)
                 .ToListAsync();
 
+            var fridgeItems = await context.FridgeItems
+                .Where(f => f.UserId == AuthService.CurrentUserId)
+                .Select(f => f.ProductId)
+                .ToListAsync();
+
             favoriteIds = new HashSet<int>(favorites);
+            fridgeProductIds = new HashSet<int>(fridgeItems);
 
             RefreshFilters();
         }
@@ -182,6 +199,21 @@
         RefreshFilters();
     }
 
+    private void OnFilterTimeChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out int time))
+        {
+            filterTime = time;
+            RefreshFilters();
+        }
+    }
+
+    private void OnSearchInput(ChangeEventArgs e)
+    {
+        searchQuery = e.Value?.ToString() ?? "";
+        RefreshFilters();
+    }
+
     private void RefreshFilters()
     {
         var query = allRecipes.AsEnumerable();
@@ -189,11 +221,6 @@
         if (activeFilter == "favorites")
         {
             query = query.Where(r => favoriteIds.Contains(r.Id));
-        }
-        else if (activeFilter == "byIngredients")
-        {
-            // Заглушка под будущую фильтрацию по продуктам в наличии
-            query = query.Where(r => ((r.PrepTime ?? 0) + (r.CookTime ?? 0)) <= 30);
         }
 
         if (!string.IsNullOrWhiteSpace(searchQuery))
@@ -204,6 +231,14 @@
         if (filterTime > 0)
         {
             query = query.Where(r => ((r.PrepTime ?? 0) + (r.CookTime ?? 0)) <= filterTime);
+        }
+
+        if (activeFilter == "byIngredients")
+        {
+            // Сортируем по количеству продуктов, которые есть в холодильнике (по убыванию)
+            // А при равном количестве - по наименьшему общему количеству требуемых продуктов (чтобы процент был выше)
+            query = query.OrderByDescending(r => r.RecipeIngredients?.Count(ri => fridgeProductIds.Contains(ri.ProductId)) ?? 0)
+                         .ThenBy(r => r.RecipeIngredients?.Count ?? 0);
         }
 
         filteredRecipes = query.ToList();
