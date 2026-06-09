@@ -13,7 +13,7 @@
 
 <PageTitle>SmartPlate AI — План питания</PageTitle>
 
-<div class="max-w-[1440px] mx-auto p-6 lg:p-10 font-sans">
+<div class="max-w-[1440px] mx-auto px-4 py-4 sm:p-6 lg:p-10 font-sans">
     @if (!string.IsNullOrEmpty(errorMessage))
     {
         <div class="mb-6 p-4 bg-red-50 border-l-4 border-red-500 rounded-xl text-red-700 flex justify-between items-center shadow-sm animate-fade-in">
@@ -27,10 +27,10 @@
         </div>
     }
 
-    <header class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-10">
+    <header class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6 sm:mb-10">
         <div>
-            <h1 class="text-4xl font-black text-slate-900 tracking-tighter">Персональный план</h1>
-            <p class="text-slate-500 font-medium mt-1">Персональный план на на основе AI</p>
+            <h1 class="text-2xl sm:text-4xl font-black text-slate-900 tracking-tighter">Персональный план</h1>
+            <p class="text-slate-500 font-medium mt-1 text-sm sm:text-base">Персональный план на основе AI</p>
         </div>
 
         <div class="flex flex-wrap gap-3 w-full md:w-auto">
@@ -59,9 +59,9 @@
         </div>
     </header>
 
-    <div class="grid grid-cols-1 lg:grid-cols-[380px_1fr] gap-8 items-start">
-        <aside class="space-y-6">
-            <div class="bento-card p-8 bg-white border border-slate-100 rounded-3xl shadow-sm">
+    <div class="grid grid-cols-1 lg:grid-cols-[350px_1fr] gap-6 sm:gap-8 items-start">
+        <aside class="space-y-6 order-1 lg:order-1">
+            <div class="bento-card p-5 sm:p-8 bg-white border border-slate-100 rounded-3xl shadow-sm">
                 @{
                     var expandedDay = mealPlanDays.FirstOrDefault(d => d.IsExpanded);
                     var displayCalories = expandedDay != null ? expandedDay.Meals.Sum(m => m.Calories) : targetCalories;
@@ -78,7 +78,7 @@
                     </div>
                 </div>
 
-                <div class="relative w-48 h-48 mx-auto mb-8">
+                <div class="relative w-36 h-36 sm:w-48 sm:h-48 mx-auto mb-6 sm:mb-8">
                     <svg class="w-full h-full -rotate-90" viewBox="0 0 36 36">
                         <circle class="fill-none stroke-slate-100 stroke-[3]" cx="18" cy="18" r="15.915"></circle>
                         @{
@@ -95,7 +95,7 @@
                                 cx="18" cy="18" r="15.915" stroke-dasharray="@($"{cPerc.ToString(CultureInfo.InvariantCulture)} {Math.Max(0, 100 - cPerc).ToString(CultureInfo.InvariantCulture)}")" stroke-dashoffset="@((-(pPerc + fPerc)).ToString(CultureInfo.InvariantCulture))"></circle>
                     </svg>
                     <div class="absolute inset-0 flex flex-col items-center justify-center text-center">
-                        <span class="text-4xl font-black text-slate-800 leading-none">@displayCalories</span>
+                        <span class="text-3xl sm:text-4xl font-black text-slate-800 leading-none">@displayCalories</span>
                         <span class="text-[10px] font-bold text-slate-400 uppercase mt-1 tracking-tighter">ккал / день</span>
                     </div>
                 </div>
@@ -116,7 +116,7 @@
                 </div>
             </div>
 
-            <div class="bento-card p-8 bg-white border border-slate-100 rounded-3xl shadow-sm space-y-4">
+            <div class="bento-card p-5 sm:p-8 bg-white border border-slate-100 rounded-3xl shadow-sm space-y-4">
                 <h3 class="text-lg font-black text-slate-800">Параметры</h3>
 
 
@@ -129,6 +129,16 @@
                         <option value="3">3 дня</option>
                         <option value="5">5 дней</option>
                         <option value="7">7 дней</option>
+                    </select>
+                </div>
+
+                <div class="space-y-2">
+                    <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Уровень активности</label>
+                    <select value="@activityString" @onchange="OnActivityChanged"
+                            class="w-full bg-slate-50 border-2 border-transparent focus:border-indigo-500 focus:bg-white rounded-xl p-3 font-bold text-sm outline-none transition-all">
+                        <option value="Low">Низкая (сидячий)</option>
+                        <option value="Medium">Средняя (3-5 раз/нед)</option>
+                        <option value="High">Высокая (ежедневно)</option>
                     </select>
                 </div>
 
@@ -166,7 +176,7 @@
             </div>
         </aside>
 
-        <section>
+        <section class="order-2 lg:order-2">
             @if (mealPlanDays.Any())
             {
                 <div class="space-y-6">
@@ -174,13 +184,13 @@
                     {
                         <div class="bg-white rounded-[2.5rem] border border-slate-200 shadow-sm overflow-hidden transition-all duration-300 @(day.IsExpanded ? "ring-2 ring-indigo-500/20 shadow-md" : "")">
                             <button @onclick="() => ToggleDay(day)"
-                                    class="w-full p-8 flex justify-between items-center transition-all outline-none text-left @(day.IsExpanded ? "bg-slate-50/50" : "hover:bg-slate-50/20")">
-                                <div class="flex items-center gap-6">
-                                    <div class="w-14 h-14 rounded-2xl flex items-center justify-center font-black text-xl transition-all shadow-inner @(day.IsExpanded ? "bg-indigo-600 text-white" : "bg-white text-slate-300 border border-slate-100")">
+                                    class="w-full p-5 sm:p-8 flex justify-between items-center transition-all outline-none text-left @(day.IsExpanded ? "bg-slate-50/50" : "hover:bg-slate-50/20")">
+                                <div class="flex items-center gap-3 sm:gap-6">
+                                    <div class="w-10 h-10 sm:w-14 sm:h-14 rounded-xl sm:rounded-2xl flex items-center justify-center font-black text-base sm:text-xl transition-all shadow-inner @(day.IsExpanded ? "bg-indigo-600 text-white" : "bg-white text-slate-300 border border-slate-100")">
                                         @day.Date.Day
                                     </div>
                                     <div>
-                                        <h3 class="font-bold text-xl text-slate-800 tracking-tight capitalize">
+                                        <h3 class="font-bold text-base sm:text-xl text-slate-800 tracking-tight capitalize">
                                             @day.Date.ToString("dddd", RuCulture)
                                         </h3>
                                         <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">
@@ -189,18 +199,29 @@
                                     </div>
                                 </div>
 
-                                <div class="flex items-center gap-8">
-                                    <div class="hidden md:block text-right">
+                                <div class="flex items-center gap-4 sm:gap-8">
+                                    <div class="text-right">
                                         <div class="flex items-center gap-2 justify-end">
-                                            <div class="text-xl font-black text-slate-800">@day.Meals.Sum(m => m.Calories)</div>
-                                            @if (day.Meals.Sum(m => m.Calories) > targetCalories && targetCalories > 0)
+                                            <div class="text-base sm:text-xl font-black text-slate-800">@day.Meals.Sum(m => m.Calories)</div>
+                                            @if (targetCalories > 0)
                                             {
-                                                var diff = day.Meals.Sum(m => m.Calories) - targetCalories;
-                                                var percent = (int)Math.Round((double)diff / targetCalories * 100);
-                                                <span class="text-[9px] font-bold text-red-600 bg-red-100 px-2 py-0.5 rounded-full">+@percent%</span>
+                                                var dayCalories = day.Meals.Sum(m => m.Calories);
+                                                var diff = dayCalories - targetCalories;
+                                                var percent = (int)Math.Round((double)Math.Abs(diff) / targetCalories * 100);
+                                                @if (percent >= 3)
+                                                {
+                                                    @if (diff > 0)
+                                                    {
+                                                        <span class="text-[9px] font-bold text-red-600 bg-red-100 px-2 py-0.5 rounded-full">+@percent%</span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="text-[9px] font-bold text-amber-600 bg-amber-100 px-2 py-0.5 rounded-full">-@percent%</span>
+                                                    }
+                                                }
                                             }
                                         </div>
-                                        <div class="text-[10px] font-black text-slate-400 uppercase tracking-widest">ккал всего</div>
+                                        <div class="text-[10px] font-black text-slate-400 uppercase tracking-widest hidden sm:block">ккал всего</div>
                                     </div>
                                     <div class="w-10 h-10 rounded-full flex items-center justify-center transition-all border border-slate-100 bg-white @(day.IsExpanded ? "rotate-180 shadow-sm border-slate-200" : "")">
                                         <i class="fas fa-chevron-down text-slate-400 text-sm"></i>
@@ -209,10 +230,10 @@
                             </button>
 
                             <div class="transition-all duration-500 ease-in-out overflow-hidden @(day.IsExpanded ? "max-h-[4000px] opacity-100 border-t border-slate-100" : "max-h-0 opacity-0 pointer-events-none")">
-                                <div class="p-8 grid grid-cols-1 md:grid-cols-2 gap-4 bg-white">
+                                <div class="p-5 sm:p-8 grid grid-cols-1 xl:grid-cols-2 gap-4 bg-white">
                                     @foreach (var meal in day.Meals)
                                     {
-                                        <div class="bg-slate-50/50 rounded-[2rem] p-8 border border-slate-100/50 hover:bg-white hover:shadow-2xl hover:shadow-indigo-500/5 transition-all duration-500 group flex flex-col justify-between relative">
+                                        <div class="bg-slate-50/50 rounded-2xl sm:rounded-[2rem] p-5 sm:p-8 border border-slate-100/50 hover:bg-white hover:shadow-2xl hover:shadow-indigo-500/5 transition-all duration-500 group flex flex-col justify-between relative">
                                             <div>
                                                 <div class="flex justify-between items-start mb-4">
                                                     <div>
@@ -405,6 +426,7 @@
     private string errorMessage = string.Empty;
     private UserProfile profile = new() { Weight = 75, Height = 180, Age = 30, Gender = Gender.Male, ActivityLevel = ActivityLevel.Medium };
     private GoalType selectedGoal = GoalType.Maintain;
+    private string activityString = "Medium";
     private int targetCalories = 2000, targetProteins, targetFats, targetCarbs;
     private int generationDays = 7;
     private bool useFridgeProducts = false;
@@ -426,10 +448,13 @@
             {
                 profile = user.Profile;
                 selectedGoal = profile.Goal;
+                activityString = profile.ActivityLevel.ToString();
             }
 
-            await LoadUserCalories();
             CalculateTargets();
+            await LoadUserCalories();
+            // Пересчитываем БЖУ пропорционально targetCalories из БД
+            RecalculateMacrosFromCalories();
             await LoadExistingPlan();
         }
         catch (Exception ex)
@@ -469,6 +494,18 @@
         StateHasChanged();
     }
 
+    /// <summary>
+    /// Пересчитывает БЖУ пропорционально загруженному из БД targetCalories,
+    /// чтобы макронутриенты соответствовали калориям, а не формуле.
+    /// </summary>
+    private void RecalculateMacrosFromCalories()
+    {
+        if (targetCalories <= 0) return;
+        targetProteins = (int)Math.Round(targetCalories * 0.30 / 4.0);
+        targetFats = (int)Math.Round(targetCalories * 0.25 / 9.0);
+        targetCarbs = (int)Math.Round(targetCalories * 0.45 / 4.0);
+    }
+
     private async Task OnParametersChangedAsync()
     {
         if (profile.Weight < 30 || profile.Height < 100) return;
@@ -480,6 +517,15 @@
     {
         selectedGoal = goal;
         profile.Goal = goal;
+        CalculateTargets();
+        await SaveProfileToDbAsync();
+    }
+
+    private async Task OnActivityChanged(ChangeEventArgs e)
+    {
+        activityString = e.Value?.ToString() ?? "Medium";
+        Enum.TryParse<ActivityLevel>(activityString, out var parsedActivity);
+        profile.ActivityLevel = parsedActivity;
         CalculateTargets();
         await SaveProfileToDbAsync();
     }
@@ -620,11 +666,14 @@
         shoppingList = mealPlanDays
             .SelectMany(d => d.Meals)
             .SelectMany(m => m.Ingredients)
-            .GroupBy(i => new { Name = i.Name.Trim(), Unit = i.Unit.Trim().ToLower() })
+            .GroupBy(i => new { 
+                Name = ProductWebManager.Services.ProductNameNormalizer.Normalize(i.Name), 
+                Unit = i.Unit.Trim().ToLower() 
+            })
             .Select(g => new ShoppingItemDto
                 {
-                    Name = CultureInfo.CurrentCulture.TextInfo.ToTitleCase(g.Key.Name.ToLower()),
-                    Unit = g.First().Unit,
+                    Name = CultureInfo.CurrentCulture.TextInfo.ToTitleCase(g.Key.Name),
+                    Unit = g.Key.Unit,
                     Quantity = g.Sum(x => x.Quantity),
                     IsChecked = false
                 })
@@ -812,59 +861,7 @@
         StateHasChanged();
     }
 
-    /// <summary>
-    /// Ищет продукт в БД с нечётким совпадением имени.
-    /// Если не найден — создаёт новый.
-    /// Если найден с КБЖУ = 0 и AI вернул ненулевые значения — обновляет.
-    /// </summary>
-    private async Task<Product> FindOrCreateProductAsync(
-        ProductWebManager.Data.ProductManagerContext context,
-        GigaChatHelper.GeneratedIngredientDto aiIng,
-        Category dbCategory,
-        Unit dbUnit)
-    {
-        var normalizedName = ProductNameNormalizer.Normalize(aiIng.Name);
 
-        // 1. Точный поиск (быстрый)
-        var dbProduct = await context.Products.FirstOrDefaultAsync(
-            p => p.Name.ToLower() == normalizedName);
-
-        // 2. Нечёткий поиск по всем продуктам, если точного совпадения нет
-        if (dbProduct == null)
-        {
-            var allProducts = await context.Products.ToListAsync();
-            dbProduct = allProducts.FirstOrDefault(
-                p => ProductNameNormalizer.AreSimilar(p.Name, aiIng.Name));
-        }
-
-        if (dbProduct != null)
-        {
-            // Обновляем КБЖУ, если у существующего продукта нули, а AI дал значения
-            if (dbProduct.Calories == 0 && aiIng.Calories > 0)
-            {
-                dbProduct.Calories = aiIng.Calories;
-                dbProduct.Proteins = aiIng.Proteins;
-                dbProduct.Fats = aiIng.Fats;
-                dbProduct.Carbohydrates = aiIng.Carbs;
-            }
-            return dbProduct;
-        }
-
-        // 3. Создаём новый продукт
-        dbProduct = new Product
-        {
-            Name = aiIng.Name.Trim(),
-            Category = dbCategory,
-            Unit = dbUnit,
-            Proteins = aiIng.Proteins,
-            Fats = aiIng.Fats,
-            Carbohydrates = aiIng.Carbs,
-            Calories = aiIng.Calories,
-            IsPieceBased = false
-        };
-        context.Products.Add(dbProduct);
-        return dbProduct;
-    }
 
     public class MealPlanDay
     {

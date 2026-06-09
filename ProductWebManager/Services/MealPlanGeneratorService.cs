@@ -42,13 +42,23 @@ public class MealPlanGeneratorService
         double minFridgeQuantity)
     {
         List<string>? fridgeProductNames = null;
-        if (useFridgeProducts)
+        List<string>? allergies = null;
+
+        await using (var dbContext = await _dbContextFactory.CreateDbContextAsync())
         {
-            await using var dbContext = await _dbContextFactory.CreateDbContextAsync();
-            fridgeProductNames = await dbContext.FridgeItems
-                .Include(f => f.Product)
-                .Where(f => f.UserId == userId && f.Quantity >= minFridgeQuantity)
-                .Select(f => f.Product.Name)
+            if (useFridgeProducts)
+            {
+                fridgeProductNames = await dbContext.FridgeItems
+                    .Include(f => f.Product)
+                    .Where(f => f.UserId == userId && f.Quantity >= minFridgeQuantity)
+                    .Select(f => f.Product.Name)
+                    .ToListAsync();
+            }
+
+            allergies = await dbContext.UserAllergies
+                .Include(a => a.Allergy)
+                .Where(a => a.UserId == userId)
+                .Select(a => a.Allergy.Name)
                 .ToListAsync();
         }
 
@@ -63,7 +73,8 @@ public class MealPlanGeneratorService
             useFridgeProducts,
             "balanced",
             null,
-            fridgeProductNames);
+            fridgeProductNames,
+            allergies);
 
         if (planStructure == null || planStructure.Days == null || !planStructure.Days.Any())
         {
@@ -93,6 +104,9 @@ public class MealPlanGeneratorService
 
             var categoryCache = new Dictionary<string, Category>();
             var unitCache = new Dictionary<string, Unit>();
+
+            // Загружаем все продукты один раз для нечёткого поиска (вместо ToListAsync на каждый ингредиент)
+            var productCache = await context.Products.ToListAsync();
 
             DateTime startingDate = DateTime.Today;
             for (int dayIndex = 0; dayIndex < generationDays; dayIndex++)
@@ -137,7 +151,7 @@ public class MealPlanGeneratorService
                                 unitCache[unitKey] = dbUnit;
                             }
 
-                            var dbProduct = await FindOrCreateProductAsync(context, aiIng, dbCategory, dbUnit);
+                            var dbProduct = await FindOrCreateProductAsync(context, aiIng, dbCategory, dbUnit, productCache);
 
                             recipeToUse.RecipeIngredients.Add(new RecipeIngredient { Product = dbProduct, Quantity = (double)aiIng.Quantity, Unit = dbUnit });
                         }
@@ -189,41 +203,63 @@ public class MealPlanGeneratorService
         double minFridgeQuantity)
     {
         List<string>? fridgeProductNames = null;
-        if (useFridgeProducts)
+        List<string>? allergies = null;
+
+        await using (var dbContext = await _dbContextFactory.CreateDbContextAsync())
         {
-            await using var dbContext = await _dbContextFactory.CreateDbContextAsync();
-            fridgeProductNames = await dbContext.FridgeItems
-                .Include(f => f.Product)
-                .Where(f => f.UserId == userId && f.Quantity >= minFridgeQuantity)
-                .Select(f => f.Product.Name)
+            if (useFridgeProducts)
+            {
+                fridgeProductNames = await dbContext.FridgeItems
+                    .Include(f => f.Product)
+                    .Where(f => f.UserId == userId && f.Quantity >= minFridgeQuantity)
+                    .Select(f => f.Product.Name)
+                    .ToListAsync();
+            }
+
+            allergies = await dbContext.UserAllergies
+                .Include(a => a.Allergy)
+                .Where(a => a.UserId == userId)
+                .Select(a => a.Allergy.Name)
                 .ToListAsync();
         }
 
-        var singleDayPlan = await _gigaChatAi.GenerateMealPlanStructureAsync(
-            profile,
-            1,
-            profile.Goal,
-            targetCalories,
-            targetProteins,
-            targetFats,
-            targetCarbs,
-            useFridgeProducts,
-            "balanced",
-            existingTitles,
-            fridgeProductNames);
+        // Получаем старое блюдо для определения целевой калорийности замены
+        int replacementTargetCalories;
+        string originalTitle;
+        bool isSnack;
+        MealType parsedMealType;
 
-        if (singleDayPlan?.Days == null || !singleDayPlan.Days.Any())
+        await using (var dbContext = await _dbContextFactory.CreateDbContextAsync())
         {
-            throw new Exception("Нейросеть не смогла сгенерировать замену.");
+            var oldItem = await dbContext.Set<MealPlanItem>()
+                .Include(i => i.Recipe)
+                .FirstOrDefaultAsync(i => i.Id == mealPlanItemId);
+
+            if (oldItem == null)
+                throw new Exception("Элемент рациона не найден в базе данных.");
+
+            // Используем калорийность заменяемого блюда, а не дневную норму
+            replacementTargetCalories = oldItem.Calories > 0 ? oldItem.Calories : targetCalories / 4;
+            originalTitle = oldItem.Recipe?.Title ?? "Блюдо";
+            parsedMealType = oldItem.MealType;
+            isSnack = oldItem.MealType == MealType.Snack;
         }
 
-        var matchingAiMeal = singleDayPlan.Days[0].Meals
-            .FirstOrDefault(m => m.MealType.Equals(currentMealType, StringComparison.OrdinalIgnoreCase))
-            ?? singleDayPlan.Days[0].Meals.FirstOrDefault();
+        // Используем специализированный метод для замены одного блюда
+        var replacementDto = await _gigaChatAi.FindReplacementRecipeAsync(
+            originalTitle,
+            parsedMealType,
+            replacementTargetCalories,
+            isSnack,
+            profile,
+            profile.Goal,
+            existingTitles,
+            fridgeProductNames,
+            allergies);
 
-        if (matchingAiMeal == null)
+        if (replacementDto == null)
         {
-            throw new Exception("Подходящее блюдо для замены не найдено.");
+            throw new Exception("Нейросеть не смогла сгенерировать замену.");
         }
 
         await using var context = await _dbContextFactory.CreateDbContextAsync();
@@ -238,7 +274,7 @@ public class MealPlanGeneratorService
                 throw new Exception("Элемент рациона не найден в базе данных.");
             }
 
-            var existingRecipe = await _recipeResolver.FindRecipeAsync(matchingAiMeal.Title);
+            var existingRecipe = await _recipeResolver.FindRecipeAsync(replacementDto.Title);
             Recipe recipeToUse;
 
             if (existingRecipe != null)
@@ -249,15 +285,18 @@ public class MealPlanGeneratorService
             {
                 recipeToUse = new Recipe
                 {
-                    Title = matchingAiMeal.Title,
-                    Description = matchingAiMeal.Description ?? "",
-                    Instructions = matchingAiMeal.Instructions != null ? string.Join("\n", matchingAiMeal.Instructions) : "Приготовьте по рецепту.",
+                    Title = replacementDto.Title,
+                    Description = replacementDto.Description ?? "",
+                    Instructions = replacementDto.Instructions != null ? string.Join("\n", replacementDto.Instructions) : "Приготовьте по рецепту.",
                     RecipeIngredients = new List<RecipeIngredient>()
                 };
 
                 var categoryCache = new Dictionary<string, Category>();
                 var unitCache = new Dictionary<string, Unit>();
-                foreach (var aiIng in matchingAiMeal.Ingredients)
+                // Загружаем кэш продуктов для нечёткого поиска
+                var productCache = await context.Products.ToListAsync();
+
+                foreach (var aiIng in replacementDto.Ingredients)
                 {
                     var catKey = (aiIng.Category ?? "Разное").Trim().ToLower();
                     if (!categoryCache.TryGetValue(catKey, out var dbCategory))
@@ -273,16 +312,16 @@ public class MealPlanGeneratorService
                         unitCache[unitKey] = dbUnit;
                     }
 
-                    var dbProduct = await FindOrCreateProductAsync(context, aiIng, dbCategory, dbUnit);
+                    var dbProduct = await FindOrCreateProductAsync(context, aiIng, dbCategory, dbUnit, productCache);
 
                     recipeToUse.RecipeIngredients.Add(new RecipeIngredient { Product = dbProduct, Quantity = (double)aiIng.Quantity, Unit = dbUnit });
                 }
             }
 
-            int mealProteins = (int)(matchingAiMeal.Proteins != 0 ? matchingAiMeal.Proteins : matchingAiMeal.Ingredients.Sum(i => i.Proteins));
-            int mealFats = (int)(matchingAiMeal.Fats != 0 ? matchingAiMeal.Fats : matchingAiMeal.Ingredients.Sum(i => i.Fats));
-            int mealCarbs = (int)(matchingAiMeal.Carbs != 0 ? matchingAiMeal.Carbs : matchingAiMeal.Ingredients.Sum(i => i.Carbs));
-            int mealCalories = (int)(matchingAiMeal.Calories != 0 ? matchingAiMeal.Calories : matchingAiMeal.Ingredients.Sum(i => i.Calories));
+            int mealProteins = replacementDto.Proteins != 0 ? replacementDto.Proteins : (int)replacementDto.Ingredients.Sum(i => i.Proteins);
+            int mealFats = replacementDto.Fats != 0 ? replacementDto.Fats : (int)replacementDto.Ingredients.Sum(i => i.Fats);
+            int mealCarbs = replacementDto.Carbs != 0 ? replacementDto.Carbs : (int)replacementDto.Ingredients.Sum(i => i.Carbs);
+            int mealCalories = replacementDto.Calories != 0 ? replacementDto.Calories : (int)replacementDto.Ingredients.Sum(i => i.Calories);
 
             dbItem.Calories = mealCalories;
             dbItem.Proteins = mealProteins;
@@ -293,7 +332,7 @@ public class MealPlanGeneratorService
             await context.SaveChangesAsync();
             await transaction.CommitAsync();
 
-            return matchingAiMeal.Title;
+            return replacementDto.Title;
         }
         catch (Exception ex)
         {
@@ -307,7 +346,8 @@ public class MealPlanGeneratorService
         ProductWebManager.Data.ProductManagerContext context,
         GigaChatHelper.GeneratedIngredientDto aiIng,
         Category dbCategory,
-        Unit dbUnit)
+        Unit dbUnit,
+        List<Product>? productCache = null)
     {
         var normalizedName = ProductNameNormalizer.Normalize(aiIng.Name);
 
@@ -316,8 +356,9 @@ public class MealPlanGeneratorService
 
         if (dbProduct == null)
         {
-            var allProducts = await context.Products.ToListAsync();
-            dbProduct = allProducts.FirstOrDefault(
+            // Используем кэш вместо повторной загрузки всех продуктов из БД
+            var searchList = productCache ?? await context.Products.ToListAsync();
+            dbProduct = searchList.FirstOrDefault(
                 p => ProductNameNormalizer.AreSimilar(p.Name, aiIng.Name));
         }
 
@@ -345,6 +386,10 @@ public class MealPlanGeneratorService
             IsPieceBased = false
         };
         context.Products.Add(dbProduct);
+
+        // Добавляем в кэш, чтобы следующие ингредиенты нашли этот продукт
+        productCache?.Add(dbProduct);
+
         return dbProduct;
     }
 }

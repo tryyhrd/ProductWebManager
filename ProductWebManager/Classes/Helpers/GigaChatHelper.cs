@@ -41,7 +41,7 @@ public sealed class GigaChatHelper
         return await GenerateMealPlanStructureAsync(
             profile, days, goal, calories, proteins, fats, carbs,
             useFridgeProducts: false, generationMode: "balanced",
-            existingRecipeTitles: null, fridgeProductNames: null);
+            existingRecipeTitles: null, fridgeProductNames: null, allergens: null);
     }
 
     public async Task<MealPlanStructureDto?> GenerateMealPlanStructureAsync(
@@ -55,10 +55,12 @@ public sealed class GigaChatHelper
         bool useFridgeProducts,
         string generationMode,
         IEnumerable<string>? existingRecipeTitles,
-        IEnumerable<string>? fridgeProductNames)
+        IEnumerable<string>? fridgeProductNames,
+        IEnumerable<string>? allergens)
     {
         var recipeTitles = LimitAndNormalize(existingRecipeTitles, 40);
         var fridgeProducts = LimitAndNormalize(fridgeProductNames, 30);
+        var allergenList = LimitAndNormalize(allergens, 20);
 
         var systemPrompt =
             "Ты профессиональный нутрициолог и шеф-повар. " +
@@ -74,6 +76,7 @@ public sealed class GigaChatHelper
 2. РАСПРЕДЕЛЕНИЕ: Завтрак ~25%, Обед ~35%, Ужин ~25%, Перекус ~15%.
 3. ХОЛОДИЛЬНИК: Если переданы продукты ({string.Join(", ", fridgeProducts)}), они ОБЯЗАТЕЛЬНО должны быть основными ингредиентами минимум в 2 приемах пищи в день.
 4. КУЛИНАРНАЯ ЛОГИКА: Не предлагай '120г яблока', если можно предложить '1 среднее яблоко (150г)'. Подгоняй КБЖУ за счет круп и масел.
+{(allergenList.Count > 0 ? "5. АЛЛЕРГЕНЫ И ИСКЛЮЧЕНИЯ: СТРОГО ЗАПРЕЩЕНО ИСПОЛЬЗОВАТЬ: " + string.Join(", ", allergenList) : "")}
 
 ОБЯЗАТЕЛЬНО: Для каждого ингредиента укажи КБЖУ НА 100 ГРАММ (или на 1 штуку для штучных продуктов).
 Для самого приема пищи (meal) в полях calories, proteins, fats, carbs укажи суммарное КБЖУ всех ингредиентов в этом блюде.
@@ -135,6 +138,7 @@ public sealed class GigaChatHelper
                 : dto.Name.Trim();
 
             var balancer = new ProductWebManager.Services.MealPlanBalancerService();
+            var expectedTypes = new[] { "Breakfast", "Lunch", "Dinner", "Snack" };
 
             foreach (var day in dto.Days)
             {
@@ -158,6 +162,36 @@ public sealed class GigaChatHelper
                             return i;
                         })
                         .ToList();
+                }
+
+                // Удаляем дубликаты по типу приёма (оставляем первый)
+                day.Meals = day.Meals
+                    .GroupBy(m => m.MealType)
+                    .Select(g => g.First())
+                    .ToList();
+
+                // Добавляем отсутствующие типы приёмов (AI мог не вернуть все 4)
+                var existingTypes = day.Meals.Select(m => m.MealType).ToHashSet();
+                foreach (var mealType in expectedTypes)
+                {
+                    if (!existingTypes.Contains(mealType))
+                    {
+                        _logger.LogWarning("AI не вернул приём типа {MealType} — добавлен placeholder", mealType);
+                        day.Meals.Add(new MealStructureDto
+                        {
+                            MealType = mealType,
+                            Title = mealType switch
+                            {
+                                "Breakfast" => "Лёгкий завтрак",
+                                "Lunch" => "Обед",
+                                "Dinner" => "Ужин",
+                                "Snack" => "Перекус",
+                                _ => "Блюдо"
+                            },
+                            IsSnack = mealType == "Snack",
+                            Ingredients = new List<GeneratedIngredientDto>()
+                        });
+                    }
                 }
 
                 day.Meals = balancer.DistributeCalories(day.Meals, targetCalories);
@@ -469,10 +503,12 @@ public sealed class GigaChatHelper
         UserProfile? profile,
         GoalType? goal,
         IEnumerable<string>? existingRecipeTitles = null,
-        IEnumerable<string>? fridgeProductNames = null)
+        IEnumerable<string>? fridgeProductNames = null,
+        IEnumerable<string>? allergens = null)
     {
         var existingTitles = LimitAndNormalize(existingRecipeTitles, 30);
         var fridgeProducts = LimitAndNormalize(fridgeProductNames, 20);
+        var allergenList = LimitAndNormalize(allergens, 20);
 
         var systemPrompt =
             "Ты профессиональный шеф-повар и нутрициолог. " +
@@ -493,6 +529,7 @@ public sealed class GigaChatHelper
 
 {{(existingTitles.Count > 0 ? "НЕ ИСПОЛЬЗУЙ эти названия: " + string.Join(", ", existingTitles.Take(20)) : "")}}
 {{(fridgeProducts.Count > 0 ? "Используй эти продукты: " + string.Join(", ", fridgeProducts) : "")}}
+{{(allergenList.Count > 0 ? "КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО использовать: " + string.Join(", ", allergenList) : "")}}
 {{(goal.HasValue ? "Цель: " + goal.Value.ToString() : "")}}
 
 ФОРМАТ JSON:

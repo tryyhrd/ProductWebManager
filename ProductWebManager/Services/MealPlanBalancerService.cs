@@ -18,11 +18,14 @@ public class MealPlanBalancerService
             m.MealType = NormalizeMealType(m.MealType);
         }
 
-        var shares = result.Select(GetShare).ToList();
+        var baseShares = result.Select(GetShare).ToList();
+        var sum = baseShares.Sum();
+        if (sum == 0) sum = 1; // Prevent division by zero
+        var normalizedShares = baseShares.Select(s => s / sum).ToList();
 
         var allocated = new int[result.Count];
         for (int i = 0; i < result.Count; i++)
-            allocated[i] = (int)Math.Round(targetCalories * shares[i]);
+            allocated[i] = (int)Math.Round(targetCalories * normalizedShares[i]);
 
         var diff = targetCalories - allocated.Sum();
         var order = GetAdjustmentOrder(result, diff > 0);
@@ -97,16 +100,16 @@ public class MealPlanBalancerService
         {
             "Breakfast" => 0.25,
             "Lunch" => 0.35,
-            "Dinner" => 0.30,
-            "Snack" => 0.10,
-            _ => meal.IsSnack ? 0.10 : 0.25
+            "Dinner" => 0.25,
+            "Snack" => 0.15,
+            _ => meal.IsSnack ? 0.15 : 0.25
         };
     }
 
     private static List<int> GetAdjustmentOrder(List<MealStructureDto> meals, bool increase)
     {
         var priority = increase
-            ? new[] { "Lunch", "Dinner", "Breakfast", "Snack" }
+            ? new[] { "Lunch", "Breakfast", "Dinner", "Snack" }
             : new[] { "Snack", "Dinner", "Breakfast", "Lunch" };
 
         var indices = new List<int>();

@@ -1,4 +1,4 @@
-﻿@page "/register"
+@page "/register"
 @rendermode InteractiveServer
 @attribute [AllowAnonymous]
 @layout ProductWebManager.Components.Layout.EmptyLayout
@@ -202,6 +202,34 @@
         width: 16px;
         height: 16px;
         border-width: 2px;
+    }
+
+    @@media (max-width: 480px) {
+        .login-page {
+            padding: 10px;
+        }
+
+        .login-card {
+            border-radius: 16px;
+        }
+
+        .login-header, .login-body {
+            padding: 20px;
+        }
+
+        .login-title {
+            font-size: 18px;
+        }
+
+        .login-input {
+            padding: 8px 12px;
+            font-size: 13px;
+        }
+
+        .btn-login {
+            padding: 10px;
+            font-size: 14px;
+        }
     }
 </style>
 

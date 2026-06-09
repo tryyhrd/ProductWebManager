@@ -8,18 +8,20 @@ namespace ProductWebManager.Services;
 
 public class RecipeResolverService
 {
-    private readonly ProductManagerContext _db;
+    private readonly IDbContextFactory<ProductManagerContext> _dbContextFactory;
 
-    public RecipeResolverService(ProductManagerContext db)
+    public RecipeResolverService(IDbContextFactory<ProductManagerContext> dbContextFactory)
     {
-        _db = db;
+        _dbContextFactory = dbContextFactory;
     }
 
     public async Task<Recipe?> FindRecipeAsync(string title)
     {
         title = title.Trim().ToLower();
 
-        return await _db.Recipes
+        await using var db = await _dbContextFactory.CreateDbContextAsync();
+
+        return await db.Recipes
             .Include(x => x.RecipeIngredients)
                 .ThenInclude(x => x.Product)
                     .ThenInclude(x => x.Unit)
@@ -31,4 +33,4 @@ public class RecipeResolverService
             .FirstOrDefaultAsync(x =>
                 x.Title != null && x.Title.ToLower() == title);
     }
-}
+}

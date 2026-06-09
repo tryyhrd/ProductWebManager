@@ -1,12 +1,12 @@
-/* ОБЩИЙ КОНТЕЙНЕР */
+п»ї/* Main layout */
 .premium-app-wrapper {
     display: flex;
-    flex-direction: column; /* Элементы друг под другом: Header -> Main */
+    flex-direction: column;
     min-height: 100vh;
     background: #F8FAFC;
 }
 
-/* ШАПКА (HEADER) */
+/* HEADER */
 .main-header {
     background: white;
     border-bottom: 1px solid #e2e8f0;
@@ -28,7 +28,6 @@
     padding: 0 2rem;
 }
 
-/* ЛОГОТИП */
 .logo-section {
     display: flex;
     align-items: center;
@@ -55,7 +54,6 @@
     letter-spacing: -0.02em;
 }
 
-/* ГОРИЗОНТАЛЬНОЕ МЕНЮ */
 .nav-links-horizontal {
     display: flex;
     gap: 8px;
@@ -88,7 +86,6 @@
         color: #4f46e5;
     }
 
-/* ПРОФИЛЬ */
 .user-section {
     min-width: 200px;
     display: flex;
@@ -131,7 +128,6 @@
         border-color: #ef4444;
     }
 
-/* КОНТЕНТ */
 .main-viewport {
     flex: 1;
     overflow-y: auto;
@@ -141,16 +137,68 @@
     width: 100%;
 }
 
-/* Исправление сетки MealPlan для широких экранов */
-.meal-plan-container {
-    padding: 2.5rem 2rem;
-    max-width: 1400px;
-    margin: 0 auto;
+/* ============================================
+   Mobile Bottom Tab Bar
+   ============================================ */
+.mobile-bottom-nav {
+    display: none;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 1000;
+    background: white;
+    border-top: 1px solid #e2e8f0;
+    padding: 6px 0 calc(6px + env(safe-area-inset-bottom, 0px));
+    box-shadow: 0 -4px 20px rgba(0,0,0,0.06);
 }
+
+.mobile-nav-links {
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    max-width: 480px;
+    margin: 0 auto;
+    padding: 0;
+}
+
+.mobile-nav-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: 6px 8px;
+    border-radius: 12px;
+    color: #94a3b8;
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 10px;
+    transition: all 0.2s;
+    min-width: 56px;
+    text-align: center;
+}
+
+    .mobile-nav-item i {
+        font-size: 18px;
+        transition: all 0.2s;
+    }
+
+    .mobile-nav-item.active,
+    .mobile-nav-item:hover {
+        color: #4f46e5;
+    }
+
+    .mobile-nav-item.active i {
+        transform: scale(1.1);
+    }
+
+/* ============================================
+   Responsive Breakpoints
+   ============================================ */
 
 @media (max-width: 1024px) {
     .nav-item-premium span {
-        display: none; /* На планшетах оставляем только иконки */
+        display: none;
     }
 
     .logo-text {
@@ -160,4 +208,61 @@
     .logo-section, .user-section {
         min-width: auto;
     }
+}
+
+@media (max-width: 768px) {
+    .main-header {
+        height: 56px;
+    }
+
+    .header-container {
+        padding: 0 1rem;
+    }
+
+    .top-navigation {
+        display: none;
+    }
+
+    .user-section {
+        min-width: auto;
+    }
+
+    .u-name {
+        display: none;
+    }
+
+    .user-info-chip {
+        padding: 4px;
+        border: none;
+        background: transparent;
+    }
+
+    .mobile-bottom-nav {
+        display: block;
+    }
+
+    .main-viewport {
+        padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+    }
+}
+
+@media (max-width: 380px) {
+    .mobile-nav-item {
+        font-size: 9px;
+        min-width: 48px;
+        padding: 4px 4px;
+    }
+
+    .mobile-nav-item i {
+        font-size: 16px;
+    }
+}
+
+@keyframes fade-in {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+    animation: fade-in 0.3s ease-out;
 }

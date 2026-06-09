@@ -1,4 +1,4 @@
-﻿@page "/recipes"
+@page "/recipes"
 @rendermode InteractiveServer
 
 @inject NavigationManager Navigation
@@ -9,24 +9,20 @@
 
 <PageTitle>SmartPlate AI — Рецепты</PageTitle>
 
-<div class="max-w-[1440px] mx-auto p-6 lg:p-10 font-sans">
+<div class="max-w-[1440px] mx-auto px-4 py-4 sm:p-6 lg:p-10 font-sans">
 
-    <header class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-10">
+    <header class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6 sm:mb-10">
         <div>
-            <h1 class="text-4xl font-black text-slate-900 tracking-tighter">Рецепты</h1>
-            <p class="text-slate-500 font-medium mt-1">Найдите идеальное блюдо для вашего рациона</p>
+            <h1 class="text-2xl sm:text-4xl font-black text-slate-900 tracking-tighter">Рецепты</h1>
+            <p class="text-slate-500 font-medium mt-1 text-sm sm:text-base">Найдите идеальное блюдо для вашего рациона</p>
         </div>
-        <button @onclick="GoToMenu" class="flex items-center gap-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 px-6 py-3.5 rounded-2xl font-bold transition-all shadow-sm">
-            <i class="fas fa-chevron-left text-slate-400 text-xs"></i>
-            <span>Назад в меню</span>
-        </button>
     </header>
 
-    <div class="space-y-4 pb-5 mb-8 border-b border-slate-100">
+    <div class="space-y-4 pb-3 sm:pb-5 mb-6 sm:mb-8 border-b border-slate-100">
 
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
 
-            <div class="flex items-center gap-6 text-sm font-medium border-b sm:border-none border-slate-100 pb-2 sm:pb-0">
+            <div class="flex items-center gap-3 sm:gap-6 text-sm font-medium border-b sm:border-none border-slate-100 pb-2 sm:pb-0 overflow-x-auto scrollbar-none">
                 <button @onclick='() => SetFilterType("all")'
                         class="pb-2 sm:py-1 transition-all relative @(activeFilter == "all" ? "text-slate-900 font-semibold after:absolute after:bottom-0 after:left-0 after:right-0 after:h-[2px] after:bg-slate-900" : "text-slate-400 hover:text-slate-600")">
                     Все рецепты
@@ -87,7 +83,7 @@
     }
     else
     {
-        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+        <div class="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6">
             @foreach (var recipe in filteredRecipes)
             {
                 var isFav = favoriteIds.Contains(recipe.Id);
@@ -258,11 +254,6 @@
     private void ViewRecipe(int recipeId)
     {
         Navigation.NavigateTo($"/recipe/{recipeId}");
-    }
-
-    private void GoToMenu()
-    {
-        Navigation.NavigateTo("/menu");
     }
 
     private string GetRecipeGradient(int id)

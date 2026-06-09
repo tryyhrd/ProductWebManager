@@ -10,12 +10,12 @@
 
 <PageTitle>SmartPlate AI — Список покупок</PageTitle>
 
-<div class="max-w-[1440px] mx-auto p-6 lg:p-10 font-sans">
+<div class="max-w-[1440px] mx-auto px-4 py-4 sm:p-6 lg:p-10 font-sans">
 
-    <header class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-10">
+    <header class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6 sm:mb-10">
         <div>
-            <h1 class="text-4xl font-black text-slate-900 tracking-tighter">Списки покупок</h1>
-            <p class="text-slate-500 font-medium mt-1">
+            <h1 class="text-2xl sm:text-4xl font-black text-slate-900 tracking-tighter">Списки покупок</h1>
+            <p class="text-slate-500 font-medium mt-1 text-sm sm:text-base">
                 Осталось купить:
                 <span class="text-indigo-600 font-bold">@shoppingItems.Count(x => !x.IsPurchased)</span>
                 из <span class="text-slate-800 font-bold">@shoppingItems.Count</span>
@@ -58,7 +58,7 @@
         </div>
     }
 
-    <div class="bg-white border border-slate-100 rounded-[2.5rem] shadow-sm p-8">
+    <div class="bg-white border border-slate-100 rounded-2xl sm:rounded-[2.5rem] shadow-sm p-4 sm:p-8">
         @if (currentListId == 0)
         {
             <div class="flex flex-col items-center justify-center py-20 text-center">
@@ -71,7 +71,7 @@
         }
         else
         {
-            <div class="flex flex-wrap gap-3 mb-6 pb-6 border-b border-slate-100">
+            <div class="flex flex-wrap gap-2 sm:gap-3 mb-4 sm:mb-6 pb-4 sm:pb-6 border-b border-slate-100">
                 <button @onclick="ClearPurchased" disabled="@(!shoppingItems.Any())"
                         class="inline-flex items-center gap-2 text-emerald-700 hover:text-emerald-800 text-sm font-bold bg-emerald-50 hover:bg-emerald-100 border border-emerald-100 px-5 py-3 rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
                     <i class="fas fa-check-double text-xs"></i>
@@ -105,8 +105,8 @@
             <div class="space-y-3">
                 @foreach (var item in shoppingItems.OrderBy(x => x.IsPurchased))
                 {
-                    <div class="flex items-center justify-between p-4 bg-slate-50/50 hover:bg-white hover:shadow-xl hover:shadow-slate-500/5 border border-transparent hover:border-slate-100 rounded-2xl transition-all duration-300 group select-none">
-                        <label class="flex items-center gap-4 flex-1 cursor-pointer">
+                    <div @key="item.Id" class="flex flex-wrap sm:flex-nowrap items-center justify-between p-4 gap-3 sm:gap-4 bg-slate-50/50 hover:bg-white hover:shadow-xl hover:shadow-slate-500/5 border border-transparent hover:border-slate-100 rounded-2xl transition-all duration-300 group select-none">
+                        <label class="flex items-center gap-3 sm:gap-4 flex-1 cursor-pointer w-full sm:w-auto">
                             <input type="checkbox" checked="@item.IsPurchased" @onchange="@(e => TogglePurchased(item, e))"
                                    class="w-6 h-6 rounded-lg border-slate-300 text-indigo-600 focus:ring-indigo-500 transition-all cursor-pointer" />
                             <span class="font-bold text-slate-800 transition-all @(item.IsPurchased ? "line-through text-slate-400 font-medium" : "")">
@@ -114,7 +114,7 @@
                             </span>
                         </label>
 
-                        <div class="flex items-center gap-4">
+                        <div class="flex items-center justify-between sm:justify-end gap-4 w-full sm:w-auto pl-9 sm:pl-0">
                             <span class="text-xs font-black px-4 py-2 bg-white rounded-xl text-slate-600 border border-slate-100 transition-all @(item.IsPurchased ? "bg-slate-50/50 text-slate-400 shadow-none border-transparent" : "shadow-sm")">
                                 @item.Quantity.ToString("G") @item.Product.Unit?.Name
                             </span>

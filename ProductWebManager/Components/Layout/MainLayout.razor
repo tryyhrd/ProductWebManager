@@ -1,4 +1,4 @@
-﻿@inherits LayoutComponentBase
+@inherits LayoutComponentBase
 @inject AuthService AuthService
 @inject NavigationManager Navigation
 
@@ -32,6 +32,31 @@
                     @Body
                 </section>
             </main>
+
+            <nav class="mobile-bottom-nav">
+                <div class="mobile-nav-links">
+                    <NavLink class="mobile-nav-item" href="fridge" Match="NavLinkMatch.All">
+                        <i class="fas fa-box-open"></i>
+                        <span>Продукты</span>
+                    </NavLink>
+                    <NavLink class="mobile-nav-item" href="recipes">
+                        <i class="fas fa-book-open"></i>
+                        <span>Рецепты</span>
+                    </NavLink>
+                    <NavLink class="mobile-nav-item" href="meal-plan">
+                        <i class="fas fa-magic"></i>
+                        <span>План</span>
+                    </NavLink>
+                    <NavLink class="mobile-nav-item" href="shopping-list">
+                        <i class="fas fa-shopping-cart"></i>
+                        <span>Покупки</span>
+                    </NavLink>
+                    <NavLink class="mobile-nav-item" href="profile">
+                        <i class="fas fa-user-circle"></i>
+                        <span>Профиль</span>
+                    </NavLink>
+                </div>
+            </nav>
         </div>
     </Authorized>
     <NotAuthorized>

@@ -1,4 +1,4 @@
-﻿@* @page "/favorites"
+@* @page "/favorites"
 @rendermode InteractiveServer
 @inject NavigationManager Navigation
 @inject ProductWebManager.Data.ProductManagerContext DbContext
@@ -8,14 +8,14 @@
 
 <PageTitle>Избранное</PageTitle>
 
-<div class="container-fluid p-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
+<div class="container-fluid p-3 sm:p-4">
+    <div class="d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center gap-3 mb-4">
         <div>
-            <h2 class="fw-bold m-0" style="color: #1a1a2e;">⭐ Избранные рецепты</h2>
+            <h2 class="fw-bold m-0 fs-3 fs-sm-2" style="color: #1a1a2e;">⭐ Избранные рецепты</h2>
             <small style="color: #888;">@favoriteRecipes.Count @GetRecipeWord(favoriteRecipes.Count) в избранном</small>
         </div>
-        <div class="d-flex gap-2">
-            <button class="btn btn-add" @onclick="GoToRecipes">
+        <div class="d-flex gap-2 w-100 w-sm-auto">
+            <button class="btn btn-add flex-grow-1 flex-sm-grow-0" @onclick="GoToRecipes">
                 Все рецепты
             </button>
         </div>
@@ -35,7 +35,7 @@
                 var availabilityColor = availabilityPercent >= 80 ? "#27ae60" : availabilityPercent >= 50 ? "#f39c12" : "#e74c3c";
                 var prepTime = (recipe.PrepTime ?? 0) + (recipe.CookTime ?? 0);
 
-                <div class="col-md-6 col-lg-4 mb-3">
+                <div class="col-12 col-sm-6 col-lg-4 mb-3">
                     <div class="favorite-card">
                         <div class="favorite-image" style="background: @GetRecipeGradient(item.Id);">
                             <button class="btn-remove-favorite" @onclick="() => RemoveFromFavorites(item)" title="Удалить из избранного">
