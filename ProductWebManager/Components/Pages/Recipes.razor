@@ -100,14 +100,11 @@
                         <div class="h-36 w-full overflow-hidden bg-slate-100 relative flex items-center justify-center transition-transform duration-500 group-hover:scale-[1.02]">
                             @if (!string.IsNullOrWhiteSpace(recipe.ImageUrl))
                             {
-                                <img src="@recipe.ImageUrl" alt="@recipe.Title" class="w-full h-full object-cover" />
+                                <img src="@recipe.ImageUrl" alt="@recipe.Title" class="w-full h-full object-cover" onerror="this.src='/images/recipe_placeholder.png'" />
                             }
                             else
                             {
-                                <div class="w-full h-full opacity-85 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white/40 group-hover:text-white/60"
-                                     style="background: @GetRecipeGradient(recipe.Id)">
-                                    <i class="fas fa-utensils text-3xl transition-transform group-hover:scale-110 duration-300"></i>
-                                </div>
+                                <img src="/images/recipe_placeholder.png" alt="Нет фото" class="w-full h-full object-cover opacity-85 group-hover:opacity-100 transition-opacity" />
                             }
                         </div>
 

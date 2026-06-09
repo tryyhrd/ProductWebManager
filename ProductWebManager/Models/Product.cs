@@ -1,4 +1,4 @@
-﻿namespace ProductWebManager.Models
+namespace ProductWebManager.Models
 {
     public class Product
     {
@@ -15,6 +15,7 @@
         public double Fats { get; set; }
         public double Carbohydrates { get; set; }
         public double Calories { get; set; }
+        public string? ImageUrl { get; set; }
         public ICollection<ProductAllergy> ProductAllergies { get; set; }
             = new List<ProductAllergy>();
     }

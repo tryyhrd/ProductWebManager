@@ -6,6 +6,7 @@
 
 @inject ProductWebManager.Data.ProductManagerContext DbContext
 @inject ProductWebManager.Services.AuthService AuthService
+@inject ProductWebManager.Services.OpenFoodFactsService OpenFoodFactsService
 
 <PageTitle>Продукты</PageTitle>
 
@@ -98,6 +99,15 @@
                     
                     <!-- Left info block -->
                     <div class="flex flex-1 items-center gap-4 min-w-0">
+                        @if (!string.IsNullOrEmpty(product.Product?.ImageUrl))
+                        {
+                            <img src="@product.Product.ImageUrl" alt="@product.Product.Name" class="w-12 h-12 rounded-lg object-cover bg-slate-100 shrink-0 border border-slate-100" onerror="this.src='/images/product_placeholder.png'" />
+                        }
+                        else
+                        {
+                            <img src="/images/product_placeholder.png" alt="Нет фото" class="w-12 h-12 rounded-lg object-cover bg-slate-100 shrink-0 border border-slate-100" />
+                        }
+
                         <!-- Name & Quantity -->
                         <div class="flex-1 min-w-0">
                             <h3 class="font-bold text-slate-800 text-base leading-tight mb-1 truncate" title="@product.Product?.Name">@product.Product?.Name</h3>
@@ -148,6 +158,9 @@
     }
     else if (activeTab == "products")
     {
+        var filteredProductsBase = GetFilteredProductsBase().ToList();
+
+
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 mb-2">
             <div class="relative flex-1 max-w-md w-full">
                 <input type="text"
@@ -165,10 +178,35 @@
         </div>
 
         <div class="divide-y divide-slate-100">
-            @foreach (var product in GetFilteredProductsBase())
+            @if (!filteredProductsBase.Any())
+            {
+                <div class="bg-slate-50 border border-slate-100 rounded-2xl p-8 text-center mt-4">
+                    <div class="w-16 h-16 bg-white text-slate-300 rounded-full flex items-center justify-center text-2xl mx-auto mb-4 shadow-sm">
+                        <i class="fas fa-search"></i>
+                    </div>
+                    <h3 class="text-sm font-bold text-slate-800 mb-1">Ничего не найдено</h3>
+                    <p class="text-xs text-slate-500 mb-4">В вашей базе нет продуктов по запросу «@searchQuery».</p>
+                    
+                    @if (!string.IsNullOrEmpty(searchQuery))
+                    {
+                        <button @onclick="OpenOffSearchModal" class="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg transition-all shadow-sm flex items-center gap-2 mx-auto">
+                            <i class="fas fa-globe"></i> Найти в справочнике продуктов?
+                        </button>
+                    }
+                </div>
+            }
+            @foreach (var product in filteredProductsBase)
             {
                 <div class="flex flex-col sm:flex-row sm:items-center justify-between py-3 gap-2 text-sm group animate-fade-in">
                     <div class="flex items-center gap-3 min-w-0 flex-1">
+                        @if (!string.IsNullOrEmpty(product.ImageUrl))
+                        {
+                            <img src="@product.ImageUrl" alt="@product.Name" class="w-10 h-10 rounded-lg object-cover bg-slate-100 shrink-0 border border-slate-100" onerror="this.src='/images/product_placeholder.png'" />
+                        }
+                        else
+                        {
+                            <img src="/images/product_placeholder.png" alt="Нет фото" class="w-10 h-10 rounded-lg object-cover bg-slate-100 shrink-0 border border-slate-100" />
+                        }
                         <div class="truncate">
                             <span class="font-medium text-slate-900">@product.Name</span>
                             <span class="text-slate-400 text-xs ml-2 font-normal">@product.Category?.Name</span>
@@ -303,6 +341,114 @@
     </div>
 }
 
+@if (showOffSearchModal)
+{
+    <div class="fixed inset-0 bg-slate-900/20 backdrop-blur-[2px] flex items-center justify-center p-4 z-50" @onclick="CloseOffSearchModal">
+        <div class="bg-white border border-slate-100 rounded-xl p-6 w-full max-w-lg shadow-lg flex flex-col max-h-[80vh]" @onclick:stopPropagation>
+            <div class="flex justify-between items-center mb-4 shrink-0">
+                <h3 class="text-lg font-bold text-slate-900 flex items-center gap-2"><i class="fas fa-globe text-indigo-500"></i> Open Food Facts</h3>
+                <button @onclick="CloseOffSearchModal" class="text-slate-400 hover:text-slate-600 transition-colors p-1"><i class="fas fa-times"></i></button>
+            </div>
+
+            <div class="flex gap-2 mb-4 shrink-0">
+                <input type="text"
+                       @bind="offSearchQuery"
+                       @bind:event="oninput"
+                       @onkeyup="HandleOffSearchKeyUp"
+                       placeholder="Название продукта (например: Snickers)"
+                       class="flex-1 bg-slate-50 text-sm px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:border-indigo-400" />
+                <button @onclick="SearchOff" disabled="@isOffSearching" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 flex items-center gap-2">
+                    @if (isOffSearching) { <i class="fas fa-spinner fa-spin"></i> } else { <i class="fas fa-search"></i> }
+                    Поиск
+                </button>
+            </div>
+
+            <div class="flex-1 overflow-y-auto divide-y divide-slate-100 min-h-[200px]">
+                @if (isOffSearching)
+                {
+                    <div class="py-8 text-center text-slate-400 text-sm"><i class="fas fa-spinner fa-spin mr-2"></i> Ищем продукты...</div>
+                }
+                else if (!offSearchResults.Any() && !string.IsNullOrEmpty(offSearchQuery))
+                {
+                    <div class="py-8 text-center text-slate-400 text-sm">Ничего не найдено</div>
+                }
+                else
+                {
+                    @foreach (var result in offSearchResults)
+                    {
+                        <div class="flex items-center gap-3 py-3 px-2 hover:bg-slate-50 rounded-lg cursor-pointer transition-colors" @onclick="() => SelectOffProduct(result)">
+                            @if (!string.IsNullOrEmpty(result.ImageUrl))
+                            {
+                                <img src="@result.ImageUrl" alt="@result.ProductName" class="w-12 h-12 rounded object-cover bg-slate-100 border border-slate-100" />
+                            }
+                            else
+                            {
+                                <div class="w-12 h-12 rounded bg-slate-100 flex items-center justify-center text-slate-300">
+                                    <i class="fas fa-box text-xl"></i>
+                                </div>
+                            }
+                            <div class="flex-1 min-w-0">
+                                <h4 class="text-sm font-bold text-slate-800 truncate">@result.ProductName</h4>
+                                <div class="text-[11px] text-slate-500 mt-0.5">
+                                    @(result.Nutriments?.Calories100g.HasValue == true ? $"{Math.Round(result.Nutriments.Calories100g.Value)} ккал" : "Нет данных КБЖУ")
+                                </div>
+                            </div>
+                            <button class="text-indigo-600 px-2 py-1 bg-indigo-50 rounded hover:bg-indigo-100 transition-colors text-xs font-semibold shrink-0">Добавить</button>
+                        </div>
+                    }
+                }
+            </div>
+        </div>
+    </div>
+}
+
+@if (showOffAddModal && selectedOffProduct != null)
+{
+    <div class="fixed inset-0 bg-slate-900/20 backdrop-blur-[2px] flex items-center justify-center p-4 z-[60]" @onclick="CloseOffAddModal">
+        <div class="bg-white border border-slate-100 rounded-xl p-6 w-full max-w-sm shadow-lg" @onclick:stopPropagation>
+            <h3 class="text-lg font-bold text-slate-900 mb-4">Добавление продукта</h3>
+            
+            <div class="flex items-center gap-4 mb-4">
+                @if (!string.IsNullOrEmpty(selectedOffProduct.ImageUrl))
+                {
+                    <img src="@selectedOffProduct.ImageUrl" alt="@selectedOffProduct.ProductName" class="w-16 h-16 rounded-lg object-cover bg-slate-100" />
+                }
+                <div>
+                    <div class="font-bold text-slate-800 text-sm">@selectedOffProduct.ProductName</div>
+                    <div class="text-xs text-slate-500">Из Open Food Facts</div>
+                </div>
+            </div>
+
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Категория</label>
+                    <select @bind="newProductCategoryId" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 text-xs font-medium focus:outline-none focus:border-slate-400">
+                        @foreach (var cat in allCategories)
+                        {
+                            <option value="@cat.Id">@cat.Name</option>
+                        }
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Единица измерения</label>
+                    <select @bind="newProductUnitId" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 text-xs font-medium focus:outline-none focus:border-slate-400">
+                        @foreach (var unit in allUnits)
+                        {
+                            <option value="@unit.Id">@unit.Name</option>
+                        }
+                    </select>
+                </div>
+            </div>
+
+            <div class="flex items-center justify-end gap-2 mt-6">
+                <button @onclick="CloseOffAddModal" class="px-3 py-1.5 text-slate-400 hover:text-slate-600 text-xs font-medium transition-all">Отмена</button>
+                <button @onclick="SaveOffProduct" class="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-medium transition-all shadow-sm">В базу продуктов</button>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     private List<FridgeItem> products = new();
     private List<Product> allProducts = new();
@@ -325,10 +471,25 @@
     private bool showDeleteModal = false;
     private FridgeItem? productToDelete;
 
+    private bool showOffSearchModal = false;
+    private string offSearchQuery = string.Empty;
+    private bool isOffSearching = false;
+    private List<ProductWebManager.Services.OpenFoodFactsProductDto> offSearchResults = new();
+
+    private bool showOffAddModal = false;
+    private ProductWebManager.Services.OpenFoodFactsProductDto? selectedOffProduct;
+    private int newProductCategoryId;
+    private int newProductUnitId;
+
+    private List<Category> allCategories = new();
+    private List<Unit> allUnits = new();
+
     protected override async Task OnInitializedAsync()
     {
         await LoadData();
         allProducts = await DbContext.Products.OrderBy(p => p.Name).ToListAsync();
+        allCategories = await DbContext.Categories.OrderBy(c => c.Name).ToListAsync();
+        allUnits = await DbContext.Units.ToListAsync();
     }
 
     private async Task LoadData()
@@ -526,5 +687,85 @@
         showNutritionModal = false;
         nutritionProduct = null;
         StateHasChanged();
+    }
+
+    private async Task OpenOffSearchModal()
+    {
+        offSearchQuery = searchQuery;
+        offSearchResults.Clear();
+        showOffSearchModal = true;
+        if (!string.IsNullOrWhiteSpace(offSearchQuery))
+        {
+            await SearchOff();
+        }
+    }
+
+    private void CloseOffSearchModal()
+    {
+        showOffSearchModal = false;
+    }
+
+    private async Task HandleOffSearchKeyUp(Microsoft.AspNetCore.Components.Web.KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await SearchOff();
+        }
+    }
+
+    private async Task SearchOff()
+    {
+        if (string.IsNullOrWhiteSpace(offSearchQuery)) return;
+
+        isOffSearching = true;
+        StateHasChanged();
+
+        offSearchResults = await OpenFoodFactsService.SearchProductsAsync(offSearchQuery);
+
+        isOffSearching = false;
+        StateHasChanged();
+    }
+
+    private void SelectOffProduct(ProductWebManager.Services.OpenFoodFactsProductDto product)
+    {
+        selectedOffProduct = product;
+        newProductCategoryId = allCategories.FirstOrDefault()?.Id ?? 0;
+        newProductUnitId = allUnits.FirstOrDefault(u => u.Name == "г")?.Id ?? allUnits.FirstOrDefault()?.Id ?? 0;
+        showOffAddModal = true;
+    }
+
+    private void CloseOffAddModal()
+    {
+        showOffAddModal = false;
+        selectedOffProduct = null;
+    }
+
+    private async Task SaveOffProduct()
+    {
+        if (selectedOffProduct == null || newProductCategoryId == 0 || newProductUnitId == 0) return;
+
+        var newProduct = new Product
+        {
+            Name = string.IsNullOrWhiteSpace(selectedOffProduct.ProductName) ? "Неизвестный продукт" : selectedOffProduct.ProductName,
+            ImageUrl = selectedOffProduct.ImageUrl,
+            CategoryId = newProductCategoryId,
+            UnitId = newProductUnitId,
+            Calories = selectedOffProduct.Nutriments?.Calories100g ?? 0,
+            Proteins = selectedOffProduct.Nutriments?.Proteins100g ?? 0,
+            Fats = selectedOffProduct.Nutriments?.Fat100g ?? 0,
+            Carbohydrates = selectedOffProduct.Nutriments?.Carbohydrates100g ?? 0,
+            Price = 0 // Default
+        };
+
+        DbContext.Products.Add(newProduct);
+        await DbContext.SaveChangesAsync();
+
+        allProducts.Add(newProduct);
+        allProducts = allProducts.OrderBy(p => p.Name).ToList();
+
+        CloseOffAddModal();
+        CloseOffSearchModal();
+        
+        OpenAddModalForProduct(newProduct);
     }
 }
