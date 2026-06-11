@@ -80,7 +80,7 @@
         </div>
     </div>
 
-    <div class="max-w-3xl mx-auto flex flex-col">
+    <div class="w-full flex flex-col">
         @{
             var displayedProducts = GetFilteredAndSortedProducts();
         }
@@ -93,66 +93,75 @@
         }
         else
         {
+            <div class="max-w-4xl mx-auto flex flex-col gap-3 w-full">
             @foreach (var product in displayedProducts)
             {
-                <div class="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 group hover:bg-slate-50/50 px-4 rounded-2xl transition-colors border-b border-slate-100 last:border-0">
+                <div class="bento-card p-3 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 group hover:border-slate-300 transition-colors">
                     
-                    <!-- Left info block -->
-                    <div class="flex flex-1 items-center gap-4 min-w-0">
+                    <div class="flex items-center gap-3 sm:gap-4 flex-1 min-w-0">
                         @if (!string.IsNullOrEmpty(product.Product?.ImageUrl))
                         {
-                            <img src="@product.Product.ImageUrl" alt="@product.Product.Name" class="w-12 h-12 rounded-lg object-cover bg-slate-100 shrink-0 border border-slate-100" onerror="this.src='/images/product_placeholder.png'" />
+                            <img src="@product.Product.ImageUrl" alt="@product.Product.Name" class="w-12 h-12 sm:w-14 sm:h-14 rounded-xl object-cover bg-slate-50 border border-slate-100 shrink-0" onerror="this.src='images/product_placeholder.png'" />
                         }
                         else
                         {
-                            <img src="/images/product_placeholder.png" alt="Нет фото" class="w-12 h-12 rounded-lg object-cover bg-slate-100 shrink-0 border border-slate-100" />
+                            <img src="images/product_placeholder.png" alt="Нет фото" class="w-12 h-12 sm:w-14 sm:h-14 rounded-xl object-cover bg-slate-50 border border-slate-100 shrink-0" />
                         }
 
-                        <!-- Name & Quantity -->
                         <div class="flex-1 min-w-0">
                             <h3 class="font-bold text-slate-800 text-base leading-tight mb-1 truncate" title="@product.Product?.Name">@product.Product?.Name</h3>
                             <div class="flex items-center gap-2">
-                                <span class="text-xs text-slate-400 font-medium truncate">@product.Product?.Category?.Name</span>
-                                <span class="w-1 h-1 rounded-full bg-slate-300"></span>
-                                <span class="text-xs font-black text-slate-700 whitespace-nowrap">@product.Quantity @product.Product?.Unit?.Name</span>
-                            </div>
-                        </div>
-
-                        <!-- Expiration Bar -->
-                        @{
-                            var status = GetExpirationStatus(product.ExpirationDate);
-                            var progress = GetExpirationProgress(product);
-                        }
-                        <div class="hidden sm:block w-32 md:w-48 shrink-0">
-                            <div class="flex justify-between items-center mb-1.5 text-[10px] font-bold @status.ColorClass">
-                                <span>Срок</span>
-                                <span>@status.Text @(product.ExpirationDate.HasValue ? $"({product.ExpirationDate.Value:dd.MM})" : "")</span>
-                            </div>
-                            <div class="w-full h-1.5 bg-slate-200/50 rounded-full overflow-hidden">
-                                <div class="h-full rounded-full transition-all duration-500 @(progress >= 90 ? "bg-rose-500" : progress >= 70 ? "bg-amber-500" : "bg-emerald-500")"
-                                     style="width: @(progress)%"></div>
+                                <span class="text-[10px] sm:text-xs font-medium text-slate-500 truncate">@product.Product?.Category?.Name</span>
+                                <span class="w-1 h-1 rounded-full bg-slate-300 shrink-0"></span>
+                                <span class="text-xs font-bold text-slate-700 whitespace-nowrap">@product.Quantity @product.Product?.Unit?.Name</span>
                             </div>
                         </div>
                     </div>
 
-                    <!-- Action Buttons -->
-                    <div class="flex flex-wrap sm:flex-nowrap items-center gap-2 shrink-0 w-full sm:w-auto mt-1 sm:mt-0">
+                    @{
+                        var status = GetExpirationStatus(product.ExpirationDate);
+                        var progress = GetExpirationProgress(product);
+                    }
+                    <div class="hidden sm:block w-32 md:w-48 shrink-0">
+                        <div class="flex justify-between items-center mb-1.5 text-[10px] font-bold @status.ColorClass">
+                            <span>Срок</span>
+                            <span>@status.Text @(product.ExpirationDate.HasValue ? $"({product.ExpirationDate.Value:dd.MM})" : "")</span>
+                        </div>
+                        <div class="w-full h-1.5 bg-slate-200/50 rounded-full overflow-hidden">
+                            <div class="h-full rounded-full transition-all duration-500 @(progress >= 90 ? "bg-rose-500" : progress >= 70 ? "bg-amber-500" : "bg-emerald-500")"
+                                 style="width: @(progress)%"></div>
+                        </div>
+                    </div>
+
+                    <div class="flex flex-wrap sm:flex-nowrap items-center gap-2 shrink-0 w-full sm:w-auto mt-2 sm:mt-0">
                         <button @onclick="() => OpenNutritionModal(product)"
-                                class="flex-1 sm:flex-none px-3 py-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-2">
-                            <i class="fas fa-leaf"></i> <span>КБЖУ</span>
+                                class="flex-1 sm:flex-none px-3 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 rounded-lg text-xs font-bold transition-colors flex items-center justify-center gap-1.5">
+                            <i class="fas fa-leaf"></i> <span class="sm:hidden md:inline">КБЖУ</span>
                         </button>
                         <button @onclick="() => OpenEditModal(product)"
-                                class="flex-1 sm:flex-none px-3 py-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-2">
-                            <i class="fas fa-pen"></i> <span>Изм.</span>
+                                class="flex-1 sm:flex-none px-3 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-lg text-xs font-bold transition-colors flex items-center justify-center gap-1.5">
+                            <i class="fas fa-pen"></i> <span class="sm:hidden md:inline">Изм.</span>
                         </button>
                         <button @onclick="() => OpenDelete(product)"
-                                class="px-3 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-500 rounded-xl text-xs transition-colors flex items-center justify-center"
+                                class="px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-500 rounded-lg text-xs transition-colors flex items-center justify-center shrink-0"
                                 title="Удалить">
                             <i class="fas fa-trash"></i>
                         </button>
                     </div>
+                    
+                    <div class="sm:hidden w-full shrink-0 mt-2">
+                        <div class="flex justify-between items-center mb-1 text-[10px] font-bold @status.ColorClass">
+                            <span>Срок</span>
+                            <span>@status.Text @(product.ExpirationDate.HasValue ? $"({product.ExpirationDate.Value:dd.MM})" : "")</span>
+                        </div>
+                        <div class="w-full h-1.5 bg-slate-200/50 rounded-full overflow-hidden">
+                            <div class="h-full rounded-full transition-all duration-500 @(progress >= 90 ? "bg-rose-500" : progress >= 70 ? "bg-amber-500" : "bg-emerald-500")"
+                                 style="width: @(progress)%"></div>
+                        </div>
+                    </div>
                 </div>
             }
+            </div>
         }
     </div>
     }
@@ -177,59 +186,60 @@
             </div>
         </div>
 
-        <div class="divide-y divide-slate-100">
-            @if (!filteredProductsBase.Any())
-            {
-                <div class="bg-slate-50 border border-slate-100 rounded-2xl p-8 text-center mt-4">
-                    <div class="w-16 h-16 bg-white text-slate-300 rounded-full flex items-center justify-center text-2xl mx-auto mb-4 shadow-sm">
-                        <i class="fas fa-search"></i>
-                    </div>
-                    <h3 class="text-sm font-bold text-slate-800 mb-1">Ничего не найдено</h3>
-                    <p class="text-xs text-slate-500 mb-4">В вашей базе нет продуктов по запросу «@searchQuery».</p>
-                    
-                    @if (!string.IsNullOrEmpty(searchQuery))
-                    {
-                        <button @onclick="OpenOffSearchModal" class="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg transition-all shadow-sm flex items-center gap-2 mx-auto">
-                            <i class="fas fa-globe"></i> Найти в справочнике продуктов?
-                        </button>
-                    }
+        @if (!filteredProductsBase.Any())
+        {
+            <div class="bg-slate-50 border border-slate-100 rounded-2xl p-8 text-center mt-4 w-full">
+                <div class="w-16 h-16 bg-white text-slate-300 rounded-full flex items-center justify-center text-2xl mx-auto mb-4 shadow-sm">
+                    <i class="fas fa-search"></i>
                 </div>
-            }
-            @foreach (var product in filteredProductsBase)
-            {
-                <div class="flex flex-col sm:flex-row sm:items-center justify-between py-3 gap-2 text-sm group animate-fade-in">
-                    <div class="flex items-center gap-3 min-w-0 flex-1">
-                        @if (!string.IsNullOrEmpty(product.ImageUrl))
-                        {
-                            <img src="@product.ImageUrl" alt="@product.Name" class="w-10 h-10 rounded-lg object-cover bg-slate-100 shrink-0 border border-slate-100" onerror="this.src='/images/product_placeholder.png'" />
-                        }
-                        else
-                        {
-                            <img src="/images/product_placeholder.png" alt="Нет фото" class="w-10 h-10 rounded-lg object-cover bg-slate-100 shrink-0 border border-slate-100" />
-                        }
-                        <div class="truncate">
-                            <span class="font-medium text-slate-900">@product.Name</span>
-                            <span class="text-slate-400 text-xs ml-2 font-normal">@product.Category?.Name</span>
+                <h3 class="text-sm font-bold text-slate-800 mb-1">Ничего не найдено</h3>
+                <p class="text-xs text-slate-500 mb-4">В вашей базе нет продуктов по запросу «@searchQuery».</p>
+                
+                @if (!string.IsNullOrEmpty(searchQuery))
+                {
+                    <button @onclick="OpenOffSearchModal" class="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg transition-all shadow-sm flex items-center gap-2 mx-auto">
+                        <i class="fas fa-globe"></i> Найти в справочнике продуктов?
+                    </button>
+                }
+            </div>
+        }
+        else
+        {
+            <div class="max-w-4xl mx-auto flex flex-col gap-3 w-full">
+                @foreach (var product in filteredProductsBase)
+                {
+                    <div class="bento-card p-3 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 group hover:border-slate-300 transition-colors animate-fade-in">
+                        
+                        <div class="flex items-center gap-3 sm:gap-4 flex-1 min-w-0">
+                            @if (!string.IsNullOrEmpty(product.ImageUrl))
+                            {
+                                <img src="@product.ImageUrl" alt="@product.Name" class="w-12 h-12 sm:w-14 sm:h-14 rounded-xl object-cover bg-slate-50 border border-slate-100 shrink-0" onerror="this.src='images/product_placeholder.png'" />
+                            }
+                            else
+                            {
+                                <img src="images/product_placeholder.png" alt="Нет фото" class="w-12 h-12 sm:w-14 sm:h-14 rounded-xl object-cover bg-slate-50 border border-slate-100 shrink-0" />
+                            }
+
+                            <div class="flex-1 min-w-0">
+                                <h3 class="font-bold text-slate-800 text-base leading-tight mb-1 truncate" title="@product.Name">@product.Name</h3>
+                                <span class="text-[10px] sm:text-xs font-medium text-slate-500 truncate">@product.Category?.Name</span>
+                            </div>
                         </div>
-                    </div>
-                    <div class="flex flex-wrap items-center justify-between sm:justify-end gap-3 sm:gap-6 text-xs w-full sm:w-auto">
-                        <div class="flex items-center gap-3 sm:pl-3 sm:border-l sm:border-slate-100 mt-1 sm:mt-0">
+
+                        <div class="flex flex-wrap sm:flex-nowrap items-center gap-2 shrink-0 w-full sm:w-auto mt-2 sm:mt-0">
                             <button @onclick="() => OpenNutritionModal(product)"
-                                    class="text-emerald-600 hover:text-emerald-800 font-medium transition-colors text-xs flex items-center gap-1.5 bg-emerald-50 sm:bg-transparent px-2 sm:px-0 py-1 sm:py-0 rounded"
-                                    title="КБЖУ">
-                                <i class="fas fa-leaf sm:hidden"></i>
-                                <span>КБЖУ</span>
+                                    class="flex-1 sm:flex-none px-3 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 rounded-lg text-xs font-bold transition-colors flex items-center justify-center gap-1.5">
+                                <i class="fas fa-leaf"></i> <span>КБЖУ</span>
                             </button>
                             <button @onclick="() => OpenAddModalForProduct(product)"
-                                    class="text-indigo-600 hover:text-indigo-800 font-medium transition-colors text-xs flex items-center gap-1.5 bg-indigo-50 sm:bg-transparent px-2 sm:px-0 py-1 sm:py-0 rounded">
-                                <i class="fas fa-plus sm:hidden"></i>
-                                <span>В холодильник</span>
+                                    class="flex-1 sm:flex-none px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold transition-colors flex items-center justify-center gap-1.5 shadow-sm">
+                                <i class="fas fa-plus"></i> <span>В холодильник</span>
                             </button>
                         </div>
                     </div>
-                </div>
-            }
-        </div>
+                }
+            </div>
+        }
     }
 </div>
 

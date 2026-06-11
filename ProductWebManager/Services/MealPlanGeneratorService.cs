@@ -15,17 +15,20 @@ public class MealPlanGeneratorService
     private readonly IDbContextFactory<ProductManagerContext> _dbContextFactory;
     private readonly GigaChatHelper _gigaChatAi;
     private readonly RecipeResolverService _recipeResolver;
+    private readonly OpenFoodFactsService _openFoodFactsService;
     private readonly ILogger<MealPlanGeneratorService> _logger;
 
     public MealPlanGeneratorService(
         IDbContextFactory<ProductManagerContext> dbContextFactory,
         GigaChatHelper gigaChatAi,
         RecipeResolverService recipeResolver,
+        OpenFoodFactsService openFoodFactsService,
         ILogger<MealPlanGeneratorService> logger)
     {
         _dbContextFactory = dbContextFactory;
         _gigaChatAi = gigaChatAi;
         _recipeResolver = recipeResolver;
+        _openFoodFactsService = openFoodFactsService;
         _logger = logger;
     }
 
@@ -374,15 +377,41 @@ public class MealPlanGeneratorService
             return dbProduct;
         }
 
+        double apiCalories = aiIng.Calories;
+        double apiProteins = aiIng.Proteins;
+        double apiFats = aiIng.Fats;
+        double apiCarbs = aiIng.Carbs;
+        string? imageUrl = null;
+
+        try
+        {
+            var apiResults = await _openFoodFactsService.SearchProductsAsync(aiIng.Name);
+            var bestMatch = apiResults.FirstOrDefault(p => p.Nutriments != null && p.Nutriments.Calories100g.HasValue);
+            
+            if (bestMatch?.Nutriments != null)
+            {
+                apiCalories = bestMatch.Nutriments.Calories100g ?? apiCalories;
+                apiProteins = bestMatch.Nutriments.Proteins100g ?? apiProteins;
+                apiFats = bestMatch.Nutriments.Fat100g ?? apiFats;
+                apiCarbs = bestMatch.Nutriments.Carbohydrates100g ?? apiCarbs;
+                imageUrl = bestMatch.ImageUrl;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, $"Failed to fetch API data for {aiIng.Name}");
+        }
+
         dbProduct = new Product
         {
             Name = aiIng.Name.Trim(),
             Category = dbCategory,
             Unit = dbUnit,
-            Proteins = aiIng.Proteins,
-            Fats = aiIng.Fats,
-            Carbohydrates = aiIng.Carbs,
-            Calories = aiIng.Calories,
+            Proteins = apiProteins,
+            Fats = apiFats,
+            Carbohydrates = apiCarbs,
+            Calories = apiCalories,
+            ImageUrl = imageUrl,
             IsPieceBased = false
         };
         context.Products.Add(dbProduct);

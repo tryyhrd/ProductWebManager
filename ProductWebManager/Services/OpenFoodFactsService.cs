@@ -52,6 +52,27 @@ namespace ProductWebManager.Services
             if (string.IsNullOrWhiteSpace(query))
                 return new List<OpenFoodFactsProductDto>();
 
+            query = query.Trim();
+
+            // Try the original full query
+            var results = await PerformSearchAsync(query);
+            if (results.Any()) return results;
+
+            // Fallback: try removing words from the right (e.g. "Молоко коровье" -> "Молоко")
+            var words = query.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            while (words.Length > 1)
+            {
+                words = words.Take(words.Length - 1).ToArray();
+                var fallbackQuery = string.Join(" ", words);
+                results = await PerformSearchAsync(fallbackQuery);
+                if (results.Any()) return results;
+            }
+
+            return new List<OpenFoodFactsProductDto>();
+        }
+
+        private async Task<List<OpenFoodFactsProductDto>> PerformSearchAsync(string query)
+        {
             try
             {
                 var response = await _httpClient.GetAsync($"cgi/search.pl?search_terms={Uri.EscapeDataString(query)}&search_simple=1&action=process&json=1&page_size=20");
@@ -62,7 +83,7 @@ namespace ProductWebManager.Services
 
                 // Filter out products with no name or no nutrition data
                 return result?.Products
-                    .Where(p => !string.IsNullOrWhiteSpace(p.ProductName))
+                    .Where(p => !string.IsNullOrWhiteSpace(p.ProductName) && p.Nutriments != null && p.Nutriments.Calories100g.HasValue)
                     .Take(15) // Limit to top 15 results
                     .ToList() ?? new List<OpenFoodFactsProductDto>();
             }
