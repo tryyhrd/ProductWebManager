@@ -73,26 +73,45 @@ namespace ProductWebManager.Services
 
         private async Task<List<OpenFoodFactsProductDto>> PerformSearchAsync(string query)
         {
-            try
+            int maxRetries = 3;
+            for (int i = 0; i < maxRetries; i++)
             {
-                var response = await _httpClient.GetAsync($"cgi/search.pl?search_terms={Uri.EscapeDataString(query)}&search_simple=1&action=process&json=1&page_size=20");
-                response.EnsureSuccessStatusCode();
+                try
+                {
+                    var response = await _httpClient.GetAsync($"cgi/search.pl?search_terms={Uri.EscapeDataString(query)}&search_simple=1&action=process&json=1&page_size=20");
+                    response.EnsureSuccessStatusCode();
 
-                var content = await response.Content.ReadAsStringAsync();
-                var result = JsonSerializer.Deserialize<OpenFoodFactsSearchResponse>(content);
+                    var content = await response.Content.ReadAsStringAsync();
+                    var result = JsonSerializer.Deserialize<OpenFoodFactsSearchResponse>(content);
 
-                // Filter out products with no name or no nutrition data
-                return result?.Products
-                    .Where(p => !string.IsNullOrWhiteSpace(p.ProductName) && p.Nutriments != null && p.Nutriments.Calories100g.HasValue)
-                    .Take(15) // Limit to top 15 results
-                    .ToList() ?? new List<OpenFoodFactsProductDto>();
+                    // Filter out products with no name or no nutrition data
+                    var items = result?.Products
+                        .Where(p => !string.IsNullOrWhiteSpace(p.ProductName) && p.Nutriments != null && p.Nutriments.Calories100g.HasValue)
+                        .Take(15) // Limit to top 15 results
+                        .ToList();
+
+                    if (items != null && items.Count > 0)
+                    {
+                        return items;
+                    }
+
+                    if (i < maxRetries - 1)
+                    {
+                        await Task.Delay(500); // Retry delay
+                    }
+                }
+                catch (Exception ex)
+                {
+                    if (i == maxRetries - 1)
+                    {
+                        // In production, log the exception.
+                        Console.WriteLine($"Error fetching from Open Food Facts: {ex.Message}");
+                        return new List<OpenFoodFactsProductDto>();
+                    }
+                    await Task.Delay(500); // Retry delay
+                }
             }
-            catch (Exception ex)
-            {
-                // In production, log the exception.
-                Console.WriteLine($"Error fetching from Open Food Facts: {ex.Message}");
-                return new List<OpenFoodFactsProductDto>();
-            }
+            return new List<OpenFoodFactsProductDto>();
         }
     }
 }

@@ -42,8 +42,10 @@ public class MealPlanGeneratorService
         int targetFats,
         int targetCarbs,
         bool useFridgeProducts,
-        double minFridgeQuantity)
+        double minFridgeQuantity,
+        IProgress<string>? progress = null)
     {
+        progress?.Report("Подготовка данных профиля и холодильника...");
         List<string>? fridgeProductNames = null;
         List<string>? allergies = null;
 
@@ -65,6 +67,7 @@ public class MealPlanGeneratorService
                 .ToListAsync();
         }
 
+        progress?.Report("Запрос к нейросети для формирования меню...");
         var planStructure = await _gigaChatAi.GenerateMealPlanStructureAsync(
             profile,
             generationDays,
@@ -84,6 +87,7 @@ public class MealPlanGeneratorService
             throw new Exception("Нейросеть вернула пустой ответ. Попробуйте еще раз.");
         }
 
+        progress?.Report("Обработка рецептов и ингредиентов...");
         await using var context = await _dbContextFactory.CreateDbContextAsync();
         using var transaction = await context.Database.BeginTransactionAsync();
 
@@ -179,6 +183,7 @@ public class MealPlanGeneratorService
                 }
             }
 
+            progress?.Report("Сохранение плана в базу данных...");
             context.MealPlans.Add(newPlan);
             await context.SaveChangesAsync();
             await transaction.CommitAsync();
