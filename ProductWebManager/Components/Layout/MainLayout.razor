@@ -17,11 +17,7 @@
                         <NavMenu />
                     </nav>
 
-                    <div class="user-section">
-                        <div class="user-info-chip">
-                            <span class="u-name">@context.User.Identity?.Name</span>
-                        </div>
-                    </div>
+
                 </div>
             </header>
 
@@ -47,9 +43,7 @@
                                         }
                                     </div>
                                     <div class="mt-3 flex gap-3">
-                                        <a href="/meal-plan" class="text-[11px] font-bold text-amber-800 hover:text-amber-900 bg-amber-200 px-3 py-1.5 rounded-lg transition-colors inline-flex items-center">
-                                            <i class="fas fa-magic mr-1.5"></i> Сгенерировать рецепт для спасения
-                                        </a>
+
                                         <button @onclick="DismissNotification" class="text-[11px] font-bold text-amber-600 hover:text-amber-800 transition-colors">
                                             Скрыть
                                         </button>
@@ -61,6 +55,7 @@
 
                     @Body
                 </section>
+                <ProductWebManager.Components.UI.DietitianChatWidget />
             </main>
 
             <nav class="mobile-bottom-nav">
@@ -77,10 +72,7 @@
                         <i class="fas fa-magic"></i>
                         <span>План</span>
                     </NavLink>
-                    <NavLink class="mobile-nav-item" href="ai-dietitian">
-                        <i class="fas fa-robot"></i>
-                        <span>Диетолог</span>
-                    </NavLink>
+
                     <NavLink class="mobile-nav-item" href="shopping-list">
                         <i class="fas fa-shopping-cart"></i>
                         <span>Покупки</span>

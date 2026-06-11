@@ -1,0 +1,235 @@
+@using Microsoft.EntityFrameworkCore
+@using ProductWebManager.Classes.AI
+@using ProductWebManager.Models
+@using Microsoft.AspNetCore.Components.Forms
+@inject GigaChatHelper GigaChat
+@inject ProductWebManager.Services.AuthService AuthService
+@inject IDbContextFactory<ProductWebManager.Data.ProductManagerContext> DbContextFactory
+@inject NavigationManager Navigation
+
+@if (AuthService.IsAuthenticated)
+{
+    <div class="fixed bottom-6 right-6 z-[100] flex flex-col items-end">
+        @if (isOpen)
+        {
+            <div class="bg-white rounded-2xl shadow-2xl border border-slate-200 mb-4 w-[340px] max-h-[500px] flex flex-col overflow-hidden animate-fade-in-up">
+                <!-- Header -->
+                <div class="bg-indigo-600 text-white p-3 flex justify-between items-center shrink-0">
+                    <div class="flex items-center gap-2">
+                        <i class="fas fa-robot text-indigo-200"></i>
+                        <span class="font-bold text-sm">ИИ Диетолог</span>
+                    </div>
+                    <div class="flex items-center gap-2 text-indigo-200">
+                        <button @onclick="ClearHistoryAsync" title="Очистить историю" class="hover:text-white transition-colors px-1"><i class="fas fa-trash-alt"></i></button>
+                        <button @onclick="GoToFullScreen" title="На весь экран" class="hover:text-white transition-colors px-1"><i class="fas fa-expand-arrows-alt"></i></button>
+                        <button @onclick="ToggleOpen" class="hover:text-white transition-colors px-1"><i class="fas fa-times"></i></button>
+                    </div>
+                </div>
+
+                <!-- Messages -->
+                <div class="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50" id="widget-chat-container">
+                    @if (!messages.Any())
+                    {
+                        <div class="text-center text-slate-400 text-xs mt-4">
+                            Задайте мне любой вопрос о питании!
+                        </div>
+                    }
+                    else
+                    {
+                        @foreach (var msg in messages)
+                        {
+                            <div class="flex @(msg.IsUser ? "justify-end" : "justify-start")">
+                                <div class="max-w-[85%] @(msg.IsUser ? "bg-indigo-600 text-white rounded-t-xl rounded-l-xl" : "bg-white border border-slate-200 text-slate-800 rounded-t-xl rounded-r-xl shadow-sm") p-3 text-xs">
+                                    @if (msg.ImagePreviewUrl != null)
+                                    {
+                                        <img src="@msg.ImagePreviewUrl" class="w-24 h-24 object-cover rounded mb-2" />
+                                    }
+                                    <div class="whitespace-pre-line">@msg.Text</div>
+                                </div>
+                            </div>
+                        }
+                    }
+                    @if (isLoading)
+                    {
+                        <div class="flex justify-start">
+                            <div class="bg-white border border-slate-200 text-slate-500 rounded-t-xl rounded-r-xl p-3 shadow-sm flex gap-1">
+                                <div class="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce"></div>
+                                <div class="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce" style="animation-delay: 0.1s"></div>
+                                <div class="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce" style="animation-delay: 0.2s"></div>
+                            </div>
+                        </div>
+                    }
+                </div>
+
+                <!-- Input -->
+                <div class="p-3 bg-white border-t border-slate-100 shrink-0">
+                    <form @onsubmit="SendMessageAsync" class="flex gap-2 relative">
+                        <input type="text" @bind="currentInput" placeholder="Ваш вопрос..." class="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-indigo-400" />
+                        <button type="submit" disabled="@(string.IsNullOrWhiteSpace(currentInput) || isLoading)" class="bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 text-white w-9 h-9 rounded-lg flex items-center justify-center transition-colors shrink-0">
+                            <i class="fas fa-paper-plane text-xs"></i>
+                        </button>
+                    </form>
+                </div>
+            </div>
+        }
+
+        <button @onclick="ToggleOpen" class="w-14 h-14 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full flex items-center justify-center shadow-lg shadow-indigo-600/30 transition-transform hover:scale-105 active:scale-95 text-2xl">
+            @if (isOpen)
+            {
+                <i class="fas fa-times"></i>
+            }
+            else
+            {
+                <i class="fas fa-comment-dots"></i>
+            }
+        </button>
+    </div>
+}
+
+@code {
+    private bool isOpen = false;
+    private string currentInput = string.Empty;
+    private bool isLoading = false;
+    private List<AiChatMessage> messages = new();
+    private string userContextProfile = string.Empty;
+    private string userContextFridge = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (AuthService.IsAuthenticated)
+        {
+            await LoadContextAndHistoryAsync();
+        }
+    }
+
+    private async Task ToggleOpen()
+    {
+        isOpen = !isOpen;
+        if (isOpen && !messages.Any())
+        {
+            await LoadContextAndHistoryAsync();
+        }
+    }
+
+    private void GoToFullScreen()
+    {
+        isOpen = false;
+        Navigation.NavigateTo("/ai-dietitian");
+    }
+
+    private async Task LoadContextAndHistoryAsync()
+    {
+        try
+        {
+            await using var context = await DbContextFactory.CreateDbContextAsync();
+            var userId = AuthService.CurrentUserId;
+            
+            messages = await context.AiChatMessages
+                .Where(m => m.UserId == userId)
+                .OrderBy(m => m.CreatedAt)
+                .ToListAsync();
+
+            var user = await context.Users
+                .Include(u => u.Profile)
+                .Include(u => u.UserAllergies).ThenInclude(ua => ua.Allergy)
+                .FirstOrDefaultAsync(u => u.Id == userId);
+                
+            if (user?.Profile != null)
+            {
+                var p = user.Profile;
+                userContextProfile = $"Пользователь: {p.Gender}, {p.Age} лет, {p.Weight} кг, {p.Height} см. Цель: {p.Goal}. Активность: {p.ActivityLevel}. Целевые калории: {p.TargetCalories} ккал.";
+                if (user.UserAllergies.Any())
+                {
+                    userContextProfile += $" Аллергии: {string.Join(", ", user.UserAllergies.Select(x => x.Allergy.Name))}.";
+                }
+            }
+
+            var fridgeItems = await context.FridgeItems
+                .Include(f => f.Product).ThenInclude(p => p.Unit)
+                .Where(f => f.UserId == userId)
+                .ToListAsync();
+
+            if (fridgeItems.Any())
+            {
+                userContextFridge = "Продукты в холодильнике пользователя: " + 
+                    string.Join(", ", fridgeItems.Select(f => $"{f.Product.Name} ({f.Quantity} {f.Product.Unit.Name})"));
+            }
+        }
+        catch (Exception) { }
+    }
+
+    private async Task ClearHistoryAsync()
+    {
+        try
+        {
+            await using var context = await DbContextFactory.CreateDbContextAsync();
+            var history = await context.AiChatMessages.Where(m => m.UserId == AuthService.CurrentUserId).ToListAsync();
+            context.AiChatMessages.RemoveRange(history);
+            await context.SaveChangesAsync();
+            messages.Clear();
+            StateHasChanged();
+        }
+        catch (Exception) { }
+    }
+
+    private async Task SendMessageAsync()
+    {
+        if (string.IsNullOrWhiteSpace(currentInput) || isLoading) return;
+
+        var query = currentInput;
+        currentInput = string.Empty;
+        isLoading = true;
+        StateHasChanged();
+
+        var userId = AuthService.CurrentUserId;
+
+        var userMsg = new AiChatMessage 
+        { 
+            UserId = userId,
+            Text = query, 
+            IsUser = true,
+            CreatedAt = DateTime.UtcNow
+        };
+        messages.Add(userMsg);
+
+        try
+        {
+            await using var context = await DbContextFactory.CreateDbContextAsync();
+            context.AiChatMessages.Add(userMsg);
+            await context.SaveChangesAsync();
+
+            var systemPrompt = $"Ты профессиональный диетолог. Помогаешь пользователю с вопросами о питании, калориях, рецептах и здоровом образе жизни. Отвечай кратко, по делу и доброжелательно. Учитывай данные профиля:\n{userContextProfile}\n\n{userContextFridge}";
+            
+            var historyStr = string.Join("\n\n", messages.Where(m => !string.IsNullOrEmpty(m.Text)).Select(m => (m.IsUser ? "Пользователь: " : "Диетолог: ") + m.Text));
+            var fullQuery = $"История диалога:\n{historyStr}\n\nНовое сообщение пользователя:\n{query}";
+
+            var aiResponse = await GigaChat.SendPromptAsync(systemPrompt, fullQuery); 
+            if (string.IsNullOrEmpty(aiResponse)) 
+            {
+                aiResponse = "Не удалось получить ответ от ИИ.";
+            }
+
+            var botMsg = new AiChatMessage
+            {
+                UserId = userId,
+                Text = aiResponse,
+                IsUser = false,
+                CreatedAt = DateTime.UtcNow
+            };
+            
+            context.AiChatMessages.Add(botMsg);
+            await context.SaveChangesAsync();
+            
+            messages.Add(botMsg);
+        }
+        catch (Exception)
+        {
+            messages.Add(new AiChatMessage { Text = "Произошла ошибка сети.", IsUser = false, CreatedAt = DateTime.UtcNow });
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+}

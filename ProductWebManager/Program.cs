@@ -50,10 +50,8 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
         options.LogoutPath = "/api/auth/logout";
         options.ExpireTimeSpan = TimeSpan.FromDays(30);
     });
-
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorization();
 builder.Services.AddCascadingAuthenticationState();
-
 
 var app = builder.Build();
 
@@ -61,7 +59,7 @@ using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider
         .GetRequiredService<ProductManagerContext>();
-;
+
     //db.Database.EnsureCreated();
 
     //if (!db.Users.Any())

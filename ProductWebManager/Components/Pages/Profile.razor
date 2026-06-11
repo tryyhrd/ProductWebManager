@@ -17,6 +17,15 @@
             <h1 class="text-2xl sm:text-4xl font-black text-slate-900 tracking-tighter">Профиль</h1>
             <p class="text-slate-500 font-medium mt-1 text-sm sm:text-base">Управление аккаунтом, физическими параметрами и ограничениями в еде</p>
         </div>
+        <div class="flex items-center gap-4 bg-slate-50 border border-slate-200 px-4 py-3 rounded-2xl">
+            <div class="w-12 h-12 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center text-xl shadow-inner font-black uppercase">
+                @currentUserLogin.FirstOrDefault()
+            </div>
+            <div>
+                <h3 class="font-bold text-slate-900 text-sm">@currentUserLogin</h3>
+                <p class="text-[11px] text-slate-500 font-medium">@currentUserEmail</p>
+            </div>
+        </div>
     </header>
 
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
@@ -117,6 +126,9 @@
     private double userHeight = 175;
     private int userAge = 25;
     private double targetCalories = 2000;
+    
+    private string currentUserLogin = "";
+    private string currentUserEmail = "";
 
     // Строки для стабильного связывания с HTML-элементами <select>
     private string genderString = "Male";
@@ -137,6 +149,14 @@
 
         // 1. Загрузка параметров профиля строго по вашей модели
         var profile = await context.UserProfiles.FirstOrDefaultAsync(x => x.UserId == userId);
+        var user = await context.Users.FirstOrDefaultAsync(x => x.Id == userId);
+        
+        if (user != null)
+        {
+            currentUserLogin = user.Login;
+            currentUserEmail = user.Email ?? "Email не указан";
+        }
+
         if (profile != null)
         {
             userWeight = profile.Weight;

@@ -28,6 +28,14 @@
                 </div>
 
                 <div class="mb-3">
+                    <label class="form-label">Электронная почта</label>
+                    <div class="input-group">
+                        <input type="email" class="form-control login-input"
+                               placeholder="Введите ваш Email" @bind="email" />
+                    </div>
+                </div>
+
+                <div class="mb-3">
                     <label class="form-label">Пароль</label>
                     <div class="input-group">
                         <input type="password" class="form-control login-input"
@@ -235,6 +243,7 @@
 
 @code {
     private string login = "";
+    private string email = "";
     private string password = "";
     private string confirmPassword = "";
     private string errorMessage = "";
@@ -249,6 +258,12 @@
         if (string.IsNullOrWhiteSpace(login))
         {
             errorMessage = "Введите логин";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(email) || !email.Contains("@"))
+        {
+            errorMessage = "Введите корректный Email";
             return;
         }
 
@@ -287,6 +302,7 @@
             var newUser = new User
                 {
                     Login = login,
+                    Email = email,
                     Password = password
                 };
 

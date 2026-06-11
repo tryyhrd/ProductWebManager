@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using ProductWebManager.Models;
 
 namespace ProductWebManager.Data
@@ -21,6 +21,7 @@ namespace ProductWebManager.Data
         public DbSet<ShoppingList> ShoppingList { get; set; }
         public DbSet<ShoppingListItem> ShoppingListItems { get; set; }
         public DbSet<UserProfile> UserProfiles { get; set; }
+        public DbSet<AiChatMessage> AiChatMessages { get; set; }
         public ProductManagerContext(DbContextOptions<ProductManagerContext> options)
             :base(options)
         {
