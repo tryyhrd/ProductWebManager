@@ -1,0 +1,293 @@
+@page "/ai-dietitian"
+@rendermode InteractiveServer
+@using Microsoft.EntityFrameworkCore
+@using ProductWebManager.Classes.AI
+@using Microsoft.AspNetCore.Components.Forms
+@inject GigaChatHelper GigaChat
+@inject ProductWebManager.Services.AuthService AuthService
+@inject IDbContextFactory<ProductWebManager.Data.ProductManagerContext> DbContextFactory
+
+<PageTitle>SmartPlate AI — ИИ Диетолог</PageTitle>
+
+<div class="max-w-4xl mx-auto px-4 py-6 sm:p-8 font-sans h-[calc(100vh-80px)] flex flex-col">
+    <header class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 shrink-0">
+        <div class="flex items-center gap-4">
+            <div class="w-14 h-14 bg-indigo-100 text-indigo-600 rounded-2xl flex items-center justify-center text-2xl shadow-inner">
+                <i class="fas fa-robot"></i>
+            </div>
+            <div>
+                <h1 class="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">ИИ Диетолог</h1>
+                <p class="text-slate-500 font-medium text-sm">Ваш персональный помощник по питанию</p>
+            </div>
+        </div>
+    </header>
+
+    <div class="bg-white rounded-[2rem] border border-slate-200 shadow-sm flex-1 flex flex-col overflow-hidden">
+        <!-- Messages Area -->
+        <div class="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6" id="chat-container">
+            @if (!messages.Any())
+            {
+                <div class="flex flex-col items-center justify-center h-full text-center p-8">
+                    <div class="w-20 h-20 bg-indigo-50 text-indigo-400 rounded-full flex items-center justify-center text-4xl mb-4">
+                        <i class="fas fa-magic"></i>
+                    </div>
+                    <h3 class="text-xl font-black text-slate-800 mb-2">Чем я могу помочь?</h3>
+                    <p class="text-slate-500 max-w-sm mb-6">Спросите меня о питании, попросите составить меню или загрузите фото продуктов для генерации рецепта.</p>
+                    <div class="flex flex-wrap justify-center gap-2">
+                        <button @onclick="@(() => SetPresetQuery("Что приготовить на ужин из курицы и риса?"))" class="bg-slate-50 hover:bg-slate-100 text-slate-700 px-4 py-2 rounded-xl text-sm font-bold transition-colors border border-slate-200">Ужин из курицы</button>
+                        <button @onclick="@(() => SetPresetQuery("Какие продукты богаты белком?"))" class="bg-slate-50 hover:bg-slate-100 text-slate-700 px-4 py-2 rounded-xl text-sm font-bold transition-colors border border-slate-200">Продукты с белком</button>
+                        <button @onclick="@(() => SetPresetQuery("Что приготовить из продуктов в моем холодильнике?"))" class="bg-slate-50 hover:bg-slate-100 text-slate-700 px-4 py-2 rounded-xl text-sm font-bold transition-colors border border-slate-200">Рецепт из холодильника</button>
+                    </div>
+                </div>
+            }
+            else
+            {
+                @foreach (var msg in messages)
+                {
+                    <div class="flex @(msg.IsUser ? "justify-end" : "justify-start") animate-fade-in">
+                        <div class="max-w-[85%] sm:max-w-[75%] @(msg.IsUser ? "bg-indigo-600 text-white rounded-t-2xl rounded-l-2xl" : "bg-slate-100 text-slate-800 rounded-t-2xl rounded-r-2xl") p-4 sm:p-5 shadow-sm">
+                            @if (!msg.IsUser)
+                            {
+                                <div class="flex items-center gap-2 mb-2 opacity-70 text-[10px] font-black uppercase tracking-widest">
+                                    <i class="fas fa-robot"></i> SmartPlate AI
+                                </div>
+                            }
+                            @if (msg.ImagePreviewUrl != null)
+                            {
+                                <div class="mb-3 rounded-xl overflow-hidden bg-white/10">
+                                    <img src="@msg.ImagePreviewUrl" class="w-48 h-48 object-cover" />
+                                </div>
+                            }
+                            <div class="text-sm sm:text-base leading-relaxed whitespace-pre-line font-medium">@msg.Text</div>
+                        </div>
+                    </div>
+                }
+                @if (isLoading)
+                {
+                    <div class="flex justify-start animate-fade-in">
+                        <div class="bg-slate-100 text-slate-500 rounded-t-2xl rounded-r-2xl p-4 shadow-sm flex gap-2">
+                            <div class="w-2 h-2 bg-indigo-400 rounded-full animate-bounce"></div>
+                            <div class="w-2 h-2 bg-indigo-400 rounded-full animate-bounce" style="animation-delay: 0.1s"></div>
+                            <div class="w-2 h-2 bg-indigo-400 rounded-full animate-bounce" style="animation-delay: 0.2s"></div>
+                        </div>
+                    </div>
+                }
+            }
+        </div>
+
+        <!-- Input Area -->
+        <div class="p-4 sm:p-6 bg-slate-50 border-t border-slate-100 shrink-0">
+            @if (!string.IsNullOrEmpty(errorMessage))
+            {
+                <div class="text-xs font-bold text-red-500 mb-2 px-2">@errorMessage</div>
+            }
+
+            @if (selectedImagePreview != null)
+            {
+                <div class="mb-3 relative inline-block">
+                    <img src="@selectedImagePreview" class="w-20 h-20 object-cover rounded-xl border-2 border-indigo-200 shadow-sm" />
+                    <button @onclick="ClearImage" class="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center shadow-sm hover:bg-red-600 transition-colors">
+                        <i class="fas fa-times text-[10px]"></i>
+                    </button>
+                </div>
+            }
+
+            <form @onsubmit="SendMessageAsync" class="flex gap-2 sm:gap-4 items-end relative">
+                <div class="flex-1 bg-white border border-slate-200 rounded-2xl p-2 flex items-end gap-2 shadow-sm focus-within:border-indigo-500 focus-within:ring-2 focus-within:ring-indigo-200 transition-all">
+                    <label class="w-10 h-10 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-400 hover:text-indigo-600 flex items-center justify-center cursor-pointer transition-colors shrink-0" title="Прикрепить фото (пока в разработке)">
+                        <InputFile OnChange="HandleImageUpload" accept="image/*" class="hidden" />
+                        <i class="fas fa-camera text-lg"></i>
+                    </label>
+                    <textarea @bind="currentInput" 
+                              @bind:event="oninput"
+                              placeholder="Задайте вопрос диетологу..." 
+                              class="flex-1 max-h-32 min-h-[40px] resize-none border-none outline-none bg-transparent py-2 px-1 text-sm sm:text-base font-medium text-slate-700" 
+                              rows="1"
+                              @onkeydown="HandleKeyDown"></textarea>
+                </div>
+                <button type="submit" disabled="@(string.IsNullOrWhiteSpace(currentInput) && selectedImagePreview == null || isLoading)"
+                        class="w-14 h-14 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white rounded-2xl flex items-center justify-center text-lg shadow-md transition-all shrink-0">
+                    @if (isLoading)
+                    {
+                        <i class="fas fa-spinner fa-spin"></i>
+                    }
+                    else
+                    {
+                        <i class="fas fa-paper-plane"></i>
+                    }
+                </button>
+            </form>
+            <div class="mt-3 text-center">
+                <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Powered by GigaChat Vision</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private string currentInput = string.Empty;
+    private bool isLoading = false;
+    private string errorMessage = string.Empty;
+    private string? selectedImagePreview = null;
+    private IBrowserFile? selectedImageFile = null;
+    
+    private List<ChatMessage> messages = new();
+    private string userContextProfile = string.Empty;
+    private string userContextFridge = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadUserContextAsync();
+    }
+
+    private async Task LoadUserContextAsync()
+    {
+        try
+        {
+            await using var context = await DbContextFactory.CreateDbContextAsync();
+            var user = await context.Users
+                .Include(u => u.Profile)
+                .Include(u => u.UserAllergies).ThenInclude(ua => ua.Allergy)
+                .FirstOrDefaultAsync(u => u.Id == AuthService.CurrentUserId);
+                
+            if (user?.Profile != null)
+            {
+                var p = user.Profile;
+                userContextProfile = $"Пользователь: {p.Gender}, {p.Age} лет, {p.Weight} кг, {p.Height} см. Цель: {p.Goal}. Активность: {p.ActivityLevel}. Целевые калории: {p.TargetCalories} ккал.";
+                if (user.UserAllergies.Any())
+                {
+                    userContextProfile += $" Аллергии: {string.Join(", ", user.UserAllergies.Select(x => x.Allergy.Name))}.";
+                }
+            }
+
+            var fridgeItems = await context.FridgeItems
+                .Include(f => f.Product)
+                .ThenInclude(p => p.Unit)
+                .Where(f => f.UserId == AuthService.CurrentUserId)
+                .ToListAsync();
+
+            if (fridgeItems.Any())
+            {
+                userContextFridge = "Продукты в холодильнике пользователя: " + 
+                    string.Join(", ", fridgeItems.Select(f => $"{f.Product.Name} ({f.Quantity} {f.Product.Unit.Name})"));
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Ошибка загрузки контекста ИИ-диетолога: {ex.Message}");
+        }
+    }
+
+    private class ChatMessage
+    {
+        public string Text { get; set; } = string.Empty;
+        public bool IsUser { get; set; }
+        public string? ImagePreviewUrl { get; set; }
+    }
+
+    private void SetPresetQuery(string query)
+    {
+        currentInput = query;
+    }
+
+    private async Task HandleImageUpload(InputFileChangeEventArgs e)
+    {
+        try
+        {
+            var file = e.File;
+            if (file == null) return;
+            
+            if (file.Size > 5 * 1024 * 1024)
+            {
+                errorMessage = "Файл слишком большой. Максимум 5 МБ.";
+                return;
+            }
+
+            selectedImageFile = file;
+            var format = "image/jpeg";
+            using var stream = file.OpenReadStream(maxAllowedSize: 5 * 1024 * 1024);
+            using var ms = new System.IO.MemoryStream();
+            await stream.CopyToAsync(ms);
+            var base64 = Convert.ToBase64String(ms.ToArray());
+            selectedImagePreview = $"data:{format};base64,{base64}";
+            errorMessage = string.Empty;
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Ошибка загрузки изображения: {ex.Message}";
+        }
+    }
+
+    private void ClearImage()
+    {
+        selectedImagePreview = null;
+        selectedImageFile = null;
+    }
+
+    private async Task HandleKeyDown(Microsoft.AspNetCore.Components.Web.KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !e.ShiftKey)
+        {
+            await SendMessageAsync();
+        }
+    }
+
+    private async Task SendMessageAsync()
+    {
+        if (string.IsNullOrWhiteSpace(currentInput) && selectedImagePreview == null) return;
+        if (isLoading) return;
+
+        var userMsg = new ChatMessage 
+        { 
+            Text = currentInput, 
+            IsUser = true,
+            ImagePreviewUrl = selectedImagePreview
+        };
+        messages.Add(userMsg);
+        
+        var query = currentInput;
+        var hasImage = selectedImagePreview != null;
+        
+        currentInput = string.Empty;
+        ClearImage();
+        isLoading = true;
+        errorMessage = string.Empty;
+        StateHasChanged();
+
+        try
+        {
+            string aiResponse = "";
+            
+            if (hasImage)
+            {
+                aiResponse = "Я вижу изображение продуктов! К сожалению, пока функционал распознавания изображений (Vision) находится в разработке на бэкенде. Но я с удовольствием помогу вам с любыми текстовыми вопросами по диетологии!";
+            }
+            else
+            {
+                var systemPrompt = $"Ты профессиональный диетолог. Помогаешь пользователю с вопросами о питании, калориях, рецептах и здоровом образе жизни. Отвечай кратко, по делу и доброжелательно. Учитывай данные профиля:\n{userContextProfile}\n\n{userContextFridge}";
+                
+                // Формируем историю чата
+                var history = string.Join("\n\n", messages.Where(m => !string.IsNullOrEmpty(m.Text)).Select(m => (m.IsUser ? "Пользователь: " : "Диетолог: ") + m.Text));
+                var fullQuery = $"История диалога:\n{history}\n\nНовое сообщение пользователя:\n{query}";
+
+                aiResponse = await GigaChat.SendPromptAsync(systemPrompt, fullQuery); 
+                if (string.IsNullOrEmpty(aiResponse)) 
+                {
+                    aiResponse = "Не удалось получить ответ от ИИ.";
+                }
+            }
+
+            messages.Add(new ChatMessage { Text = aiResponse, IsUser = false });
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Ошибка ИИ: {ex.Message}";
+            messages.Add(new ChatMessage { Text = "Извините, произошла ошибка при обращении к нейросети.", IsUser = false });
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+}

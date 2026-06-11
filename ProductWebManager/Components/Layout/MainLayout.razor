@@ -1,6 +1,7 @@
 @inherits LayoutComponentBase
 @inject AuthService AuthService
 @inject NavigationManager Navigation
+@inject FridgeExpirationService FridgeExpirationService
 
 <AuthorizeView>
     <Authorized>
@@ -26,6 +27,38 @@
 
             <main class="main-viewport">
                 <section class="page-content">
+                    @if (expiredItems.Any() || expiringItems.Any())
+                    {
+                        <div class="bg-amber-50 border-l-4 border-amber-500 p-4 mb-6 rounded-r-xl shadow-sm animate-fade-in">
+                            <div class="flex items-start">
+                                <div class="flex-shrink-0">
+                                    <i class="fas fa-exclamation-triangle text-amber-500"></i>
+                                </div>
+                                <div class="ml-3">
+                                    <h3 class="text-sm font-black text-amber-800">Внимание, сроки годности!</h3>
+                                    <div class="mt-2 text-sm text-amber-700">
+                                        @if (expiredItems.Any())
+                                        {
+                                            <p class="font-bold">Испортились (@expiredItems.Count): @string.Join(", ", expiredItems.Select(x => x.Product.Name))</p>
+                                        }
+                                        @if (expiringItems.Any())
+                                        {
+                                            <p>Скоро испортятся (@expiringItems.Count): @string.Join(", ", expiringItems.Select(x => x.Product.Name))</p>
+                                        }
+                                    </div>
+                                    <div class="mt-3 flex gap-3">
+                                        <a href="/meal-plan" class="text-[11px] font-bold text-amber-800 hover:text-amber-900 bg-amber-200 px-3 py-1.5 rounded-lg transition-colors inline-flex items-center">
+                                            <i class="fas fa-magic mr-1.5"></i> Сгенерировать рецепт для спасения
+                                        </a>
+                                        <button @onclick="DismissNotification" class="text-[11px] font-bold text-amber-600 hover:text-amber-800 transition-colors">
+                                            Скрыть
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    }
+
                     @Body
                 </section>
             </main>
@@ -43,6 +76,10 @@
                     <NavLink class="mobile-nav-item" href="meal-plan">
                         <i class="fas fa-magic"></i>
                         <span>План</span>
+                    </NavLink>
+                    <NavLink class="mobile-nav-item" href="ai-dietitian">
+                        <i class="fas fa-robot"></i>
+                        <span>Диетолог</span>
                     </NavLink>
                     <NavLink class="mobile-nav-item" href="shopping-list">
                         <i class="fas fa-shopping-cart"></i>
@@ -62,4 +99,28 @@
         </div>
     </NotAuthorized>
 </AuthorizeView>
+
+@code {
+    private List<FridgeItem> expiringItems = new();
+    private List<FridgeItem> expiredItems = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (AuthService.IsAuthenticated)
+        {
+            var userId = AuthService.CurrentUserId;
+            if (userId > 0)
+            {
+                expiringItems = await FridgeExpirationService.GetExpiringItemsAsync(userId, 3);
+                expiredItems = await FridgeExpirationService.GetExpiredItemsAsync(userId);
+            }
+        }
+    }
+
+    private void DismissNotification()
+    {
+        expiringItems.Clear();
+        expiredItems.Clear();
+    }
+}
 

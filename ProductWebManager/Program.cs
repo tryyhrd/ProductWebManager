@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.EntityFrameworkCore;
 using ProductWebManager.Classes.AI;
 using ProductWebManager.Components;
@@ -41,6 +41,7 @@ builder.Services.AddHttpClient<ProductWebManager.Services.OpenFoodFactsService>(
 builder.Services.AddScoped<RecipeResolverService>();
 builder.Services.AddScoped<MealPlanBalancerService>();
 builder.Services.AddScoped<MealPlanGeneratorService>();
+builder.Services.AddScoped<FridgeExpirationService>();
 
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(options =>

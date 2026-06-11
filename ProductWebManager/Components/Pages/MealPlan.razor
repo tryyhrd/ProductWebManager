@@ -192,155 +192,16 @@
                 <div class="space-y-6">
                     @foreach (var day in mealPlanDays)
                     {
-                        <div class="bg-white rounded-[2.5rem] border border-slate-200 shadow-sm overflow-hidden transition-all duration-300 @(day.IsExpanded ? "ring-2 ring-indigo-500/20 shadow-md" : "")">
-                            <button @onclick="() => ToggleDay(day)"
-                                    class="w-full p-5 sm:p-8 flex justify-between items-center transition-all outline-none text-left @(day.IsExpanded ? "bg-slate-50/50" : "hover:bg-slate-50/20")">
-                                <div class="flex items-center gap-3 sm:gap-6">
-                                    <div class="w-10 h-10 sm:w-14 sm:h-14 rounded-xl sm:rounded-2xl flex items-center justify-center font-black text-base sm:text-xl transition-all shadow-inner @(day.IsExpanded ? "bg-indigo-600 text-white" : "bg-white text-slate-300 border border-slate-100")">
-                                        @day.Date.Day
-                                    </div>
-                                    <div>
-                                        <h3 class="font-bold text-base sm:text-xl text-slate-800 tracking-tight capitalize">
-                                            @day.Date.ToString("dddd", RuCulture)
-                                        </h3>
-                                        <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">
-                                            @day.Date.ToString("dd MMMM", RuCulture)
-                                        </p>
-                                    </div>
-                                </div>
-
-                                <div class="flex items-center gap-4 sm:gap-8">
-                                    <div class="text-right">
-                                        <div class="flex items-center gap-2 justify-end">
-                                            <div class="text-base sm:text-xl font-black text-slate-800">@day.Meals.Sum(m => m.Calories)</div>
-                                            @if (targetCalories > 0)
-                                            {
-                                                var dayCalories = day.Meals.Sum(m => m.Calories);
-                                                var diff = dayCalories - targetCalories;
-                                                var percent = (int)Math.Round((double)Math.Abs(diff) / targetCalories * 100);
-                                                @if (percent >= 3)
-                                                {
-                                                    @if (diff > 0)
-                                                    {
-                                                        <span class="text-[9px] font-bold text-red-600 bg-red-100 px-2 py-0.5 rounded-full">+@percent%</span>
-                                                    }
-                                                    else
-                                                    {
-                                                        <span class="text-[9px] font-bold text-amber-600 bg-amber-100 px-2 py-0.5 rounded-full">-@percent%</span>
-                                                    }
-                                                }
-                                            }
-                                        </div>
-                                        <div class="text-[10px] font-black text-slate-400 uppercase tracking-widest hidden sm:block">ккал всего</div>
-                                    </div>
-                                    <div class="w-10 h-10 rounded-full flex items-center justify-center transition-all border border-slate-100 bg-white @(day.IsExpanded ? "rotate-180 shadow-sm border-slate-200" : "")">
-                                        <i class="fas fa-chevron-down text-slate-400 text-sm"></i>
-                                    </div>
-                                </div>
-                            </button>
-
-                            <div class="transition-all duration-500 ease-in-out @(day.IsExpanded ? "max-h-[4000px] opacity-100 border-t border-slate-100 overflow-visible" : "max-h-0 opacity-0 pointer-events-none overflow-hidden")">
-                                <div class="p-3 sm:p-5 grid grid-cols-1 xl:grid-cols-2 gap-3 bg-white">
-                                    @foreach (var meal in day.Meals)
-                                    {
-                                        <div class="bg-slate-50/50 rounded-2xl p-4 sm:p-5 border border-slate-100/50 hover:bg-white hover:shadow-xl hover:shadow-indigo-500/5 transition-all duration-300 hover:z-[60] flex flex-col justify-between relative">
-                                            <div>
-                                                <div class="flex justify-between items-start mb-3">
-                                                    <div>
-                                                        <span class="text-[10px] font-black uppercase tracking-wider text-indigo-500 mb-1 block">
-                                                            @TranslateMealType(meal.MealType)
-                                                        </span>
-                                                        <h4 class="font-black text-slate-900 text-[15px] leading-tight transition-colors">
-                                                            @if (meal.Recipe != null && meal.Recipe.Id > 0)
-                                                            {
-                                                                <a href="/recipe/@meal.Recipe.Id" class="hover:underline hover:text-indigo-600">@meal.Title</a>
-                                                            }
-                                                            else
-                                                            {
-                                                                @meal.Title
-                                                            }
-                                                        </h4>
-                                                    </div>
-                                                    <div class="bg-white px-3 py-1.5 rounded-xl text-center shadow-sm border border-slate-100 shrink-0">
-                                                        <div class="font-black text-indigo-600 leading-none text-sm">@meal.Calories</div>
-                                                        <div class="text-[8px] font-black text-slate-400 uppercase mt-0.5">ккал</div>
-                                                    </div>
-                                                </div>
-
-                                                <div class="mb-3">
-                                                    <button type="button" @onclick="() => ReplaceMealAsync(meal)" disabled="@(isGenerating || replacingMealId != -1)"
-                                                            class="group relative overflow-hidden inline-flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-amber-400 to-orange-500 hover:from-amber-500 hover:to-orange-600 text-white text-[10px] font-bold rounded-lg shadow-sm hover:shadow transition-all disabled:opacity-50 transform hover:-translate-y-0.5">
-                                                        @if (replacingMealId == meal.MealPlanItemId)
-                                                        {
-                                                            <i class="fas fa-spinner fa-spin text-[10px]"></i>
-                                                            <span class="relative z-10">Замена...</span>
-                                                        }
-                                                        else
-                                                        {
-                                                            <i class="fas fa-sync-alt text-[10px] group-hover:rotate-180 transition-transform duration-500"></i>
-                                                            <span class="relative z-10">Заменить блюдо</span>
-                                                        }
-                                                        <div class="absolute inset-0 h-full w-full bg-white/20 scale-x-0 group-hover:scale-x-100 origin-left transition-transform duration-500 rounded-lg"></div>
-                                                    </button>
-                                                </div>
-
-                                                @{
-                                                    double totalMacros = meal.Proteins + meal.Fats + meal.Carbs;
-                                                    string pWidth = totalMacros > 0 ? $"{(meal.Proteins * 100 / totalMacros).ToString("0.0", CultureInfo.InvariantCulture)}%" : "33.3%";
-                                                    string fWidth = totalMacros > 0 ? $"{(meal.Fats * 100 / totalMacros).ToString("0.0", CultureInfo.InvariantCulture)}%" : "33.3%";
-                                                    string cWidth = totalMacros > 0 ? $"{(meal.Carbs * 100 / totalMacros).ToString("0.0", CultureInfo.InvariantCulture)}%" : "33.3%";
-                                                }
-
-                                                <div class="flex gap-1 h-1.5 rounded-full overflow-hidden bg-slate-200 mb-3">
-                                                    <div class="h-full bg-indigo-400 transition-all" style="width: @pWidth" title="Белки"></div>
-                                                    <div class="h-full bg-amber-400 transition-all" style="width: @fWidth" title="Жиры"></div>
-                                                    <div class="h-full bg-emerald-400 transition-all" style="width: @cWidth" title="Углеводы"></div>
-                                                </div>
-
-                                                <div class="grid grid-cols-3 gap-1.5 @(meal.Ingredients?.Any() == true ? "mb-4" : "mb-2")">
-                                                    <div class="p-1.5 bg-indigo-50/70 border border-indigo-100/40 rounded-xl text-center shadow-sm">
-                                                        <div class="text-[9px] font-black uppercase text-indigo-500 mb-0.5">Белки</div>
-                                                        <div class="text-[11px] font-black text-indigo-700">@meal.Proteins г</div>
-                                                    </div>
-                                                    <div class="p-1.5 bg-amber-50/70 border border-amber-100/40 rounded-xl text-center shadow-sm">
-                                                        <div class="text-[9px] font-black uppercase text-amber-500 mb-0.5">Жиры</div>
-                                                        <div class="text-[11px] font-black text-amber-700">@meal.Fats г</div>
-                                                    </div>
-                                                    <div class="p-1.5 bg-emerald-50/70 border border-emerald-100/40 rounded-xl text-center shadow-sm">
-                                                        <div class="text-[9px] font-black uppercase text-emerald-500 mb-0.5">Углев.</div>
-                                                        <div class="text-[11px] font-black text-emerald-700">@meal.Carbs г</div>
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                            @if (meal.Ingredients != null && meal.Ingredients.Any())
-                                            {
-                                                <div class="space-y-0.5 pt-2 border-t border-slate-100 mt-auto">
-                                                    @foreach (var ing in meal.Ingredients)
-                                                    {
-                                                        <div class="relative flex flex-col text-[11px] font-medium text-slate-500 hover:text-slate-900 transition-colors cursor-pointer bg-transparent hover:bg-slate-100/70 p-1 -mx-1 rounded-lg"
-                                                             @onmouseenter="@(e => ShowTooltip(ing, e))"
-                                                             @onmouseleave="HideTooltip"
-                                                             @onmousemove="@(e => MoveTooltip(e))">
-                                                            <div class="flex justify-between w-full">
-                                                                <span>@ing.Name</span>
-                                                                <span class="font-bold text-slate-800">@ing.Quantity.ToString("G", RuCulture) @ing.Unit</span>
-                                                            </div>
-                                                            <div class="@(showAllNutrition ? "flex" : "hidden") flex-wrap items-center gap-1.5 mt-2">
-                                                                <div class="px-2 py-0.5 bg-indigo-50 text-indigo-600 rounded-full text-[9px] font-black tracking-widest border border-indigo-100/50 shadow-sm">@ing.Calories кк</div>
-                                                                <div class="px-2 py-0.5 bg-rose-50 text-rose-600 rounded-full text-[9px] font-black tracking-widest border border-rose-100/50 shadow-sm">Б: @ing.Proteins</div>
-                                                                <div class="px-2 py-0.5 bg-amber-50 text-amber-600 rounded-full text-[9px] font-black tracking-widest border border-amber-100/50 shadow-sm">Ж: @ing.Fats</div>
-                                                                <div class="px-2 py-0.5 bg-emerald-50 text-emerald-600 rounded-full text-[9px] font-black tracking-widest border border-emerald-100/50 shadow-sm">У: @ing.Carbs</div>
-                                                            </div>
-                                                        </div>
-                                                    }
-                                                </div>
-                                            }
-                                        </div>
-                                    }
-                                </div>
-                            </div>
-                        </div>
+                        <MealPlanDayCard Day="day"
+                                         TargetCalories="targetCalories"
+                                         IsGenerating="isGenerating"
+                                         ReplacingMealId="replacingMealId"
+                                         ShowAllNutrition="showAllNutrition"
+                                         OnToggleDay="() => ToggleDay(day)"
+                                         OnReplaceMeal="ReplaceMealAsync"
+                                         OnShowTooltip="HandleShowTooltip"
+                                         OnHideTooltip="HideTooltip"
+                                         OnMoveTooltip="MoveTooltip" />
                     }
                 </div>
             }
@@ -462,7 +323,7 @@
 
 @if (hoveredIngredient != null)
 {
-    <div style="position: fixed; top: @(tooltipY + 15)px; left: @(tooltipX)px; z-index: 9999; transform: translateX(-50%); pointer-events: none;" 
+    <div style="position: fixed; top: calc(min(@(tooltipY + 15)px, 100dvh - 200px)); left: calc(clamp(100px, @(tooltipX)px, 100vw - 100px)); z-index: 9999; transform: translateX(-50%); pointer-events: none;" 
          class="w-48 bg-white border border-slate-200 rounded-xl shadow-2xl p-3 flex flex-col gap-2">
         @if (!string.IsNullOrEmpty(hoveredIngredient.ImageUrl))
         {
@@ -972,11 +833,11 @@
         StateHasChanged();
     }
 
-    private void ShowTooltip(MealIngredientDto ing, MouseEventArgs e)
+    private void HandleShowTooltip((MealIngredientDto Ingredient, MouseEventArgs Event) args)
     {
-        hoveredIngredient = ing;
-        tooltipX = e.ClientX;
-        tooltipY = e.ClientY;
+        hoveredIngredient = args.Ingredient;
+        tooltipX = args.Event.ClientX;
+        tooltipY = args.Event.ClientY;
     }
 
     private void MoveTooltip(MouseEventArgs e)
@@ -995,45 +856,4 @@
 
 
 
-    public class MealPlanDay
-    {
-        public DateTime Date { get; set; }
-        public bool IsExpanded { get; set; }
-        public bool IncludeInShoppingList { get; set; } = true;
-        public List<MealPlanMeal> Meals { get; set; } = new();
-    }
-
-    public class MealPlanMeal
-    {
-        public int MealPlanItemId { get; set; }
-        public string Title { get; set; } = "";
-        public string MealType { get; set; } = "";
-        public int Calories { get; set; }
-        public int Proteins { get; set; }
-        public int Fats { get; set; }
-        public int Carbs { get; set; }
-        public List<MealIngredientDto> Ingredients { get; set; } = new();
-        public Recipe? Recipe { get; set; }
-    }
-
-    public class MealIngredientDto
-    {
-        public string Name { get; set; } = "";
-        public double Quantity { get; set; }
-        public string Unit { get; set; } = "";
-        public int Calories { get; set; }
-        public int Proteins { get; set; }
-        public int Fats { get; set; }
-        public int Carbs { get; set; }
-        public string? ImageUrl { get; set; }
-        public double FridgeQuantity { get; set; }
-    }
-
-    public class ShoppingItemDto
-    {
-        public string Name { get; set; } = "";
-        public double Quantity { get; set; }
-        public string Unit { get; set; } = "";
-        public bool IsChecked { get; set; }
-    }
 }
