@@ -10,36 +10,34 @@
 
 <PageTitle>SmartPlate AI — Список покупок</PageTitle>
 
-<div class="max-w-[1440px] mx-auto px-4 py-4 sm:p-6 lg:p-10 font-sans">
+<div class="max-w-[1100px] mx-auto px-4 py-4 sm:p-6 font-sans min-h-screen text-slate-800">
 
-    <header class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6 sm:mb-10">
-        <div>
-            <h1 class="text-2xl sm:text-4xl font-black text-slate-900 tracking-tighter">Списки покупок</h1>
-            <p class="text-slate-500 font-medium mt-1 text-sm sm:text-base">
-                Осталось купить:
-                <span class="text-indigo-600 font-bold">@shoppingItems.Count(x => !x.IsPurchased)</span>
-                из <span class="text-slate-800 font-bold">@shoppingItems.Count</span>
-                @if (isMealPlanList)
-                {
-                    <span class="ml-2 inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-50 text-indigo-600 border border-indigo-100">
-                        <i class="fas fa-robot text-[10px]"></i> Из плана питания
-                    </span>
-                }
-            </p>
+    <header class="flex items-center justify-between pb-2 mb-4 sm:mb-6 border-none">
+        <div class="flex items-center gap-3">
+            <h1 class="text-lg sm:text-xl font-bold tracking-tight text-slate-900">Списки покупок</h1>
+            <span class="bg-slate-100 text-slate-600 text-xs font-semibold px-2.5 py-0.5 rounded-md hidden sm:inline-block">
+                Осталось: @shoppingItems.Count(x => !x.IsPurchased) / @shoppingItems.Count
+            </span>
+            @if (isMealPlanList)
+            {
+                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-50 text-indigo-600 border border-indigo-100">
+                    <i class="fas fa-robot"></i> План
+                </span>
+            }
         </div>
 
-        <div class="flex flex-wrap gap-3 w-full md:w-auto">
-            <button class="flex items-center gap-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 px-6 py-4 rounded-2xl font-bold transition-all shadow-sm"
+        <div class="flex items-center gap-2 sm:gap-3">
+            <button class="flex items-center justify-center gap-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 px-3.5 py-2 rounded-lg text-xs font-semibold transition-colors shadow-sm"
                     @onclick="OpenListModal">
                 <i class="fas fa-layer-group text-slate-400"></i>
-                <span>Управление списками</span>
+                <span class="hidden sm:inline">Списки</span>
             </button>
 
-            <button class="flex items-center gap-2 bg-slate-900 hover:bg-indigo-600 text-white px-8 py-4 rounded-2xl font-bold transition-all transform hover:-translate-y-1 shadow-xl disabled:opacity-50"
+            <button class="flex items-center justify-center gap-2 bg-slate-900 hover:bg-slate-800 text-white px-3.5 py-2 rounded-lg text-xs font-semibold transition-colors shadow-sm active:scale-95 disabled:opacity-50"
                     disabled="@(currentListId == 0)"
                     @onclick="OpenAddModal">
-                <i class="fas fa-plus"></i>
-                <span>Добавить продукт</span>
+                <span class="hidden sm:inline">Добавить продукт</span>
+                <i class="fas fa-plus sm:hidden"></i>
             </button>
         </div>
     </header>

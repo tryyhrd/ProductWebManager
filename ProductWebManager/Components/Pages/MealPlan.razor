@@ -13,12 +13,12 @@
 
 <PageTitle>SmartPlate AI — План питания</PageTitle>
 
-<div class="max-w-[1440px] mx-auto px-4 py-4 sm:p-6 lg:p-10 font-sans">
+<div class="max-w-[1100px] mx-auto px-4 py-4 sm:p-6 font-sans min-h-screen text-slate-800">
     @if (!string.IsNullOrEmpty(errorMessage))
     {
-        <div class="mb-6 p-4 bg-red-50 border-l-4 border-red-500 rounded-xl text-red-700 flex justify-between items-center shadow-sm animate-fade-in">
-            <div class="flex items-center gap-3">
-                <i class="fas fa-exclamation-circle text-lg"></i>
+        <div class="mb-4 sm:mb-6 p-3 sm:p-4 bg-red-50 border-l-4 border-red-500 rounded-lg text-red-700 flex justify-between items-center shadow-sm animate-fade-in text-sm">
+            <div class="flex items-center gap-2 sm:gap-3">
+                <i class="fas fa-exclamation-circle text-base sm:text-lg"></i>
                 <span class="font-medium">@errorMessage</span>
             </div>
             <button @onclick="() => errorMessage = string.Empty" class="text-red-400 hover:text-red-600 transition-colors">
@@ -27,33 +27,32 @@
         </div>
     }
 
-    <header class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6 sm:mb-10">
+    <header class="flex items-center justify-between pb-2 mb-4 sm:mb-6 border-none">
         <div>
-            <h1 class="text-2xl sm:text-4xl font-black text-slate-900 tracking-tighter">Персональный план</h1>
-            <p class="text-slate-500 font-medium mt-1 text-sm sm:text-base">Персональный план на основе AI</p>
+            <h1 class="text-lg sm:text-xl font-bold tracking-tight text-slate-900">Персональный план</h1>
         </div>
 
-        <div class="flex flex-wrap gap-3 w-full md:w-auto">
+        <div class="flex items-center gap-2 sm:gap-3">
             @if (mealPlanDays.Any())
             {
                 <button @onclick="OpenShoppingListPreview"
-                        class="flex items-center gap-3 bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 text-indigo-700 px-6 py-4 rounded-2xl font-bold transition-all shadow-sm">
+                        class="flex items-center justify-center gap-2 bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 text-indigo-700 px-3.5 py-2 rounded-lg text-xs font-semibold transition-colors shadow-sm">
                     <i class="fas fa-shopping-basket"></i>
-                    <span>Список покупок</span>
+                    <span class="hidden sm:inline">Список покупок</span>
                 </button>
             }
 
             <button @onclick="GenerateMealPlanAsync" disabled="@(isGenerating || replacingMealId != -1)"
-                    class="flex items-center gap-3 bg-slate-900 hover:bg-indigo-600 text-white px-8 py-4 rounded-2xl font-bold transition-all transform hover:-translate-y-1 shadow-xl disabled:opacity-50 disabled:cursor-not-allowed">
+                    class="flex items-center justify-center gap-2 bg-slate-900 hover:bg-slate-800 text-white px-3.5 py-2 rounded-lg text-xs font-semibold transition-colors shadow-sm active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed">
                 @if (isGenerating)
                 {
-                    <div class="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                    <span>@(string.IsNullOrEmpty(generationStep) ? "Формирование меню..." : generationStep)</span>
+                    <div class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                    <span class="hidden sm:inline">@(string.IsNullOrEmpty(generationStep) ? "Формирование..." : generationStep)</span>
                 }
                 else
                 {
                     <i class="fas fa-bolt"></i>
-                    <span>Обновить меню</span>
+                    <span class="hidden sm:inline">Обновить</span>
                 }
             </button>
         </div>
