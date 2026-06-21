@@ -243,10 +243,10 @@
     // Примечание: Если в вашей таблице `Product` или `RecipeIngredient` появятся
     // свойства Calories/Proteins/Fats/Carbs, просто замените формулу (например: ri.Product.Calories * ri.Quantity)
 
-    private int GetIngredientCalories(RecipeIngredient ri) => (int)Math.Round(ProductWebManager.Services.NutritionCalculator.CalculateCalories(ri.Product, ri.Quantity));
-    private int GetIngredientProteins(RecipeIngredient ri) => (int)Math.Round(ProductWebManager.Services.NutritionCalculator.CalculateProteins(ri.Product, ri.Quantity));
-    private int GetIngredientFats(RecipeIngredient ri) => (int)Math.Round(ProductWebManager.Services.NutritionCalculator.CalculateFats(ri.Product, ri.Quantity));
-    private int GetIngredientCarbs(RecipeIngredient ri) => (int)Math.Round(ProductWebManager.Services.NutritionCalculator.CalculateCarbs(ri.Product, ri.Quantity));
+    private int GetIngredientCalories(RecipeIngredient ri) => (int)Math.Round(ProductWebManager.Services.NutritionCalculator.CalculateCalories(ri.Product, ri.Quantity, ri.Unit));
+    private int GetIngredientProteins(RecipeIngredient ri) => (int)Math.Round(ProductWebManager.Services.NutritionCalculator.CalculateProteins(ri.Product, ri.Quantity, ri.Unit));
+    private int GetIngredientFats(RecipeIngredient ri) => (int)Math.Round(ProductWebManager.Services.NutritionCalculator.CalculateFats(ri.Product, ri.Quantity, ri.Unit));
+    private int GetIngredientCarbs(RecipeIngredient ri) => (int)Math.Round(ProductWebManager.Services.NutritionCalculator.CalculateCarbs(ri.Product, ri.Quantity, ri.Unit));
 
     // СУММАРНЫЕ ЗНАЧЕНИЯ ДЛЯ ВСЕГО РЕЦЕПТА
     private int GetTotalCalories() => recipe?.RecipeIngredients.Sum(ri => GetIngredientCalories(ri)) ?? 0;

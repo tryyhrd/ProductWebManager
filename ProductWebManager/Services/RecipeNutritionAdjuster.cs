@@ -1,4 +1,4 @@
-﻿using ProductWebManager.Models;
+using ProductWebManager.Models;
 
 namespace ProductWebManager.Services;
 
@@ -22,10 +22,10 @@ public static class RecipeNutritionAdjuster
         {
             if (ingredient.Product == null) continue;
 
-            calories += NutritionCalculator.CalculateCalories(ingredient.Product, ingredient.Quantity);
-            proteins += NutritionCalculator.CalculateProteins(ingredient.Product, ingredient.Quantity);
-            fats += NutritionCalculator.CalculateFats(ingredient.Product, ingredient.Quantity);
-            carbs += NutritionCalculator.CalculateCarbs(ingredient.Product, ingredient.Quantity);
+            calories += NutritionCalculator.CalculateCalories(ingredient.Product, ingredient.Quantity, ingredient.Unit);
+            proteins += NutritionCalculator.CalculateProteins(ingredient.Product, ingredient.Quantity, ingredient.Unit);
+            fats += NutritionCalculator.CalculateFats(ingredient.Product, ingredient.Quantity, ingredient.Unit);
+            carbs += NutritionCalculator.CalculateCarbs(ingredient.Product, ingredient.Quantity, ingredient.Unit);
         }
 
         return new MealNutrition(calories, proteins, fats, carbs);
@@ -65,7 +65,7 @@ public static class RecipeNutritionAdjuster
             if (ingredient.Product == null) continue;
 
             double ingredientCalories = NutritionCalculator.CalculateCalories(
-                ingredient.Product, ingredient.Quantity);
+                ingredient.Product, ingredient.Quantity, ingredient.Unit);
 
             bool isMinor = ingredientCalories < MinSignificantCalories &&
                            ingredient.Quantity < MinSignificantGrams;
@@ -93,15 +93,15 @@ public static class RecipeNutritionAdjuster
             .Where(i => i.Product != null)
             .Where(i =>
             {
-                double cals = NutritionCalculator.CalculateCalories(i.Product!, i.Quantity);
+                double cals = NutritionCalculator.CalculateCalories(i.Product!, i.Quantity, i.Unit);
                 return cals >= MinSignificantCalories || i.Quantity >= MinSignificantGrams;
             })
-            .OrderByDescending(i => NutritionCalculator.CalculateCalories(i.Product!, i.Quantity))
+            .OrderByDescending(i => NutritionCalculator.CalculateCalories(i.Product!, i.Quantity, i.Unit))
             .FirstOrDefault();
 
         if (mainIngredient?.Product == null) return current;
 
-        double caloriesPerUnit = NutritionCalculator.CalculateCalories(mainIngredient.Product, 1);
+        double caloriesPerUnit = NutritionCalculator.CalculateCalories(mainIngredient.Product, 1, mainIngredient.Unit);
         if (caloriesPerUnit <= 0) return current;
 
         double adjustQuantity = delta / caloriesPerUnit;
@@ -127,19 +127,19 @@ public static class RecipeNutritionAdjuster
         var candidates = recipe.RecipeIngredients
             .Where(i => i.Product != null)
             .Where(i => i.Product!.Carbohydrates > 30 || i.Product!.Fats > 30)
-            .OrderByDescending(i => NutritionCalculator.CalculateCalories(i.Product!, i.Quantity))
+            .OrderByDescending(i => NutritionCalculator.CalculateCalories(i.Product!, i.Quantity, i.Unit))
             .ToList();
 
         if (!candidates.Any())
             candidates = recipe.RecipeIngredients
                 .Where(i => i.Product != null)
-                .OrderByDescending(i => NutritionCalculator.CalculateCalories(i.Product!, i.Quantity))
+                .OrderByDescending(i => NutritionCalculator.CalculateCalories(i.Product!, i.Quantity, i.Unit))
                 .ToList();
 
         var target = candidates.FirstOrDefault();
         if (target?.Product == null) return current;
 
-        double calPerUnit = NutritionCalculator.CalculateCalories(target.Product, 1);
+        double calPerUnit = NutritionCalculator.CalculateCalories(target.Product, 1, target.Unit);
         if (calPerUnit <= 0) return current;
 
         double adjust = diff / calPerUnit;
@@ -194,7 +194,7 @@ public static class RecipeNutritionAdjuster
         // 3. Корректируем основные ингредиенты
         if (mains.Any())
         {
-            double currentMainCals = mains.Sum(i => NutritionCalculator.CalculateCalories(i.Product!, i.Quantity));
+            double currentMainCals = mains.Sum(i => NutritionCalculator.CalculateCalories(i.Product!, i.Quantity, i.Unit));
             double mainFactor = currentMainCals > 0 ? targetMainCalories / currentMainCals : 1.0;
             mainFactor = Math.Clamp(mainFactor, 0.5, 2.0);
 
@@ -229,9 +229,9 @@ public static class RecipeNutritionAdjuster
         if (Math.Abs(remainingCalories) > 10 && extras.Any()) // если отклонение >10 ккал
         {
             var biggestExtra = extras.OrderByDescending(e =>
-                NutritionCalculator.CalculateCalories(e.Product!, e.Quantity)).First();
+                NutritionCalculator.CalculateCalories(e.Product!, e.Quantity, e.Unit)).First();
 
-            double calPerUnit = NutritionCalculator.CalculateCalories(biggestExtra.Product!, 1);
+            double calPerUnit = NutritionCalculator.CalculateCalories(biggestExtra.Product!, 1, biggestExtra.Unit);
             if (calPerUnit > 0)
             {
                 double adjustQty = remainingCalories / calPerUnit;

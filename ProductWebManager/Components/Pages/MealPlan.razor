@@ -683,10 +683,10 @@
                                     Name = ri.Product?.Name ?? "Ингредиент",
                                     Quantity = (double)ri.Quantity,
                                     Unit = ri.Unit?.Name ?? "г",
-                                    Calories = (int)Math.Round(ProductWebManager.Services.NutritionCalculator.CalculateCalories(ri.Product, (double)ri.Quantity)),
-                                    Proteins = (int)Math.Round(ProductWebManager.Services.NutritionCalculator.CalculateProteins(ri.Product, (double)ri.Quantity)),
-                                    Fats = (int)Math.Round(ProductWebManager.Services.NutritionCalculator.CalculateFats(ri.Product, (double)ri.Quantity)),
-                                    Carbs = (int)Math.Round(ProductWebManager.Services.NutritionCalculator.CalculateCarbs(ri.Product, (double)ri.Quantity)),
+                                    Calories = (int)Math.Round(ProductWebManager.Services.NutritionCalculator.CalculateCalories(ri.Product, (double)ri.Quantity, ri.Unit)),
+                                    Proteins = (int)Math.Round(ProductWebManager.Services.NutritionCalculator.CalculateProteins(ri.Product, (double)ri.Quantity, ri.Unit)),
+                                    Fats = (int)Math.Round(ProductWebManager.Services.NutritionCalculator.CalculateFats(ri.Product, (double)ri.Quantity, ri.Unit)),
+                                    Carbs = (int)Math.Round(ProductWebManager.Services.NutritionCalculator.CalculateCarbs(ri.Product, (double)ri.Quantity, ri.Unit)),
                                     ImageUrl = ri.Product?.ImageUrl,
                                     FridgeQuantity = ri.ProductId != 0 && fridgeItems.TryGetValue(ri.ProductId, out var fq) ? (fq ?? 0) : 0
                                 }).ToList() ?? new List<MealIngredientDto>()

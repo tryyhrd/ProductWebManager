@@ -49,36 +49,47 @@ public class MealPlanGeneratorService
         List<string>? fridgeProductNames = null;
         List<string>? allergies = null;
 
-        await using (var dbContext = await _dbContextFactory.CreateDbContextAsync())
-        {
-            if (useFridgeProducts)
+            List<string> existingRecipes = new();
+            await using (var dbContext = await _dbContextFactory.CreateDbContextAsync())
             {
-                fridgeProductNames = await dbContext.FridgeItems
-                    .Include(f => f.Product)
-                    .Where(f => f.UserId == userId && f.Quantity >= minFridgeQuantity)
-                    .Select(f => f.Product.Name)
+                if (useFridgeProducts)
+                {
+                    fridgeProductNames = await dbContext.FridgeItems
+                        .Include(f => f.Product)
+                        .Where(f => f.UserId == userId && f.Quantity >= minFridgeQuantity)
+                        .Select(f => f.Product.Name)
+                        .ToListAsync();
+                }
+
+                allergies = await dbContext.UserAllergies
+                    .Include(a => a.Allergy)
+                    .Where(a => a.UserId == userId)
+                    .Select(a => a.Allergy.Name)
+                    .ToListAsync();
+                var allergyIds = await dbContext.UserAllergies
+                    .Where(a => a.UserId == userId)
+                    .Select(a => a.AllergyId)
+                    .ToListAsync();
+                    
+                existingRecipes = await dbContext.Recipes
+                    .Where(r => r.ImageUrl != null && r.ImageUrl != "")
+                    .Where(r => !r.RecipeIngredients.Any(ri => ri.Product != null && ri.Product.ProductAllergies.Any(pa => allergyIds.Contains(pa.AllergyId))))
+                    .Select(r => r.Title!)
                     .ToListAsync();
             }
 
-            allergies = await dbContext.UserAllergies
-                .Include(a => a.Allergy)
-                .Where(a => a.UserId == userId)
-                .Select(a => a.Allergy.Name)
-                .ToListAsync();
-        }
-
-        progress?.Report("Запрос к нейросети для формирования меню...");
-        var planStructure = await _gigaChatAi.GenerateMealPlanStructureAsync(
-            profile,
-            generationDays,
-            selectedGoal,
-            targetCalories,
-            targetProteins,
-            targetFats,
-            targetCarbs,
-            useFridgeProducts,
-            "balanced",
-            null,
+            progress?.Report("Запрос к нейросети для формирования меню...");
+            var planStructure = await _gigaChatAi.GenerateMealPlanStructureAsync(
+                profile,
+                generationDays,
+                selectedGoal,
+                targetCalories,
+                targetProteins,
+                targetFats,
+                targetCarbs,
+                useFridgeProducts,
+                "balanced",
+                existingRecipes,
             fridgeProductNames,
             allergies);
 
@@ -127,10 +138,82 @@ public class MealPlanGeneratorService
                 {
                     var existingRecipe = await _recipeResolver.FindRecipeAsync(aiMeal.Title);
                     Recipe recipeToUse;
+                    Recipe? dbTemplateForRecipe = null;
 
                     if (existingRecipe != null)
                     {
-                        recipeToUse = await context.Recipes.Include(r => r.RecipeIngredients).FirstOrDefaultAsync(r => r.Id == existingRecipe.Id) ?? existingRecipe;
+                        var dbTemplate = await context.Recipes.Include(r => r.RecipeIngredients).ThenInclude(ri => ri.Product).ThenInclude(p => p.ProductAllergies).ThenInclude(pa => pa.Allergy).FirstOrDefaultAsync(r => r.Id == existingRecipe.Id) ?? existingRecipe;
+                        
+                        bool hasAllergen = false;
+                        if (allergies != null && allergies.Any())
+                        {
+                            hasAllergen = dbTemplate.RecipeIngredients.Any(ri => 
+                                ri.Product != null && ri.Product.ProductAllergies.Any(pa => pa.Allergy != null && allergies.Contains(pa.Allergy.Name)));
+                        }
+
+                        if (hasAllergen)
+                        {
+                            existingRecipe = null;
+                        }
+                        else
+                        {
+                            dbTemplateForRecipe = dbTemplate;
+                        }
+                    }
+
+                    if (existingRecipe != null && dbTemplateForRecipe != null)
+                    {
+                        recipeToUse = new Recipe
+                        {
+                            Title = dbTemplateForRecipe.Title,
+                            Description = dbTemplateForRecipe.Description ?? "",
+                            Instructions = dbTemplateForRecipe.Instructions,
+                            ImageUrl = dbTemplateForRecipe.ImageUrl,
+                            PrepTime = dbTemplateForRecipe.PrepTime,
+                            CookTime = dbTemplateForRecipe.CookTime,
+                            RecipeIngredients = new List<RecipeIngredient>()
+                        };
+
+                        double baseCalories = dbTemplateForRecipe.RecipeIngredients.Sum(ri => NutritionCalculator.CalculateCalories(ri.Product, ri.Quantity, ri.Unit));
+                        double targetCaloriesForMeal = aiMeal.Calories > 0 ? aiMeal.Calories : baseCalories;
+                        double scale = baseCalories > 0 ? targetCaloriesForMeal / baseCalories : 1.0;
+                        
+                        // Защита от слишком сильного искажения (от 0.3 до 3.0)
+                        scale = Math.Max(0.3, Math.Min(3.0, scale));
+
+                        foreach (var ri in dbTemplateForRecipe.RecipeIngredients)
+                        {
+                            double newQuantity = ri.Quantity * scale;
+                            
+                            // Для штучных продуктов округляем логично
+                            if (ri.Product != null && ri.Product.IsPieceBased)
+                            {
+                                bool isEgg = ri.Product.Name.ToLower().Contains("яйц");
+                                if (isEgg)
+                                {
+                                    // Яйца - только целые штуки
+                                    newQuantity = Math.Max(1, Math.Round(newQuantity));
+                                }
+                                else
+                                {
+                                    // Фрукты/овощи - с шагом 0.5 (половина яблока, полтора банана и т.д.)
+                                    newQuantity = Math.Max(0.5, Math.Round(newQuantity * 2) / 2.0);
+                                }
+                            }
+                            else
+                            {
+                                newQuantity = Math.Max(1, Math.Round(newQuantity));
+                            }
+
+                            recipeToUse.RecipeIngredients.Add(new RecipeIngredient
+                            {
+                                ProductId = ri.ProductId,
+                                Product = ri.Product!,
+                                Quantity = newQuantity,
+                                UnitId = ri.UnitId,
+                                Unit = ri.Unit
+                            });
+                        }
                     }
                     else
                     {
@@ -167,7 +250,25 @@ public class MealPlanGeneratorService
                             bool aiSentGrams = unitLower is "г" or "гр" or "мл" or "г." or "гр.";
                             if (dbProduct.IsPieceBased && aiSentGrams && dbProduct.AverageWeightGrams > 0)
                             {
-                                quantity = Math.Max(1, Math.Round(quantity / dbProduct.AverageWeightGrams.Value, 1));
+                                double pieces = quantity / dbProduct.AverageWeightGrams.Value;
+                                bool isEgg = dbProduct.Name.ToLower().Contains("яйц");
+                                
+                                if (isEgg)
+                                {
+                                    quantity = Math.Max(1, Math.Round(pieces));
+                                }
+                                else
+                                {
+                                    quantity = Math.Max(0.5, Math.Round(pieces * 2) / 2.0);
+                                }
+                                
+                                // Обязательно меняем единицу измерения на 'шт.'
+                                if (!unitCache.TryGetValue("шт.", out var pieceUnit))
+                                {
+                                    pieceUnit = await context.Set<Unit>().FirstOrDefaultAsync(u => u.Name == "шт.") ?? new Unit { Name = "шт." };
+                                    unitCache["шт."] = pieceUnit;
+                                }
+                                dbUnit = pieceUnit;
                             }
 
                             recipeToUse.RecipeIngredients.Add(new RecipeIngredient { Product = dbProduct, Quantity = quantity, Unit = dbUnit });
@@ -179,13 +280,13 @@ public class MealPlanGeneratorService
                     if (recipeToUse.RecipeIngredients.Any())
                     {
                         mealCalories = (int)Math.Round(recipeToUse.RecipeIngredients.Sum(ri =>
-                            NutritionCalculator.CalculateCalories(ri.Product, ri.Quantity)));
+                            NutritionCalculator.CalculateCalories(ri.Product, ri.Quantity, ri.Unit)));
                         mealProteins = (int)Math.Round(recipeToUse.RecipeIngredients.Sum(ri =>
-                            NutritionCalculator.CalculateProteins(ri.Product, ri.Quantity)));
+                            NutritionCalculator.CalculateProteins(ri.Product, ri.Quantity, ri.Unit)));
                         mealFats = (int)Math.Round(recipeToUse.RecipeIngredients.Sum(ri =>
-                            NutritionCalculator.CalculateFats(ri.Product, ri.Quantity)));
+                            NutritionCalculator.CalculateFats(ri.Product, ri.Quantity, ri.Unit)));
                         mealCarbs = (int)Math.Round(recipeToUse.RecipeIngredients.Sum(ri =>
-                            NutritionCalculator.CalculateCarbs(ri.Product, ri.Quantity)));
+                            NutritionCalculator.CalculateCarbs(ri.Product, ri.Quantity, ri.Unit)));
 
                         // Sanity check: если расчёт даёт абсурдные значения, откатываемся на данные от AI
                         if (mealCalories > 5000 || mealCalories <= 0)
@@ -320,9 +421,56 @@ public class MealPlanGeneratorService
             var existingRecipe = await _recipeResolver.FindRecipeAsync(replacementDto.Title);
             Recipe recipeToUse;
 
+            Recipe? dbTemplateForRecipe = null;
+
             if (existingRecipe != null)
             {
-                recipeToUse = await context.Recipes.Include(r => r.RecipeIngredients).FirstOrDefaultAsync(r => r.Id == existingRecipe.Id) ?? existingRecipe;
+                var dbTemplate = await context.Recipes.Include(r => r.RecipeIngredients).ThenInclude(ri => ri.Product).ThenInclude(p => p.ProductAllergies).ThenInclude(pa => pa.Allergy).FirstOrDefaultAsync(r => r.Id == existingRecipe.Id) ?? existingRecipe;
+                
+                bool hasAllergen = false;
+                if (allergies != null && allergies.Any())
+                {
+                    hasAllergen = dbTemplate.RecipeIngredients.Any(ri => 
+                        ri.Product != null && ri.Product.ProductAllergies.Any(pa => pa.Allergy != null && allergies.Contains(pa.Allergy.Name)));
+                }
+
+                if (hasAllergen)
+                {
+                    existingRecipe = null;
+                }
+                else
+                {
+                    dbTemplateForRecipe = dbTemplate;
+                }
+            }
+
+            if (existingRecipe != null && dbTemplateForRecipe != null)
+            {
+                recipeToUse = new Recipe
+                {
+                    Title = dbTemplateForRecipe.Title,
+                    Description = dbTemplateForRecipe.Description ?? "",
+                    Instructions = dbTemplateForRecipe.Instructions,
+                    ImageUrl = dbTemplateForRecipe.ImageUrl,
+                    PrepTime = dbTemplateForRecipe.PrepTime,
+                    CookTime = dbTemplateForRecipe.CookTime,
+                    RecipeIngredients = new List<RecipeIngredient>()
+                };
+
+                double baseCalories = dbTemplateForRecipe.RecipeIngredients.Sum(ri => NutritionCalculator.CalculateCalories(ri.Product, ri.Quantity, ri.Unit));
+                
+                // Просто копируем ингредиенты без масштабирования здесь. Масштабирование будет применено ко всем сценариями ниже.
+                foreach (var ri in dbTemplateForRecipe.RecipeIngredients)
+                {
+                    recipeToUse.RecipeIngredients.Add(new RecipeIngredient
+                    {
+                        ProductId = ri.ProductId,
+                        Product = ri.Product!,
+                        Quantity = ri.Quantity,
+                        UnitId = ri.UnitId,
+                        Unit = ri.Unit
+                    });
+                }
             }
             else
             {
@@ -364,11 +512,55 @@ public class MealPlanGeneratorService
                     bool aiSentGrams = unitLower is "г" or "гр" or "мл" or "г." or "гр.";
                     if (dbProduct.IsPieceBased && aiSentGrams && dbProduct.AverageWeightGrams > 0)
                     {
-                        quantity = Math.Max(1, Math.Round(quantity / dbProduct.AverageWeightGrams.Value, 1));
+                        double pieces = quantity / dbProduct.AverageWeightGrams.Value;
+                        bool isEgg = dbProduct.Name.ToLower().Contains("яйц");
+                        
+                        if (isEgg)
+                        {
+                            quantity = Math.Max(1, Math.Round(pieces));
+                        }
+                        else
+                        {
+                            quantity = Math.Max(0.5, Math.Round(pieces * 2) / 2.0);
+                        }
+                        
+                        // Обязательно меняем единицу измерения на 'шт.'
+                        if (!unitCache.TryGetValue("шт.", out var pieceUnit))
+                        {
+                            pieceUnit = await context.Set<Unit>().FirstOrDefaultAsync(u => u.Name == "шт.") ?? new Unit { Name = "шт." };
+                            unitCache["шт."] = pieceUnit;
+                        }
+                        dbUnit = pieceUnit;
                     }
 
                     recipeToUse.RecipeIngredients.Add(new RecipeIngredient { Product = dbProduct, Quantity = quantity, Unit = dbUnit });
 
+                }
+            }
+
+            // Универсальное масштабирование всех ингредиентов под строгий целевой калораж замены
+            double currentCaloriesSum = recipeToUse.RecipeIngredients.Sum(ri => NutritionCalculator.CalculateCalories(ri.Product, ri.Quantity, ri.Unit));
+            if (currentCaloriesSum > 0)
+            {
+                double scale = (double)replacementTargetCalories / currentCaloriesSum;
+                scale = Math.Max(0.3, Math.Min(3.0, scale));
+                if (Math.Abs(scale - 1.0) > 0.02)
+                {
+                    foreach (var ri in recipeToUse.RecipeIngredients)
+                    {
+                        double newQuantity = ri.Quantity * scale;
+                        if (ri.Product != null && ri.Product.IsPieceBased)
+                        {
+                            bool isEgg = ri.Product.Name.ToLower().Contains("яйц");
+                            if (isEgg) newQuantity = Math.Max(1, Math.Round(newQuantity));
+                            else newQuantity = Math.Max(0.5, Math.Round(newQuantity * 2) / 2.0);
+                        }
+                        else
+                        {
+                            newQuantity = Math.Max(1, Math.Round(newQuantity, 1));
+                        }
+                        ri.Quantity = newQuantity;
+                    }
                 }
             }
 
@@ -378,13 +570,13 @@ public class MealPlanGeneratorService
             if (recipeToUse.RecipeIngredients.Any())
             {
                 mealCalories = (int)Math.Round(recipeToUse.RecipeIngredients.Sum(ri =>
-                    NutritionCalculator.CalculateCalories(ri.Product, ri.Quantity)));
+                    NutritionCalculator.CalculateCalories(ri.Product, ri.Quantity, ri.Unit)));
                 mealProteins = (int)Math.Round(recipeToUse.RecipeIngredients.Sum(ri =>
-                    NutritionCalculator.CalculateProteins(ri.Product, ri.Quantity)));
+                    NutritionCalculator.CalculateProteins(ri.Product, ri.Quantity, ri.Unit)));
                 mealFats = (int)Math.Round(recipeToUse.RecipeIngredients.Sum(ri =>
-                    NutritionCalculator.CalculateFats(ri.Product, ri.Quantity)));
+                    NutritionCalculator.CalculateFats(ri.Product, ri.Quantity, ri.Unit)));
                 mealCarbs = (int)Math.Round(recipeToUse.RecipeIngredients.Sum(ri =>
-                    NutritionCalculator.CalculateCarbs(ri.Product, ri.Quantity)));
+                    NutritionCalculator.CalculateCarbs(ri.Product, ri.Quantity, ri.Unit)));
 
                 // Sanity check: если расчёт даёт абсурдные значения (>5000 ккал на блюдо),
                 // откатываемся на данные от AI
@@ -566,7 +758,7 @@ public class MealPlanGeneratorService
             Carbohydrates = apiCarbs,
             Calories = apiCalories,
             ImageUrl = imageUrl,
-            IsPieceBased = false
+            IsPieceBased = dbUnit.Name.ToLower() is "шт" or "шт." or "штука" or "штук" or "порция" or "порций"
         };
         context.Products.Add(dbProduct);
 
