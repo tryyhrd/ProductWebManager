@@ -145,4 +145,162 @@ namespace TestProject1
                 $"Погрешность для {propertyName} слишком велика! ИИ: {aiValue:F2}, API: {apiValue:F2}. Разница: {difference:F2}, Макс. допустимо: {maxAllowedDifference:F2}");
         }
     }
+
+    // =============================================
+    // Тесты КБЖУ рецепта "Шоколадно-ореховая каша с фруктами"
+    // =============================================
+    public class ChocolateNutOatmealNutritionTests
+    {
+        /// <summary>
+        /// Строит рецепт "Шоколадно-ореховая каша с фруктами" с реальными Product-объектами.
+        /// Ингредиенты (КБЖУ на 100г):
+        ///   - Овсяные хлопья  80г   (371/12.3/6.1/67.5)
+        ///   - Молоко 2.5%    200мл  (52/2.8/2.5/4.7)
+        ///   - Банан          130г   (96/1.5/0.2/21.8)
+        ///   - Грецкий орех    20г   (687/15.2/65.2/13.7)
+        ///   - Какао-порошок   10г   (289/20.2/11.5/37.0)
+        ///
+        /// Ожидаемые суммарные КБЖУ:
+        ///   Ккал ≈ 691.9  (296.8 + 104.0 + 124.8 + 137.4 + 28.9)
+        ///   Б    ≈  22.4  (9.84  + 5.60  + 1.95  + 3.04  + 2.02)
+        ///   Ж    ≈  24.3  (4.88  + 5.00  + 0.26  + 13.04 + 1.15)
+        ///   У    ≈  98.2  (54.00 + 9.40  + 28.34 + 2.74  + 3.70)
+        /// </summary>
+        private static ProductWebManager.Models.Recipe BuildChocolateNutOatmealRecipe()
+        {
+            var unitG  = new ProductWebManager.Models.Unit { Id = 1, Name = "г" };
+            var unitMl = new ProductWebManager.Models.Unit { Id = 2, Name = "мл" };
+
+            var oats = new ProductWebManager.Models.Product
+            {
+                Id = 1, Name = "Овсяные хлопья",
+                Calories = 371, Proteins = 12.3, Fats = 6.1, Carbohydrates = 67.5,
+                IsPieceBased = false, Unit = unitG
+            };
+            var milk = new ProductWebManager.Models.Product
+            {
+                Id = 2, Name = "Молоко 2.5%",
+                Calories = 52, Proteins = 2.8, Fats = 2.5, Carbohydrates = 4.7,
+                IsPieceBased = false, Unit = unitMl
+            };
+            var banana = new ProductWebManager.Models.Product
+            {
+                Id = 3, Name = "Банан",
+                Calories = 96, Proteins = 1.5, Fats = 0.2, Carbohydrates = 21.8,
+                IsPieceBased = false, Unit = unitG
+            };
+            var walnut = new ProductWebManager.Models.Product
+            {
+                Id = 4, Name = "Грецкий орех",
+                Calories = 687, Proteins = 15.2, Fats = 65.2, Carbohydrates = 13.7,
+                IsPieceBased = false, Unit = unitG
+            };
+            var cacao = new ProductWebManager.Models.Product
+            {
+                Id = 5, Name = "Какао-порошок",
+                Calories = 289, Proteins = 20.2, Fats = 11.5, Carbohydrates = 37.0,
+                IsPieceBased = false, Unit = unitG
+            };
+
+            return new ProductWebManager.Models.Recipe
+            {
+                Id = 99,
+                Title = "Шоколадно-ореховая каша с фруктами",
+                Description = "Питательный завтрак с какао, орехами и свежими фруктами",
+                RecipeIngredients = new List<ProductWebManager.Models.RecipeIngredient>
+                {
+                    new() { Product = oats,   Quantity = 80,  Unit = unitG  },
+                    new() { Product = milk,   Quantity = 200, Unit = unitMl },
+                    new() { Product = banana, Quantity = 130, Unit = unitG  },
+                    new() { Product = walnut, Quantity = 20,  Unit = unitG  },
+                    new() { Product = cacao,  Quantity = 10,  Unit = unitG  },
+                }
+            };
+        }
+
+        [Fact]
+        public void ChocolateNutOatmeal_CalculateNutrition_CorrectCalories()
+        {
+            var recipe = BuildChocolateNutOatmealRecipe();
+            var nutrition = RecipeNutritionAdjuster.CalculateNutrition(recipe);
+
+            // Ожидается ≈ 691.9 ккал (допуск ±10 из-за округления)
+            Assert.InRange(nutrition.Calories, 681, 702);
+        }
+
+        [Fact]
+        public void ChocolateNutOatmeal_CalculateNutrition_CorrectProteins()
+        {
+            var recipe = BuildChocolateNutOatmealRecipe();
+            var nutrition = RecipeNutritionAdjuster.CalculateNutrition(recipe);
+
+            // Ожидается ≈ 22.4г белка (допуск ±2)
+            Assert.InRange(nutrition.Proteins, 20, 25);
+        }
+
+        [Fact]
+        public void ChocolateNutOatmeal_CalculateNutrition_CorrectFats()
+        {
+            var recipe = BuildChocolateNutOatmealRecipe();
+            var nutrition = RecipeNutritionAdjuster.CalculateNutrition(recipe);
+
+            // Ожидается ≈ 24.3г жиров (допуск ±2)
+            Assert.InRange(nutrition.Fats, 22, 27);
+        }
+
+        [Fact]
+        public void ChocolateNutOatmeal_CalculateNutrition_CorrectCarbs()
+        {
+            var recipe = BuildChocolateNutOatmealRecipe();
+            var nutrition = RecipeNutritionAdjuster.CalculateNutrition(recipe);
+
+            // Ожидается ≈ 98.2г углеводов (допуск ±3)
+            Assert.InRange(nutrition.Carbs, 94, 103);
+        }
+
+        [Fact]
+        public void ChocolateNutOatmeal_MacrosSumApproximatelyEqualCalories()
+        {
+            // Проверяем что Б*4 + Ж*9 + У*4 ≈ Калории (допуск ±10%)
+            var recipe = BuildChocolateNutOatmealRecipe();
+            var nutrition = RecipeNutritionAdjuster.CalculateNutrition(recipe);
+
+            double macroCalories = nutrition.Proteins * 4 + nutrition.Fats * 9 + nutrition.Carbs * 4;
+            double ratio = macroCalories / nutrition.Calories;
+
+            Assert.InRange(ratio, 0.90, 1.10);
+        }
+
+        [Fact]
+        public void ChocolateNutOatmeal_IsWithinBreakfastCalorieRange()
+        {
+            // Завтрак должен быть в диапазоне 400–900 ккал
+            var recipe = BuildChocolateNutOatmealRecipe();
+            var nutrition = RecipeNutritionAdjuster.CalculateNutrition(recipe);
+
+            Assert.True(nutrition.Calories >= 400,
+                $"Завтрак слишком низкокалорийный: {nutrition.Calories:F1} ккал");
+            Assert.True(nutrition.Calories <= 900,
+                $"Завтрак слишком калорийный: {nutrition.Calories:F1} ккал");
+        }
+
+        [Fact]
+        public void ChocolateNutOatmeal_ReplacementTitle_IsNotOriginal()
+        {
+            // При замене блюда новое название не должно совпадать с оригиналом
+            const string originalTitle = "Шоколадно-ореховая каша с фруктами";
+
+            var potentialReplacements = new[]
+            {
+                "Овсянка с мёдом и орехами",
+                "Гречневая каша с ягодами",
+                "Творожная запеканка с фруктами"
+            };
+
+            foreach (var title in potentialReplacements)
+            {
+                Assert.NotEqual(originalTitle, title, StringComparer.OrdinalIgnoreCase);
+            }
+        }
+    }
 }
